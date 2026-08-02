@@ -1,120 +1,11 @@
 'use strict';
 
 /* =========================================================================
- * הגדרות
- * DATA_URL — מאיפה נטענים הנתונים. ברירת המחדל: קובץ ה-JSON שמתעדכן
- * אוטומטית ע"י ה-GitHub Action. אפשר להחליף לכתובת CSV ציבורית של
- * Google Sheets (File → Share → Publish to web → CSV) — הקוד מזהה לבד.
- * ========================================================================= */
-const DATA_URL = 'data/health.json';
-const SLEEP_GOAL_HOURS = 8;
-const STEPS_GOAL = 10000;
-
-/* צבעי סדרות — תואמים ל-style.css, עברו ולידציית נגישות מול #1e293b */
-const C = {
-  blue: '#3987e5',
-  green: '#199e70',
-  violet: '#9085e9',
-  red: '#e66767',
-  orange: '#d95926',
-  muted: '#64748b',
-  ink2: '#94a3b8',
-  grid: '#2b3a52',
-  surface: '#1e293b',
-};
-
-/* =========================================================================
- * נתוני דמו — 14 ימים אחרונים, נוצרים דטרמיניסטית כדי שהדשבורד יעבוד
- * מיד גם לפני הסנכרון הראשון מגרמין.
- * ========================================================================= */
-function buildMockData() {
-  const rand = (seed => () => {
-    seed = (seed * 1664525 + 1013904223) % 4294967296;
-    return seed / 4294967296;
-  })(42);
-
-  const rows = [];
-  const today = new Date();
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const sleepHours = +(6.2 + rand() * 2.4).toFixed(2);
-    const deep = Math.round(50 + rand() * 40);
-    const rem = Math.round(70 + rand() * 50);
-    const light = Math.round(sleepHours * 60 - deep - rem);
-    rows.push({
-      date: d.toISOString().slice(0, 10),
-      sleep_hours: sleepHours,
-      sleep_score: Math.round(65 + rand() * 30),
-      deep_min: deep,
-      light_min: light,
-      rem_min: rem,
-      awake_min: Math.round(5 + rand() * 20),
-      rhr: Math.round(50 + rand() * 8),
-      hrv: Math.round(38 + rand() * 25),
-      stress_avg: Math.round(20 + rand() * 30),
-      body_battery_high: Math.round(70 + rand() * 30),
-      body_battery_low: Math.round(5 + rand() * 30),
-      steps: Math.round(4000 + rand() * 9000),
-      calories: Math.round(2000 + rand() * 700),
-      intensity_min: Math.round(rand() * 60),
-    });
-  }
-  return rows;
-}
-
-/* =========================================================================
- * טעינה ופארסינג
+ * script.js — לוגיקת הדשבורד (KPI, גרפים, טבלה, סינון).
+ * מסתמך על common.js שנטען לפניו (DATA_URL, C, loadHealthData, avg, fmt,
+ * shortDate, longDate, minToHm, $ ...).
  * ========================================================================= */
 
-/* מיפוי כותרות CSV נפוצות (Google Sheets / FitnessSyncer) לשדות שלנו */
-const CSV_FIELD_MAP = {
-  'date': 'date',
-  'sleep duration': 'sleep_hours', 'sleep hours': 'sleep_hours',
-  'sleep score': 'sleep_score',
-  'resting heart rate': 'rhr', 'rhr': 'rhr',
-  'hrv': 'hrv',
-  'stress': 'stress_avg', 'stress level': 'stress_avg',
-  'steps': 'steps',
-  'calories': 'calories',
-  'deep': 'deep_min', 'light': 'light_min', 'rem': 'rem_min',
-  'body battery high': 'body_battery_high', 'body battery low': 'body_battery_low',
-};
-
-function parseCsv(text) {
-  const lines = text.trim().split(/\r?\n/);
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-  const fields = headers.map(h => CSV_FIELD_MAP[h.toLowerCase()] || null);
-  return lines.slice(1).map(line => {
-    const cells = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-    const row = {};
-    fields.forEach((field, i) => {
-      if (!field || cells[i] === undefined || cells[i] === '') return;
-      row[field] = field === 'date' ? cells[i] : Number(cells[i]);
-    });
-    return row;
-  }).filter(r => r.date);
-}
-
-async function loadData() {
-  const res = await fetch(`${DATA_URL}?t=${Date.now()}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const text = await res.text();
-  let rows;
-  try {
-    rows = JSON.parse(text);
-  } catch {
-    rows = parseCsv(text);
-  }
-  if (!Array.isArray(rows) || rows.length === 0) throw new Error('אין נתונים בקובץ');
-  return rows
-    .filter(r => r.date)
-    .sort((a, b) => a.date.localeCompare(b.date));
-}
-
-/* =========================================================================
- * מצב האפליקציה
- * ========================================================================= */
 const state = {
   data: [],
   isDemo: false,
@@ -124,11 +15,6 @@ const state = {
 };
 
 const charts = {};   // מופעי Chart.js פעילים, לפי מזהה canvas
-
-/* =========================================================================
- * עזרים
- * ========================================================================= */
-const $ = id => document.getElementById(id);
 
 function visibleRows() {
   if (state.range === 'all') return state.data;
@@ -140,36 +26,6 @@ function previousRows() {
   if (state.range === 'all') return [];
   const n = state.range;
   return state.data.slice(-2 * n, -n);
-}
-
-function avg(rows, key) {
-  const vals = rows.map(r => r[key]).filter(v => v !== null && v !== undefined && !Number.isNaN(v));
-  if (!vals.length) return null;
-  return vals.reduce((s, v) => s + v, 0) / vals.length;
-}
-
-function fmt(value, decimals = 0) {
-  if (value === null || value === undefined) return '—';
-  return Number(value).toLocaleString('he-IL', {
-    minimumFractionDigits: decimals, maximumFractionDigits: decimals,
-  });
-}
-
-const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-
-function shortDate(iso) {
-  const [, m, d] = iso.split('-');
-  return `${+d}.${+m}`;
-}
-
-function longDate(iso) {
-  const date = new Date(`${iso}T12:00:00`);
-  return `יום ${DAY_NAMES[date.getDay()]}, ${shortDate(iso)}`;
-}
-
-function minToHm(min) {
-  if (min === null || min === undefined) return '—';
-  return `${Math.floor(min / 60)}:${String(Math.round(min % 60)).padStart(2, '0')}`;
 }
 
 /* =========================================================================
@@ -216,10 +72,6 @@ function renderKpis() {
 /* =========================================================================
  * גרפים (Chart.js)
  * ========================================================================= */
-Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', sans-serif";
-Chart.defaults.color = C.ink2;
-Chart.defaults.borderColor = C.grid;
-Chart.defaults.animation.duration = 400;
 
 /* אפשרויות משותפות לכל הגרפים; labelFn מעצב את שורת ה-tooltip */
 function baseOptions({ y = {}, stacked = false, labelFn = null } = {}) {
@@ -536,17 +388,13 @@ $('range-filter').addEventListener('click', event => {
  * אתחול
  * ========================================================================= */
 async function init() {
-  try {
-    state.data = await loadData();
-  } catch (err) {
-    console.warn('טעינת נתונים נכשלה, עובר לנתוני דמו:', err.message);
-    state.data = buildMockData();
-    state.isDemo = true;
-  }
+  const { data, isDemo } = await loadHealthData();
+  state.data = data;
+  state.isDemo = isDemo;
 
   $('loading').classList.add('hidden');
   $('app').classList.remove('hidden');
-  $('demo-banner').classList.toggle('hidden', !state.isDemo);
+  $('demo-banner').classList.toggle('hidden', !isDemo);
 
   const last = state.data[state.data.length - 1];
   $('last-updated').textContent = last
