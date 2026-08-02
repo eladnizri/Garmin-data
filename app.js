@@ -14,6 +14,32 @@ if (typeof Chart !== 'undefined') {
   Chart.defaults.borderColor = C.grid;
 }
 
+/* =========================================================================
+ * פרופיל אישי — נשמר מקומית במכשיר בלבד (localStorage), לא נשלח לשום מקום.
+ * ========================================================================= */
+const PROFILE_KEY = 'health_profile_v1';
+let profile = {};
+function loadProfile() {
+  try { profile = JSON.parse(localStorage.getItem(PROFILE_KEY)) || {}; }
+  catch { profile = {}; }
+}
+function saveProfileObj(p) { profile = p; try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {} }
+
+function goalSleep() { return profile.sleepGoal ? Number(profile.sleepGoal) : SLEEP_GOAL_HOURS; }
+function goalSteps() { return profile.stepsGoal ? Number(profile.stepsGoal) : STEPS_GOAL; }
+function bmi() {
+  if (!profile.heightCm || !profile.weightKg) return null;
+  const h = profile.heightCm / 100;
+  return profile.weightKg / (h * h);
+}
+function bmiCat(b) {
+  if (b < 18.5) return 'תת-משקל';
+  if (b < 25) return 'תקין';
+  if (b < 30) return 'עודף משקל';
+  return 'השמנה';
+}
+function maxHR() { return profile.age ? 220 - Number(profile.age) : null; }
+
 function visibleRows() {
   return state.range === 'all' ? state.data : state.data.slice(-state.range);
 }
@@ -152,7 +178,7 @@ const KPIS = {
       label: 'ימים ביעד', color: C.blue, emoji: '🎯',
       compute: rows => {
         const d = rows.filter(r => r.steps != null);
-        const hit = d.filter(r => r.steps >= STEPS_GOAL).length;
+        const hit = d.filter(r => r.steps >= goalSteps()).length;
         return { value: d.length ? Math.round((hit / d.length) * 100) : null, unit: '%', decimals: 0 };
       },
     },
@@ -259,9 +285,10 @@ function renderCharts() {
   ] }, options: opts({ min: 0, max: 100 }, i => `${i.dataset.label}: ${fmt(i.raw.y)}`) });
 
   /* שינה */
+  $('u-sleep').textContent = `יעד ${fmt(goalSleep(), Number.isInteger(goalSleep()) ? 0 : 1)} שעות`;
   maLegend('legend-sleep', C.blue, 'שעות שינה');
   make('chart-sleep', { type: 'bar', data: { labels, datasets: [
-    bar(rows, 'sleep_hours', C.blue), goalLine(rows, SLEEP_GOAL_HOURS), maLine(rows, 'sleep_hours'),
+    bar(rows, 'sleep_hours', C.blue), goalLine(rows, goalSleep()), maLine(rows, 'sleep_hours'),
   ] }, options: opts({ beginAtZero: true, suggestedMax: 10 }, i => `שינה: ${fmt(i.raw.y, 1)} שעות`) });
 
   const stages = [
@@ -278,9 +305,10 @@ function renderCharts() {
     i => `${i.dataset.label}: ${minToHm(i.raw.y)} שעות`, true) });
 
   /* צעדים */
+  $('u-steps').textContent = `יעד ${fmt(goalSteps())}`;
   maLegend('legend-steps', C.violet, 'צעדים יומי');
   make('chart-steps', { type: 'bar', data: { labels, datasets: [
-    bar(rows, 'steps', C.violet), goalLine(rows, STEPS_GOAL), maLine(rows, 'steps'),
+    bar(rows, 'steps', C.violet), goalLine(rows, goalSteps()), maLine(rows, 'steps'),
   ] }, options: opts({ beginAtZero: true }, i => `צעדים: ${fmt(i.raw.y)}`) });
 
   make('chart-activity', { type: 'bar', data: { labels, datasets: [bar(rows, 'calories', C.orange)] },
@@ -538,14 +566,82 @@ function sleepRecords() {
 function stepsRecords() {
   const rows = visibleRows();
   const best = extremeDay(rows, 'steps', 'max');
-  const streak = trailingStreak(rows, r => r.steps != null && r.steps >= STEPS_GOAL);
+  const streak = trailingStreak(rows, r => r.steps != null && r.steps >= goalSteps());
   const total = sumOf(rows, 'steps');
   return [
     best && recItem('👣', 'היום הפעיל ביותר', `${fmt(best.v)} צעדים`, `ב-${shortDate(best.date)}`),
-    streak >= 2 && recItem('🔥', 'רצף ימים ביעד', `${streak} ימים`, '10,000+ ברצף'),
+    streak >= 2 && recItem('🔥', 'רצף ימים ביעד', `${streak} ימים`, `${fmt(goalSteps())}+ ברצף`),
     total > 0 && recItem('📊', 'סה״כ צעדים בתקופה', fmt(total)),
   ];
 }
+
+/* =========================================================================
+ * פרופיל: כרטיס גוף (בית) + אזורי דופק (לב)
+ * ========================================================================= */
+function renderBody() {
+  const el = $('home-body');
+  const b = bmi(), mh = maxHR();
+  const hasProfile = profile.age || profile.heightCm || profile.weightKg || profile.sleepGoal || profile.stepsGoal;
+  if (!hasProfile) {
+    el.innerHTML = `<button class="prompt-card" id="open-profile">
+      <span class="pc-ic">👤</span>
+      <span><span class="pc-t">השלם פרופיל אישי</span><br><span class="pc-v">גיל, גובה ומשקל — לניתוח ויעדים מדויקים יותר</span></span>
+      <span class="sc-arrow">‹</span></button>`;
+    return;
+  }
+  const chips = [];
+  if (b) chips.push(`<div class="tchip"><span>⚖️</span><b>${b.toFixed(1)}</b><small>BMI · ${bmiCat(b)}</small></div>`);
+  if (mh) chips.push(`<div class="tchip"><span>❤️</span><b>${mh}</b><small>דופק מקס׳</small></div>`);
+  chips.push(`<div class="tchip"><span>💤</span><b>${fmt(goalSleep(), Number.isInteger(goalSleep()) ? 0 : 1)}</b><small>יעד שינה</small></div>`);
+  chips.push(`<div class="tchip"><span>👣</span><b>${fmt(goalSteps())}</b><small>יעד צעדים</small></div>`);
+  el.innerHTML = `<div class="body-card">
+    <div class="body-head"><h2>הפרופיל שלי</h2><button class="link-btn" id="open-profile">עריכה</button></div>
+    <div class="today-chips">${chips.join('')}</div></div>`;
+}
+
+function renderHrZones() {
+  const el = $('hr-zones');
+  const mh = maxHR();
+  if (!mh) { el.innerHTML = ''; return; }
+  const zones = [
+    [50, 60, 'התאוששות', C.teal],
+    [60, 70, 'שריפת שומן', C.blue],
+    [70, 80, 'אירובי', C.green],
+    [80, 90, 'אנאירובי', C.orange],
+    [90, 100, 'מקסימלי', C.red],
+  ];
+  el.innerHTML = `<article class="card">
+    <div class="card-head"><h2>אזורי דופק לאימון</h2><span class="unit">דופק מקס׳ ${mh} bpm</span></div>
+    <ul class="zones">${zones.map(z =>
+      `<li><span class="zdot" style="background:${z[3]}"></span><span class="zname">${z[2]}</span>
+       <span class="zrange">${Math.round(mh * z[0] / 100)}–${Math.round(mh * z[1] / 100)} bpm</span></li>`).join('')}</ul>
+  </article>`;
+}
+
+/* ===== מודאל פרופיל ===== */
+const PROFILE_FIELDS = ['age', 'heightCm', 'weightKg', 'sleepGoal', 'stepsGoal'];
+function fillProfileForm() {
+  const f = $('profile-form');
+  PROFILE_FIELDS.forEach(k => { if (f[k]) f[k].value = profile[k] ?? ''; });
+  if (f.sex) f.sex.value = profile.sex || '';
+}
+function openProfile() { fillProfileForm(); $('profile-modal').classList.remove('hidden'); }
+function closeProfile() { $('profile-modal').classList.add('hidden'); }
+
+$('profile-btn').addEventListener('click', openProfile);
+$('profile-modal').addEventListener('click', e => { if (e.target.closest('[data-close]')) closeProfile(); });
+$('home-body').addEventListener('click', e => { if (e.target.closest('#open-profile')) openProfile(); });
+$('profile-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target;
+  const p = {};
+  PROFILE_FIELDS.forEach(k => { const v = f[k].value.trim(); if (v !== '') p[k] = Number(v); });
+  if (f.sex.value) p.sex = f.sex.value;
+  saveProfileObj(p);
+  closeProfile();
+  renderAll();
+});
+$('profile-clear').addEventListener('click', () => { saveProfileObj({}); fillProfileForm(); closeProfile(); renderAll(); });
 
 /* =========================================================================
  * רינדור כולל
@@ -557,6 +653,7 @@ function renderAll() {
   });
   renderToday();
   renderReadiness();
+  renderBody();
   renderKpis('home-kpis', KPIS.home);
   renderHighlight();
   renderShortcuts();
@@ -564,6 +661,7 @@ function renderAll() {
   renderKpis('sleep-kpis', KPIS.sleep);
   renderKpis('steps-kpis', KPIS.steps);
   renderCharts();
+  renderHrZones();
   renderRecords('heart-records', '🏆 שיאים', heartRecords());
   renderRecords('sleep-records', '🏆 שיאים ורצפים', sleepRecords());
   renderRecords('steps-records', '🏆 שיאים ורצפים', stepsRecords());
@@ -613,6 +711,7 @@ $('range-filter').addEventListener('click', e => {
  * אתחול
  * ========================================================================= */
 async function init() {
+  loadProfile();
   const { data, isDemo } = await loadHealthData();
   state.data = data;
   state.isDemo = isDemo;
