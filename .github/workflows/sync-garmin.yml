@@ -2,8 +2,8 @@ name: Sync Garmin Data
 
 on:
   schedule:
-    # 05:30 UTC = 07:30/08:30 שעון ישראל, אחרי סנכרון הבוקר של השעון
-    - cron: "30 5 * * *"
+    # 09:00 UTC ≈ 12:00 שעון ישראל (קיץ) / 11:00 (חורף) — סביב הצהריים
+    - cron: "0 9 * * *"
   workflow_dispatch: {}
 
 permissions:
