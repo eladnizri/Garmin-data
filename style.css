@@ -177,6 +177,46 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .kpi-delta.good { color: var(--good); }
 .kpi-delta.bad { color: var(--bad); }
 
+/* ===== כרטיס "היום" ===== */
+.today-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 15px;
+}
+.today-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.today-date { font-size: 1.05rem; font-weight: 800; }
+.today-tag {
+  font-size: 0.68rem; font-weight: 700; color: var(--primary);
+  background: var(--primary-soft); padding: 3px 10px; border-radius: 999px;
+}
+.today-chips { display: flex; gap: 6px; }
+.tchip {
+  flex: 1 1 0; min-width: 0;
+  background: #f6f9fe; border: 1px solid var(--border); border-radius: 12px;
+  padding: 8px 3px; display: flex; flex-direction: column; align-items: center; gap: 1px;
+}
+.tchip span { font-size: 0.95rem; }
+.tchip b { font-size: 0.9rem; font-weight: 800; }
+.tchip small { font-size: 0.6rem; color: var(--muted); }
+.today-rec {
+  display: flex; gap: 9px; align-items: flex-start;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+}
+.today-rec span { font-size: 1.1rem; line-height: 1.4; }
+.today-rec p { font-size: 0.85rem; line-height: 1.55; color: var(--ink-2); }
+
+/* ===== שיאים ורצפים ===== */
+.rec-title { font-size: 0.95rem; font-weight: 700; margin-bottom: 6px; }
+.rec-list { list-style: none; margin: 0; padding: 0; }
+.rec-list li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f1f5f9; }
+.rec-list li:last-child { border-bottom: none; }
+.rec-ic { font-size: 1.15rem; width: 26px; text-align: center; flex: none; }
+.rec-label { font-size: 0.85rem; color: var(--ink-2); }
+.rec-val { margin-inline-start: auto; font-weight: 800; font-size: 0.95rem; text-align: left; }
+.rec-val small { font-weight: 500; color: var(--muted); font-size: 0.7rem; }
+
 /* ===== כרטיס מוכנות + מד טבעת ===== */
 .readiness-card {
   background: linear-gradient(135deg, #2563eb, #1d4ed8);
@@ -307,6 +347,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   background: var(--bg);
   z-index: 50;
 }
+.load-logo { width: 84px; height: 84px; border-radius: 20px; box-shadow: var(--shadow); }
 .spinner {
   width: 40px; height: 40px; border-radius: 50%;
   border: 4px solid #dbe4f2; border-top-color: var(--primary);

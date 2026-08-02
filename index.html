@@ -22,6 +22,7 @@
 
   <!-- טעינה -->
   <div id="loading" class="loading">
+    <img src="icons/icon-192.png" alt="" class="load-logo">
     <div class="spinner"></div>
     <p>טוען נתונים…</p>
   </div>
@@ -49,6 +50,7 @@
         <div id="demo-banner" class="demo-banner hidden">
           מציג <b>נתוני דמו</b> — הנתונים האמיתיים מתעדכנים אוטומטית מגרמין.
         </div>
+        <div id="today-card" class="today-card"></div>
         <div id="home-readiness" class="readiness-card"></div>
         <div class="grid-2" id="home-kpis"></div>
         <div id="home-highlight" class="highlight"></div>
@@ -61,10 +63,12 @@
         <div class="grid-2" id="heart-kpis"></div>
         <article class="card">
           <div class="card-head"><h2>דופק מנוחה (RHR)</h2><span class="unit">bpm</span></div>
+          <div class="legend" id="legend-rhr"></div>
           <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-rhr"></canvas></div>
         </article>
         <article class="card">
           <div class="card-head"><h2>שונות דופק (HRV)</h2><span class="unit">ms · ממוצע לילי</span></div>
+          <div class="legend" id="legend-hrv"></div>
           <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-hrv"></canvas></div>
         </article>
         <article class="card">
@@ -72,6 +76,7 @@
           <div class="legend" id="legend-stress"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-stress"></canvas></div>
         </article>
+        <div id="heart-records" class="records"></div>
         <div id="heart-insights" class="insights"></div>
       </section>
 
@@ -80,6 +85,7 @@
         <div class="grid-2" id="sleep-kpis"></div>
         <article class="card">
           <div class="card-head"><h2>שעות שינה</h2><span class="unit">יעד 8 שעות</span></div>
+          <div class="legend" id="legend-sleep"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-sleep"></canvas></div>
         </article>
         <article class="card">
@@ -87,6 +93,7 @@
           <div class="legend" id="legend-stages"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-stages"></canvas></div>
         </article>
+        <div id="sleep-records" class="records"></div>
         <div id="sleep-insights" class="insights"></div>
       </section>
 
@@ -95,12 +102,14 @@
         <div class="grid-2" id="steps-kpis"></div>
         <article class="card">
           <div class="card-head"><h2>צעדים</h2><span class="unit">יעד 10,000</span></div>
+          <div class="legend" id="legend-steps"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-steps"></canvas></div>
         </article>
         <article class="card">
           <div class="card-head"><h2>קלוריות שרופות</h2><span class="unit">kcal · יומי</span></div>
           <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-activity"></canvas></div>
         </article>
+        <div id="steps-records" class="records"></div>
         <div id="steps-insights" class="insights"></div>
       </section>
 
