@@ -14,36 +14,53 @@ Env vars:
 
 import json
 import os
+import shutil
 import sys
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
-from garminconnect import Garmin
+from garminconnect import Garmin, GarminConnectTooManyRequestsError
 
 DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "health.json"
 TOKENSTORE = os.path.expanduser(os.environ.get("GARMIN_TOKENSTORE", "~/.garminconnect"))
 
 
 def connect() -> Garmin:
-    """Log in, preferring the cached Garth token store over a password login."""
-    try:
-        garmin = Garmin()
-        garmin.login(TOKENSTORE)
-        print("Logged in with cached tokens.")
-        return garmin
-    except Exception as exc:  # noqa: BLE001 - any token failure falls back to password
-        print(f"Token login failed ({type(exc).__name__}), using password login.")
+    """Log in to Garmin Connect.
 
+    `login(TOKENSTORE)` transparently reuses cached tokens when they exist and
+    otherwise logs in with the credentials and writes fresh tokens to the store
+    for the next run — so we avoid a full mobile login (which Garmin often rate
+    limits from datacenter IPs) on every run.
+    """
     email = os.environ.get("GARMIN_EMAIL")
     password = os.environ.get("GARMIN_PASSWORD")
     if not email or not password:
         sys.exit("GARMIN_EMAIL / GARMIN_PASSWORD are not set.")
 
-    garmin = Garmin(email=email, password=password)
-    garmin.login()
-    garmin.garth.dump(TOKENSTORE)
-    print("Logged in with password; tokens cached.")
-    return garmin
+    last_err = None
+    for attempt in range(1, 4):
+        try:
+            garmin = Garmin(email=email, password=password)
+            garmin.login(TOKENSTORE)
+            print(f"Logged in to Garmin Connect (attempt {attempt}).")
+            return garmin
+        except GarminConnectTooManyRequestsError as exc:
+            # 429: Garmin is rate limiting this IP. Keep the cached token (if any)
+            # and back off before trying again.
+            last_err = exc
+            wait = 45 * attempt
+            print(f"Rate limited by Garmin (429), attempt {attempt}/3 — waiting {wait}s.")
+            time.sleep(wait)
+        except Exception as exc:  # noqa: BLE001
+            # A cached token may be corrupt/expired — drop it and retry fresh.
+            last_err = exc
+            print(f"Login attempt {attempt}/3 failed ({type(exc).__name__}: {exc}).")
+            shutil.rmtree(TOKENSTORE, ignore_errors=True)
+            time.sleep(5)
+
+    sys.exit(f"Could not log in to Garmin Connect after 3 attempts: {last_err}")
 
 
 def safe(fn, *args):
