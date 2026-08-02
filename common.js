@@ -11,17 +11,19 @@ const DATA_URL = 'data/health.json';
 const SLEEP_GOAL_HOURS = 8;
 const STEPS_GOAL = 10000;
 
-/* צבעי סדרות — עברו ולידציית נגישות מול המשטח הכהה (#1e293b) */
+/* צבעי סדרות — עברו ולידציית נגישות מול משטח לבן (#ffffff) */
 const C = {
-  blue: '#3987e5',    // שינה, Body Battery, שינה עמוקה
-  green: '#199e70',   // HRV, שינה קלה
-  violet: '#9085e9',  // צעדים, REM
-  red: '#e66767',     // דופק מנוחה
-  orange: '#d95926',  // סטרס
-  muted: '#64748b',
-  ink2: '#94a3b8',
-  grid: '#2b3a52',
-  surface: '#1e293b',
+  blue: '#2a78d6',    // צבע ראשי — שינה, Body Battery, שינה עמוקה
+  teal: '#1baf7a',    // שינה קלה
+  violet: '#4a3aa7',  // REM
+  green: '#008300',   // HRV
+  red: '#e34948',     // דופק מנוחה
+  orange: '#eb6834',  // סטרס
+  ink: '#0f172a',
+  ink2: '#475569',
+  muted: '#94a3b8',
+  grid: '#e8edf3',
+  surface: '#ffffff',
 };
 
 /* =========================================================================
