@@ -74,7 +74,14 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 
 .page-title { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.02em; }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
 .today { font-size: 0.8rem; color: var(--ink-2); font-weight: 500; }
+.icon-btn {
+  width: 34px; height: 34px; border-radius: 10px; flex: none;
+  display: grid; place-items: center; color: var(--ink-2); background: #e2e9f4;
+  font-size: 1rem;
+}
+.icon-btn svg { width: 19px; height: 19px; fill: currentColor; }
 
 /* בורר טווח */
 .range-seg {
@@ -338,6 +345,64 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .tab svg { width: 25px; height: 25px; fill: currentColor; }
 .tab span { font-size: 0.68rem; font-weight: 600; }
 .tab.active { color: var(--primary); }
+
+/* ===== פרופיל: כרטיס גוף / הזמנה למילוי ===== */
+.prompt-card {
+  width: 100%; text-align: start;
+  background: var(--primary-soft); border: 1px dashed #b7d0fb;
+  border-radius: var(--radius); padding: 14px;
+  display: flex; align-items: center; gap: 11px;
+}
+.prompt-card .pc-ic { font-size: 1.4rem; }
+.prompt-card .pc-t { font-size: 0.9rem; font-weight: 700; color: #1e3a8a; }
+.prompt-card .pc-v { font-size: 0.76rem; color: #3b64b0; }
+.prompt-card .sc-arrow { margin-inline-start: auto; color: var(--primary); font-size: 1.1rem; }
+
+.body-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 15px;
+}
+.body-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.body-head h2 { font-size: 0.98rem; font-weight: 700; }
+.link-btn { font-size: 0.8rem; color: var(--primary); font-weight: 700; }
+
+/* ===== אזורי דופק ===== */
+.zones { list-style: none; margin: 0; padding: 0; }
+.zones li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+.zones li:last-child { border-bottom: none; }
+.zdot { width: 12px; height: 12px; border-radius: 4px; flex: none; }
+.zname { font-size: 0.85rem; color: var(--ink-2); }
+.zrange { margin-inline-start: auto; font-weight: 700; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+
+/* ===== מודאל פרופיל ===== */
+.modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
+.modal.hidden { display: none; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.45); }
+.modal-sheet {
+  position: relative; width: 100%; max-width: 640px;
+  background: var(--surface); border-radius: 22px 22px 0 0;
+  padding: 18px 18px calc(env(safe-area-inset-bottom) + 18px);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+  max-height: 88vh; overflow-y: auto; animation: sheetUp 0.25s ease;
+}
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.modal-head h2 { font-size: 1.15rem; font-weight: 800; }
+.modal-note {
+  font-size: 0.76rem; color: var(--ink-2); background: #f1f6ff;
+  border-radius: 10px; padding: 9px 11px; margin-bottom: 14px; line-height: 1.5;
+}
+.field-row { display: flex; gap: 10px; margin-bottom: 12px; }
+.field { flex: 1; display: flex; flex-direction: column; gap: 5px; font-size: 0.8rem; font-weight: 600; color: var(--ink-2); }
+.field input, .field select {
+  font: inherit; font-size: 0.95rem; font-weight: 500; color: var(--ink);
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 11px;
+  background: #f8fafc; -webkit-appearance: none; appearance: none; width: 100%;
+}
+.field input:focus, .field select:focus { outline: none; border-color: var(--primary); background: #fff; }
+.modal-actions { display: flex; gap: 10px; margin-top: 4px; }
+.btn-primary { flex: 2; background: var(--primary); color: #fff; font-weight: 700; padding: 12px; border-radius: 12px; }
+.btn-ghost { flex: 1; background: #eef2f7; color: var(--ink-2); font-weight: 700; padding: 12px; border-radius: 12px; }
 
 /* ===== ספינר ===== */
 .loading {
