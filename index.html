@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <title>דשבורד בריאות ושינה</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;💤&lt;/text&gt;&lt;/svg&gt;">
+  <script src="vendor/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- כותרת -->
+    <header class="page-head">
+      <h1>💤 דשבורד בריאות ושינה</h1>
+      <p id="last-updated"></p>
+    </header>
+
+    <!-- באנר מצב דמו -->
+    <div id="demo-banner" class="demo-banner hidden">
+      ⚠️ מציג <b>נתוני דמו</b> — הנתונים האמיתיים יופיעו אחרי הרצת הסנכרון הראשונה מגרמין (ראה README).
+    </div>
+
+    <!-- ספינר טעינה -->
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>טוען נתונים…</p>
+    </div>
+
+    <!-- תוכן ראשי -->
+    <main id="app" class="hidden">
+
+      <!-- סינון טווח זמן -->
+      <nav id="range-filter" class="range-filter" aria-label="סינון טווח זמן">
+        <button data-range="7"  class="range-btn">7 ימים</button>
+        <button data-range="30" class="range-btn">30 ימים</button>
+        <button data-range="all" class="range-btn">הכל</button>
+      </nav>
+
+      <!-- כרטיסיות KPI -->
+      <section id="kpi-grid" class="kpi-grid" aria-label="מדדים מרכזיים"></section>
+
+      <!-- גרפים -->
+      <section class="cards">
+
+        <div class="card">
+          <div class="card-head">
+            <h2 class="card-title">🛏️ שעות שינה</h2>
+            <span class="card-sub">קו יעד — 8 שעות</span>
+          </div>
+          <div class="chart-box" dir="ltr"><canvas id="chart-sleep"></canvas></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2 class="card-title">🌙 שלבי שינה</h2>
+            <span class="card-sub">דקות לפי שלב</span>
+          </div>
+          <div class="legend" id="legend-stages"></div>
+          <div class="chart-box" dir="ltr"><canvas id="chart-stages"></canvas></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2 class="card-title">❤️ דופק מנוחה (RHR)</h2>
+            <span class="card-sub">bpm</span>
+          </div>
+          <div class="chart-box chart-box-sm" dir="ltr"><canvas id="chart-rhr"></canvas></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2 class="card-title">💚 שונות דופק (HRV)</h2>
+            <span class="card-sub">ממוצע לילי, ms</span>
+          </div>
+          <div class="chart-box chart-box-sm" dir="ltr"><canvas id="chart-hrv"></canvas></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2 class="card-title">🔋 סטרס ו-Body Battery</h2>
+            <span class="card-sub">סקאלה 0–100</span>
+          </div>
+          <div class="legend" id="legend-stress"></div>
+          <div class="chart-box" dir="ltr"><canvas id="chart-stress"></canvas></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2 class="card-title">👣 צעדים</h2>
+            <span class="card-sub">קו יעד — 10,000</span>
+          </div>
+          <div class="chart-box chart-box-sm" dir="ltr"><canvas id="chart-steps"></canvas></div>
+        </div>
+
+      </section>
+
+      <!-- טבלת היסטוריה -->
+      <section class="card table-card" aria-label="היסטוריה יומית">
+        <div class="card-head">
+          <h2 class="card-title">📋 היסטוריה יומית</h2>
+          <span class="card-sub">לחיצה על כותרת ממיינת</span>
+        </div>
+        <div class="table-scroll">
+          <table id="history-table" class="history-table">
+            <thead><tr id="history-head"></tr></thead>
+            <tbody id="history-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="page-foot">
+        הנתונים נמשכים אוטומטית מ-Garmin Connect פעם ביום · נבנה עם Chart.js
+      </footer>
+
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
