@@ -169,7 +169,10 @@ function TT(labelFn) {
     rtl: true, textDirection: 'rtl',
     backgroundColor: '#ffffff', titleColor: '#0f172a', bodyColor: '#475569',
     borderColor: '#e7edf6', borderWidth: 1, padding: 10, cornerRadius: 10, boxPadding: 4,
-    titleFont: { weight: '700' }, callbacks: cb,
+    titleFont: { weight: '700' },
+    /* קווי עזר (יעד / ממוצע נע) לא מופיעים ב-tooltip כדי לא לעמוס */
+    filter: item => !['ממוצע 7 ימים', 'יעד'].includes(item.dataset.label),
+    callbacks: cb,
   };
 }
 function opts(yScale, labelFn, stacked) {
@@ -187,9 +190,37 @@ function make(id, config) { charts[id]?.destroy(); charts[id] = new Chart($(id),
 const points = (rows, key) => rows.map(r => ({ x: shortDate(r.date), y: r[key] ?? null, iso: r.date }));
 function goalLine(rows, value) {
   return {
+    label: 'יעד',
     data: rows.map(r => ({ x: shortDate(r.date), y: value, iso: r.date })),
     type: 'line', borderColor: C.muted, borderWidth: 1.5, borderDash: [6, 5], pointRadius: 0, fill: false,
   };
+}
+
+/* ממוצע נע 7 ימים — מדגיש מגמה ומסנן רעש יומי */
+function maSeries(rows, key, win = 7) {
+  const v = rows.map(r => r[key]);
+  return v.map((_, i) => {
+    const w = [];
+    for (let j = Math.max(0, i - win + 1); j <= i; j++) {
+      const x = v[j];
+      if (x !== null && x !== undefined && !Number.isNaN(x)) w.push(x);
+    }
+    return w.length >= 3 ? w.reduce((a, b) => a + b, 0) / w.length : null;
+  });
+}
+function maLine(rows, key) {
+  const ma = maSeries(rows, key);
+  return {
+    label: 'ממוצע 7 ימים',
+    data: rows.map((r, i) => ({ x: shortDate(r.date), y: ma[i], iso: r.date })),
+    type: 'line', borderColor: '#334155', borderWidth: 2, borderDash: [5, 4],
+    pointRadius: 0, pointHoverRadius: 0, tension: 0.4, fill: false, spanGaps: true,
+  };
+}
+function maLegend(id, color, label) {
+  $(id).innerHTML =
+    `<span><i style="background:${color}"></i>${label}</span>` +
+    `<span><i style="background:#334155"></i>ממוצע נע 7 ימים</span>`;
 }
 function bar(rows, key, color) {
   return { data: points(rows, key), backgroundColor: color, borderRadius: 5, borderSkipped: false, maxBarThickness: 24 };
@@ -207,10 +238,12 @@ function renderCharts() {
   const labels = rows.map(r => shortDate(r.date));
 
   /* לב */
-  make('chart-rhr', { type: 'line', data: { labels, datasets: [line(rows, 'rhr', C.red)] },
+  maLegend('legend-rhr', C.red, 'דופק מנוחה יומי');
+  make('chart-rhr', { type: 'line', data: { labels, datasets: [line(rows, 'rhr', C.red), maLine(rows, 'rhr')] },
     options: opts({ grace: '20%' }, i => `דופק מנוחה: ${fmt(i.raw.y)} bpm`) });
 
-  make('chart-hrv', { type: 'line', data: { labels, datasets: [line(rows, 'hrv', C.green)] },
+  maLegend('legend-hrv', C.green, 'HRV יומי');
+  make('chart-hrv', { type: 'line', data: { labels, datasets: [line(rows, 'hrv', C.green), maLine(rows, 'hrv')] },
     options: opts({ grace: '20%' }, i => `HRV: ${fmt(i.raw.y)} ms`) });
 
   $('legend-stress').innerHTML =
@@ -226,10 +259,10 @@ function renderCharts() {
   ] }, options: opts({ min: 0, max: 100 }, i => `${i.dataset.label}: ${fmt(i.raw.y)}`) });
 
   /* שינה */
+  maLegend('legend-sleep', C.blue, 'שעות שינה');
   make('chart-sleep', { type: 'bar', data: { labels, datasets: [
-    bar(rows, 'sleep_hours', C.blue), goalLine(rows, SLEEP_GOAL_HOURS),
-  ] }, options: opts({ beginAtZero: true, suggestedMax: 10 },
-    i => i.dataset.type === 'line' ? `יעד: ${SLEEP_GOAL_HOURS} שעות` : `שינה: ${fmt(i.raw.y, 1)} שעות`) });
+    bar(rows, 'sleep_hours', C.blue), goalLine(rows, SLEEP_GOAL_HOURS), maLine(rows, 'sleep_hours'),
+  ] }, options: opts({ beginAtZero: true, suggestedMax: 10 }, i => `שינה: ${fmt(i.raw.y, 1)} שעות`) });
 
   const stages = [
     { key: 'deep_min', label: 'עמוקה', color: C.blue },
@@ -245,10 +278,10 @@ function renderCharts() {
     i => `${i.dataset.label}: ${minToHm(i.raw.y)} שעות`, true) });
 
   /* צעדים */
+  maLegend('legend-steps', C.violet, 'צעדים יומי');
   make('chart-steps', { type: 'bar', data: { labels, datasets: [
-    bar(rows, 'steps', C.violet), goalLine(rows, STEPS_GOAL),
-  ] }, options: opts({ beginAtZero: true },
-    i => i.dataset.type === 'line' ? `יעד: ${fmt(STEPS_GOAL)}` : `צעדים: ${fmt(i.raw.y)}`) });
+    bar(rows, 'steps', C.violet), goalLine(rows, STEPS_GOAL), maLine(rows, 'steps'),
+  ] }, options: opts({ beginAtZero: true }, i => `צעדים: ${fmt(i.raw.y)}`) });
 
   make('chart-activity', { type: 'bar', data: { labels, datasets: [bar(rows, 'calories', C.orange)] },
     options: opts({ beginAtZero: false, grace: '10%' }, i => `${fmt(i.raw.y)} kcal`) });
@@ -413,6 +446,108 @@ function renderShortcuts() {
 }
 
 /* =========================================================================
+ * כרטיס "היום" + המלצה יומית (עמוד הבית)
+ * ========================================================================= */
+function recommendation(last) {
+  const r = readiness();
+  if (!r) return null;
+  let rec;
+  if (r.score >= 80) rec = 'הגוף מאושש — יום מצוין לאימון מאתגר או פעילות אינטנסיבית.';
+  else if (r.score >= 65) rec = 'מוכנות טובה — אפשר להתאמן כרגיל, עם קשב לסימני עייפות.';
+  else if (r.score >= 50) rec = 'מוכנות בינונית — עדיף אימון מתון, שתייה מרובה ושינה מוקדמת הלילה.';
+  else rec = 'מוכנות נמוכה — תן לגוף להתאושש: יום קל יותר ושינה מוקדמת.';
+  if (last?.sleep_hours != null && last.sleep_hours < 6.5) rec += ' ישנת פחות מ-6.5 שעות אתמול — כדאי להקדים שינה.';
+  else if (last?.stress_avg != null && last.stress_avg >= 60) rec += ' רמת המתח אתמול הייתה גבוהה — שלב הפוגות נשימה היום.';
+  return rec;
+}
+function tchip(emoji, label, value) {
+  return `<div class="tchip"><span>${emoji}</span><b>${value}</b><small>${label}</small></div>`;
+}
+function renderToday() {
+  const el = $('today-card');
+  const last = state.data[state.data.length - 1];
+  if (!last) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  const chips = [
+    last.sleep_hours != null ? tchip('💤', 'שינה', `${fmt(last.sleep_hours, 1)}ש׳`) : '',
+    last.rhr != null ? tchip('❤️', 'RHR', fmt(last.rhr)) : '',
+    last.hrv != null ? tchip('💚', 'HRV', fmt(last.hrv)) : '',
+    last.stress_avg != null ? tchip('🔥', 'סטרס', fmt(last.stress_avg)) : '',
+    last.steps != null ? tchip('👣', 'צעדים', fmt(last.steps)) : '',
+  ].join('');
+  const rec = recommendation(last);
+  el.innerHTML = `
+    <div class="today-top">
+      <div class="today-date">${longDate(last.date)}</div>
+      <div class="today-tag">מבט על היום</div>
+    </div>
+    <div class="today-chips">${chips}</div>
+    ${rec ? `<div class="today-rec"><span>💡</span><p>${rec}</p></div>` : ''}`;
+}
+
+/* =========================================================================
+ * שיאים ורצפים
+ * ========================================================================= */
+function extremeDay(rows, key, dir) {
+  let best = null;
+  for (const r of rows) {
+    const v = r[key];
+    if (v == null || Number.isNaN(v)) continue;
+    if (!best || (dir === 'max' ? v > best.v : v < best.v)) best = { v, date: r.date };
+  }
+  return best;
+}
+function sumOf(rows, key) { return rows.reduce((a, r) => a + (r[key] || 0), 0); }
+function trailingStreak(rows, pred) {
+  let n = 0;
+  for (let i = rows.length - 1; i >= 0; i--) { if (pred(rows[i]) === true) n++; else break; }
+  return n;
+}
+function recItem(emoji, label, val, sub) {
+  return `<li><span class="rec-ic">${emoji}</span><span class="rec-label">${label}</span>
+    <span class="rec-val">${val}${sub ? ` <small>${sub}</small>` : ''}</span></li>`;
+}
+function renderRecords(id, title, items) {
+  const rows = items.filter(Boolean);
+  $(id).innerHTML = rows.length
+    ? `<article class="card records-card"><h2 class="rec-title">${title}</h2><ul class="rec-list">${rows.join('')}</ul></article>`
+    : '';
+}
+function heartRecords() {
+  const rows = visibleRows();
+  const lowRhr = extremeDay(rows, 'rhr', 'min');
+  const hiHrv = extremeDay(rows, 'hrv', 'max');
+  const calm = extremeDay(rows, 'stress_avg', 'min');
+  return [
+    lowRhr && recItem('❤️', 'הדופק הנמוך ביותר', `${fmt(lowRhr.v)} bpm`, `ב-${shortDate(lowRhr.date)}`),
+    hiHrv && recItem('💚', 'ה-HRV הגבוה ביותר', `${fmt(hiHrv.v)} ms`, `ב-${shortDate(hiHrv.date)}`),
+    calm && recItem('🧘', 'היום הרגוע ביותר', `סטרס ${fmt(calm.v)}`, `ב-${shortDate(calm.date)}`),
+  ];
+}
+function sleepRecords() {
+  const rows = visibleRows();
+  const best = extremeDay(rows, 'sleep_score', 'max');
+  const longest = extremeDay(rows, 'sleep_hours', 'max');
+  const streak = trailingStreak(rows, r => r.sleep_score != null && r.sleep_score >= 80);
+  return [
+    best && recItem('⭐', 'הלילה הטוב ביותר', `ציון ${fmt(best.v)}`, `ב-${shortDate(best.date)}`),
+    longest && recItem('🛏️', 'השינה הארוכה ביותר', `${fmt(longest.v, 1)} שעות`, `ב-${shortDate(longest.date)}`),
+    streak >= 2 && recItem('🔥', 'רצף לילות איכותיים', `${streak} לילות`, 'ציון 80+ ברצף'),
+  ];
+}
+function stepsRecords() {
+  const rows = visibleRows();
+  const best = extremeDay(rows, 'steps', 'max');
+  const streak = trailingStreak(rows, r => r.steps != null && r.steps >= STEPS_GOAL);
+  const total = sumOf(rows, 'steps');
+  return [
+    best && recItem('👣', 'היום הפעיל ביותר', `${fmt(best.v)} צעדים`, `ב-${shortDate(best.date)}`),
+    streak >= 2 && recItem('🔥', 'רצף ימים ביעד', `${streak} ימים`, '10,000+ ברצף'),
+    total > 0 && recItem('📊', 'סה״כ צעדים בתקופה', fmt(total)),
+  ];
+}
+
+/* =========================================================================
  * רינדור כולל
  * ========================================================================= */
 function renderAll() {
@@ -420,6 +555,7 @@ function renderAll() {
     const v = b.dataset.range === 'all' ? 'all' : Number(b.dataset.range);
     b.classList.toggle('active', v === state.range);
   });
+  renderToday();
   renderReadiness();
   renderKpis('home-kpis', KPIS.home);
   renderHighlight();
@@ -428,6 +564,9 @@ function renderAll() {
   renderKpis('sleep-kpis', KPIS.sleep);
   renderKpis('steps-kpis', KPIS.steps);
   renderCharts();
+  renderRecords('heart-records', '🏆 שיאים', heartRecords());
+  renderRecords('sleep-records', '🏆 שיאים ורצפים', sleepRecords());
+  renderRecords('steps-records', '🏆 שיאים ורצפים', stepsRecords());
   renderInsights('heart-insights', ['rhr', 'hrv', 'stress_avg']);
   renderInsights('sleep-insights', ['sleep_hours', 'sleep_score']);
   renderInsights('steps-insights', ['steps']);
