@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0">
-  <meta name="theme-color" content="#1d4ed8">
+  <meta name="theme-color" content="#0b0f1a">
   <title>בריאות ושינה</title>
 
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="בריאות">
   <link rel="icon" href="icons/icon-192.png">
 
@@ -64,8 +64,14 @@
         <!-- מה חריג -->
         <div id="anomalies"></div>
 
+        <!-- השבוע שלי — סיכום מול השבוע הקודם -->
+        <div id="week-summary"></div>
+
         <!-- תובנה -->
         <div id="insight-home"></div>
+
+        <!-- מעקב משקל -->
+        <div id="weight-card"></div>
 
         <!-- פרופיל -->
         <div id="home-body"></div>
@@ -78,11 +84,13 @@
           <div class="card-head"><h2>שעות שינה</h2><span class="unit" id="u-sleep"></span></div>
           <div class="legend" id="legend-sleep"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-sleep"></canvas></div>
+          <div id="tip-sleep"></div>
         </article>
         <article class="card">
           <div class="card-head"><h2>שלבי שינה</h2><span class="unit">שעות לפי שלב</span></div>
           <div class="legend" id="legend-stages"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-stages"></canvas></div>
+          <div id="tip-stages"></div>
         </article>
         <div id="sleep-breathing"></div>
         <div id="sleep-insight"></div>
@@ -96,16 +104,19 @@
           <div class="card-head"><h2>דופק מנוחה</h2><span class="unit">bpm</span></div>
           <div class="legend" id="legend-rhr"></div>
           <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-rhr"></canvas></div>
+          <div id="tip-rhr"></div>
         </article>
         <article class="card">
           <div class="card-head"><h2>שונות דופק (HRV)</h2><span class="unit" id="u-hrv">ms</span></div>
           <div class="legend" id="legend-hrv"></div>
           <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-hrv"></canvas></div>
+          <div id="tip-hrv"></div>
         </article>
         <article class="card">
-          <div class="card-head"><h2>מתח ו-Body Battery</h2><span class="unit">0–100</span></div>
+          <div class="card-head"><h2>מתח</h2><span class="unit">0–100</span></div>
           <div class="legend" id="legend-stress"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-stress"></canvas></div>
+          <div id="tip-stress"></div>
         </article>
         <div id="readiness-factors"></div>
         <div id="heart-insight"></div>
@@ -116,10 +127,15 @@
       <!-- ========== פעילות ========== -->
       <section class="page" data-title="פעילות" data-sub="תנועה ואימונים">
         <div id="steps-hero" class="stat-hero"></div>
+
+        <!-- אימוני כוח — לוח V שבועי -->
+        <div id="strength-card"></div>
+
         <article class="card">
           <div class="card-head"><h2>צעדים</h2><span class="unit" id="u-steps"></span></div>
           <div class="legend" id="legend-steps"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-steps"></canvas></div>
+          <div id="tip-steps"></div>
         </article>
         <div id="fitness-card"></div>
         <div id="workouts-card"></div>
@@ -131,6 +147,7 @@
 
     <!-- ===== ניווט תחתון ===== -->
     <nav id="tabbar" class="tabbar" aria-label="ניווט">
+      <i class="tab-pill" aria-hidden="true"></i>
       <button class="tab" data-index="0" aria-label="בית">
         <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>בית</span>
       </button>
@@ -169,8 +186,33 @@
             <label class="field">יעד שינה (שעות)<input type="number" name="sleepGoal" min="4" max="12" step="0.5" inputmode="decimal" placeholder="8"></label>
             <label class="field">יעד צעדים<input type="number" name="stepsGoal" min="1000" max="30000" step="500" inputmode="numeric" placeholder="10000"></label>
           </div>
+          <div class="field-row">
+            <label class="field">יעד אימוני כוח בשבוע<input type="number" name="strengthGoal" min="1" max="7" inputmode="numeric" placeholder="3"></label>
+          </div>
           <div class="modal-actions">
             <button type="button" class="btn-ghost" id="profile-clear">איפוס</button>
+            <button type="submit" class="btn-primary">שמירה</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ===== הזנת שקילה ===== -->
+    <div id="weight-modal" class="modal hidden">
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-sheet" role="dialog" aria-label="הזנת שקילה">
+        <div class="modal-head">
+          <h2>שקילה חדשה</h2>
+          <button class="icon-btn" data-close aria-label="סגור">✕</button>
+        </div>
+        <p class="modal-note">🔒 נשמר רק במכשיר שלך. שקילה שבועית באותה שעה ביום נותנת את המגמה האמינה ביותר.</p>
+        <form id="weight-form">
+          <div class="field-row">
+            <label class="field">משקל (ק״ג)<input type="number" name="kg" min="30" max="250" step="0.1" inputmode="decimal" placeholder="70.0" required></label>
+            <label class="field">תאריך<input type="date" name="date" required></label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-ghost" data-close>ביטול</button>
             <button type="submit" class="btn-primary">שמירה</button>
           </div>
         </form>

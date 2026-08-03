@@ -11,19 +11,23 @@ const DATA_URL = 'data/health.json';
 const SLEEP_GOAL_HOURS = 8;
 const STEPS_GOAL = 10000;
 
-/* צבעי סדרות — עברו ולידציית נגישות מול משטח לבן (#ffffff) */
+/* צבעי סדרות — מקור אמת יחיד: משתני ה-CSS ב-style.css (עברו ולידציית
+ * נגישות מול המשטח הכהה). הסקריפטים נטענים עם defer ⇒ ה-CSSOM כבר מוכן. */
+const cssVar = (name, fallback) =>
+  (getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback);
 const C = {
-  blue: '#2a78d6',    // צבע ראשי — שינה, Body Battery, שינה עמוקה
-  teal: '#1baf7a',    // שינה קלה
-  violet: '#4a3aa7',  // REM
-  green: '#008300',   // HRV
-  red: '#e34948',     // דופק מנוחה
-  orange: '#eb6834',  // סטרס
-  ink: '#0f172a',
-  ink2: '#475569',
-  muted: '#94a3b8',
-  grid: '#e8edf3',
-  surface: '#ffffff',
+  blue: cssVar('--c-sleep', '#3987e5'),    // צבע ראשי — שינה, שינה עמוקה
+  teal: cssVar('--c-teal', '#199e70'),     // שינה קלה, נשימה, משקל
+  violet: cssVar('--c-violet', '#9085e9'), // REM, צעדים
+  green: cssVar('--c-green', '#008300'),   // HRV
+  red: cssVar('--c-red', '#e66767'),       // דופק מנוחה
+  orange: cssVar('--c-orange', '#d95926'), // סטרס
+  ma: cssVar('--c-ma', '#94a3b8'),         // קו ממוצע נע
+  ink: cssVar('--ink', '#e8eef8'),
+  ink2: cssVar('--ink-2', '#a8b5ca'),
+  muted: cssVar('--muted', '#64748b'),
+  grid: cssVar('--grid', 'rgba(148,163,184,.09)'),
+  surface: cssVar('--surface', '#131a2a'),
 };
 
 /* =========================================================================
@@ -56,8 +60,6 @@ function buildMockData() {
       rhr: Math.round(50 + rand() * 8),
       hrv: Math.round(38 + rand() * 25),
       stress_avg: Math.round(20 + rand() * 30),
-      body_battery_high: Math.round(70 + rand() * 30),
-      body_battery_low: Math.round(5 + rand() * 30),
       steps: Math.round(4000 + rand() * 9000),
       calories: Math.round(2000 + rand() * 700),
       intensity_min: Math.round(rand() * 60),
@@ -81,7 +83,6 @@ const CSV_FIELD_MAP = {
   'steps': 'steps',
   'calories': 'calories',
   'deep': 'deep_min', 'light': 'light_min', 'rem': 'rem_min',
-  'body battery high': 'body_battery_high', 'body battery low': 'body_battery_low',
 };
 
 function parseCsv(text) {
@@ -183,10 +184,10 @@ function pearson(rows, keyA, keyB) {
   return { r: num / Math.sqrt(da * db), n };
 }
 
-/* הגדרות ברירת מחדל ל-Chart.js (אם נטען) */
+/* הגדרות ברירת מחדל ל-Chart.js — מוגדרות רק כאן (לא ב-app.js) */
 if (typeof Chart !== 'undefined') {
-  Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+  Chart.defaults.font.family = "'Rubik', system-ui, -apple-system, 'Segoe UI', sans-serif";
   Chart.defaults.color = C.ink2;
   Chart.defaults.borderColor = C.grid;
-  Chart.defaults.animation.duration = 400;
+  Chart.defaults.animation.duration = 350;
 }
