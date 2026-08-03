@@ -39,9 +39,16 @@ function maxHR() { return profile.age ? 220 - Number(profile.age) : null; }
  * עזרי נתונים
  * ========================================================================= */
 function visibleRows() { return state.range === 'all' ? state.data : state.data.slice(-state.range); }
+
+/* מדדים מצטברים (צעדים, קלוריות...) חלקיים עד סוף היום — אין לשפוט אותם באמצע היום */
+const CUMULATIVE = new Set(['steps', 'calories', 'floors', 'intensity_min']);
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
 function latest(key, within = 3) {
-  for (let i = state.data.length - 1; i >= Math.max(0, state.data.length - within); i--) {
-    const v = state.data[i][key];
+  let end = state.data.length - 1;
+  if (CUMULATIVE.has(key) && state.data[end]?.date === todayISO()) end--;  // דילוג על היום החלקי
+  for (let i = end; i >= Math.max(0, end - within + 1); i--) {
+    const v = state.data[i]?.[key];
     if (v !== null && v !== undefined && v !== '') return v;
   }
   return null;
@@ -67,7 +74,10 @@ const METRICS = {
 };
 
 function baselineOf(key) {
-  const v = vals(state.data.slice(-30), key);
+  let rows = state.data.slice(-30);
+  // היום החלקי לא נכנס לבסיס של מדד מצטבר
+  if (CUMULATIVE.has(key) && rows[rows.length - 1]?.date === todayISO()) rows = rows.slice(0, -1);
+  const v = vals(rows, key);
   if (v.length < 5) return null;
   const mean = v.reduce((a, b) => a + b, 0) / v.length;
   const sd = Math.sqrt(v.reduce((a, b) => a + (b - mean) ** 2, 0) / v.length);
