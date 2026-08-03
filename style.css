@@ -20,20 +20,20 @@
 
 :root {
   color-scheme: dark;
-  --bg: #0b0f1a;
-  --surface: #131a2a;
-  --surface-2: #1c2537;
-  --line: rgba(148, 163, 184, .10);
-  --border: rgba(148, 163, 184, .14);
-  --grid: rgba(148, 163, 184, .09);
+  --bg: #0a0e17;
+  --surface: #141b28;
+  --surface-2: #1d2534;
+  --line: rgba(148, 163, 184, .08);
+  --border: rgba(148, 163, 184, .12);
+  --grid: rgba(148, 163, 184, .07);
   --primary: #4f8ef7;
-  --primary-500: #6ba3ff;
+  --primary-500: #7db4ff;
   --primary-soft: rgba(79, 142, 247, .12);
-  --ink: #e8eef8;
-  --ink-2: #a8b5ca;
-  --muted: #64748b;
+  --ink: #f0f4fa;
+  --ink-2: #9fadc2;
+  --muted: #5c6b83;
 
-  /* צבעי סדרות — אומתו (validate_palette) מול המשטח הכהה #131a2a.
+  /* צבעי סדרות — אומתו (validate_palette) מול המשטח הכהה.
      חייבים להישאר hex בן 6 ספרות: app.js משרשר סיומות אלפא (C.blue+'2e') */
   --c-sleep: #3987e5;
   --c-teal: #199e70;
@@ -43,15 +43,24 @@
   --c-orange: #d95926;
   --c-ma: #94a3b8; /* קו ממוצע נע */
 
+  /* צבעי טבעות — גרדיאנטים בהירים למסך הבית (עצמאיים מצבעי הגרפים) */
+  --ring-sleep-1: #4f8ef7; --ring-sleep-2: #7db4ff;
+  --ring-steps-1: #8b7cf6; --ring-steps-2: #b9a7ff;
+  --ring-hrv-1:   #22c37a; --ring-hrv-2:   #5fe0a8;
+  --ring-rhr-1:   #f0596b; --ring-rhr-2:   #ff8aa0;
+  --ready-1: #5b9dff; --ready-2: #63e6b0;
+
   /* סטטוס — מלווים תמיד בטקסט, לעולם לא בצבע בלבד */
   --ok: #34d399;
   --watch: #fbbf24;
-  --alert: #f87171;
+  --alert: #fb7185;
 
-  --r-lg: 20px;
+  /* רדיוסים ומרווחים על גריד 8px */
+  --r-lg: 22px;
   --r-md: 14px;
   --r-sm: 10px;
-  --shadow: 0 8px 24px rgba(0, 0, 0, .35);
+  --gap: 16px;
+  --shadow: 0 10px 30px -18px rgba(0, 0, 0, .8);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
 }
 
@@ -80,9 +89,10 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 /* ===== סרגל עליון ===== */
 .topbar {
   padding: calc(env(safe-area-inset-top) + 12px) 16px 10px;
-  background: rgba(11, 15, 26, .85);
-  backdrop-filter: saturate(180%) blur(14px);
-  border-bottom: 1px solid var(--border);
+  background: rgba(10, 14, 23, .72);
+  backdrop-filter: saturate(180%) blur(18px);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  border-bottom: 1px solid var(--line);
   z-index: 5;
 }
 .topbar-row { display: flex; align-items: center; gap: 10px; }
@@ -93,7 +103,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   width: 34px; height: 34px; border-radius: 10px; flex: none;
   display: grid; place-items: center; color: var(--ink-2); background: var(--surface-2); font-size: .95rem;
 }
-.icon-btn svg { width: 18px; height: 18px; fill: currentColor; }
+.icon-btn svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 .range-seg { display: flex; gap: 3px; background: var(--surface-2); border-radius: 10px; padding: 3px; margin-top: 10px; }
 .seg-btn {
@@ -117,11 +127,30 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .page {
   flex: 0 0 100%; min-width: 100%;
   overflow-y: auto; scroll-snap-align: start; scroll-snap-stop: always;
-  padding: 14px 16px 24px;
+  padding: 16px 16px 32px;
   -webkit-overflow-scrolling: touch;
 }
 .page::-webkit-scrollbar { display: none; }
-.page > * + * { margin-top: 12px; }
+.page > * + * { margin-top: var(--gap); }
+
+/* כותרת סקשן שקטה — מחלקת עמוד לקבוצות (כמו Apple Health) */
+.sec-title {
+  font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); padding-inline-start: 4px; margin-bottom: -6px;
+}
+/* אייקון קו כללי */
+.ic { display: inline-block; vertical-align: middle; flex: none; }
+/* אייקונים בהקשרים שונים — ירושת צבע מהטקסט, יישור עדין */
+.anom-ic, .i-ic, .strain-ic, .ts-ic, .pc-ic, .chip-ic {
+  display: inline-grid; place-items: center; flex: none;
+}
+.chip-ic { color: var(--ink-2); margin-bottom: 2px; }
+.rec span .ic { color: var(--ink-2); }
+.rows .r-ic .ic { color: var(--ink-2); }
+.rec-list li .ic, .weight-goal .ic, .strength-streak .ic { vertical-align: -3px; margin-inline-end: 2px; color: var(--ink-2); }
+.rec-go .rec-emoji { color: var(--ok); }
+.rec-mod .rec-emoji { color: var(--primary-500); }
+.rec-rest .rec-emoji { color: var(--watch); }
 
 /* ===== כרטיס בסיס ===== */
 .card {
@@ -154,31 +183,32 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 
 /* ===== לוח טבעות (בית) ===== */
-.ring-track { stroke: rgba(148, 163, 184, .15); }
-.ring-val { transition: stroke-dashoffset .9s cubic-bezier(.22, 1, .36, 1); }
+.ring-track { stroke: rgba(148, 163, 184, .13); }
+.ring-val { transition: stroke-dashoffset 1.2s cubic-bezier(.2, .8, .2, 1); }
 
 .dashboard {
-  background: radial-gradient(120% 90% at 50% 0%, rgba(79, 142, 247, .18), transparent 60%), var(--surface);
+  background: radial-gradient(120% 80% at 50% -5%, rgba(91, 157, 255, .16), transparent 62%), var(--surface);
   border: 1px solid var(--border); border-radius: var(--r-lg);
-  box-shadow: var(--shadow); padding: 20px 16px 16px;
+  box-shadow: var(--shadow); padding: 22px 16px 18px;
 }
 .dash-center { display: flex; flex-direction: column; align-items: center; text-align: center; }
-.dash-ring { position: relative; width: 168px; height: 168px; }
+.dash-greet { font-size: .72rem; font-weight: 600; letter-spacing: .06em; color: var(--muted); margin-bottom: 14px; }
+.dash-ring { position: relative; width: 176px; height: 176px; }
 .dash-ring-txt {
   position: absolute; inset: 0; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; font-weight: 700;
+  align-items: center; justify-content: center; font-weight: 800; z-index: 2;
 }
-.dash-ring-txt b { font-size: 3rem; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-.dash-ring-txt span { font-size: .66rem; color: var(--ink-2); margin-top: 3px; font-weight: 600; }
-.dash-verdict { font-size: 1.15rem; font-weight: 700; margin-top: 12px; }
-.dash-note { font-size: .8rem; color: var(--ink-2); line-height: 1.45; margin-top: 3px; }
+.dash-ring-txt b { font-size: 3.4rem; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.dash-ring-txt span { font-size: .64rem; color: var(--ink-2); margin-top: 4px; font-weight: 600; letter-spacing: .08em; }
+.dash-verdict { font-size: 1.25rem; font-weight: 700; margin-top: 16px; letter-spacing: -.01em; }
+.dash-note { font-size: .82rem; color: var(--ink-2); line-height: 1.5; margin-top: 4px; max-width: 300px; }
 
 .dash-rings {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
-  margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line);
+  margin-top: 10px;
 }
 .mini {
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
   background: none; padding: 4px 0; transition: transform .12s ease;
 }
 .mini:active { transform: scale(.93); }
@@ -189,7 +219,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 .mini-txt b { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .mini-txt i { font-size: .55rem; color: var(--muted); font-style: normal; margin-top: 2px; }
-.mini-label { font-size: .72rem; color: var(--ink-2); font-weight: 600; }
+.mini-label { display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; color: var(--ink-2); font-weight: 600; }
+.mini-label .ic { width: 14px; height: 14px; }
+.mini.alert .mini-label { color: var(--alert); }
 
 /* אנימציות כניסה מגניבות לטבעות */
 @keyframes ringIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
@@ -335,6 +367,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .link-btn { font-size: .78rem; color: var(--primary-500); font-weight: 700; }
 
 /* ===== סיכום שבועי (בית) ===== */
+.ws-prose { font-size: .84rem; line-height: 1.6; color: var(--ink-2); margin-bottom: 12px; }
 .ws-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .ws-chip {
   background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm);
@@ -421,9 +454,10 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 /* ===== ניווט תחתון — עם גלולה מחליקה ===== */
 .tabbar {
   display: grid; grid-template-columns: repeat(4, 1fr);
-  background: rgba(15, 21, 36, .92);
-  backdrop-filter: saturate(180%) blur(14px);
-  border-top: 1px solid var(--border);
+  background: rgba(10, 14, 23, .82);
+  backdrop-filter: saturate(180%) blur(18px);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
   z-index: 6;
   position: relative;
@@ -441,7 +475,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   padding: 10px 0 7px; color: var(--muted); transition: color .15s, transform .12s;
 }
 .tab:active { transform: scale(.92); }
-.tab svg { width: 23px; height: 23px; fill: currentColor; }
+.tab svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .tab span { font-size: .66rem; font-weight: 600; }
 .tab.active { color: var(--primary-500); }
 

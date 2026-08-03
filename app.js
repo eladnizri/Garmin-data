@@ -10,10 +10,69 @@ const state = { data: [], isDemo: false, range: 30, page: 0 };
 const charts = {};
 /* Chart.defaults מוגדרים ב-common.js (מקור יחיד) */
 
+/* קו סמן אנכי (crosshair) בגרירה על הגרף — תחושת "scrubbing" של Apple Health */
+if (typeof Chart !== 'undefined') {
+  Chart.register({
+    id: 'crosshair',
+    afterDraw(chart) {
+      const act = chart.tooltip?.getActiveElements?.() || [];
+      if (!act.length) return;
+      const x = act[0].element.x, { top, bottom } = chart.chartArea, c = chart.ctx;
+      c.save();
+      c.beginPath(); c.moveTo(x, top); c.lineTo(x, bottom);
+      c.lineWidth = 1; c.setLineDash([3, 3]);
+      c.strokeStyle = 'rgba(240,244,250,.28)';
+      c.stroke(); c.restore();
+    },
+  });
+}
+
 /* העדפת תנועה מופחתת — מדלגים על אנימציות (טבעת, ספירה עולה) */
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 /* דגל לדיכוי אנימציית כניסה של הגרפים בעת רינדור חוזר (שינוי טווח) */
 let chartAnim = true;
+
+/* רטט קליל למשוב מגע (במכשירים שתומכים) */
+function haptic(ms = 8) { try { navigator.vibrate?.(ms); } catch {} }
+
+/* =========================================================================
+ * סט אייקוני קו אחיד — מחליף אימוג'י לאורך האפליקציה (מראה בוגר ועקבי)
+ * ========================================================================= */
+const ICONS = {
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  heart: '<path d="M3 12h4l2-5 3 9 2-4h7"/>',
+  hrv: '<path d="M2 12h3l2-6 3 12 2.5-8 2 5 2-3h3.5"/>',
+  walk: '<path d="M13 4a2 2 0 1 0 0 .01M8.5 21l1.2-6.2 2.3 1.9V21M6 10l3.7-1 2 3.2 3.3.8"/>',
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  flame: '<path d="M12 3c1 3-2 4-2 7a2 2 0 0 0 4 0c2 2 3 3.5 3 6a5 5 0 0 1-10 0c0-4 3-6 5-13z"/>',
+  scale: '<path d="M12 3v3M5 6h14l-2.5 7a4 4 0 0 1-9 0zM8 21h8"/>',
+  lungs: '<path d="M12 4v9M8 8c-3 1-4 4-4 8a2 2 0 0 0 4 0zM16 8c3 1 4 4 4 8a2 2 0 0 1-4 0z"/>',
+  dumbbell: '<path d="M6.5 6.5v11M17.5 6.5v11M4 9v6M20 9v6M6.5 12h11"/>',
+  run: '<path d="M14 4a2 2 0 1 0 0 .01M6 21l3-5-2-3 1-4 4 2 2 3M9 13l-2 2"/>',
+  bolt: '<path d="M13 3 5 13h6l-1 8 8-11h-6z"/>',
+  yoga: '<path d="M12 5a2 2 0 1 0 0-.01M12 8v5M6 21l6-8 6 8M6 12l6 1 6-1"/>',
+  trophy: '<path d="M7 4h10v4a5 5 0 0 1-10 0zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3M9 15h6M8 21h8M12 15v6"/>',
+  chart: '<path d="M3 15l5-6 4 4 5-7 4 5"/><path d="M3 20h18"/>',
+  alert: '<path d="M12 3 2 20h20zM12 9v5M12 17h.01"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/>',
+  bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10c1 1 1 2 1 3h6c0-1 0-2 1-3a6 6 0 0 0-4-10z"/>',
+  stetho: '<path d="M5 3v5a4 4 0 0 0 8 0V3M9 16v-2M9 16a5 5 0 0 0 10 0v-2M19 12a2 2 0 1 0 0-.01"/>',
+  gauge: '<path d="M12 13l4-3M4 18a9 9 0 1 1 16 0z"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/>',
+  vo2: '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>',
+  drop: '<path d="M12 3s6 6 6 10a6 6 0 0 1-12 0c0-4 6-10 6-10z"/>',
+  up: '<path d="M12 5v14M6 11l6-6 6 6"/>',
+  down: '<path d="M12 19V5M6 13l6 6 6-6"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  profile: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  chartbars: '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
+  floors: '<path d="M3 20h4v-4h4v-4h4v-4h4V4"/>',
+};
+function icon(name, size = 18, cls = '') {
+  return `<svg class="ic ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+}
 
 /* =========================================================================
  * פרופיל אישי — מקומי בלבד (localStorage)
@@ -279,51 +338,66 @@ function countUp(el, target, ms = 600) {
   requestAnimationFrame(step);
 }
 
-/* טבעת גדולה (מוכנות) — SVG בגודל נתון, עם צבע לפי הציון וזוהר */
-function bigRingSvg(score, size = 168) {
-  const sw = 12, r = size / 2 - sw / 2 - 2, c = 2 * Math.PI * r, cc = size / 2;
-  const col = ringColor(score);
+/* זוג צבעי גרדיאנט לטבעת המוכנות לפי הציון (שומר על משמעות: ירוק/כחול/אדום) */
+function readyGrad(score) {
+  if (score >= 80) return ['#34d399', '#7ce7c0'];
+  if (score >= 50) return ['#5b9dff', '#63e6b0'];
+  return ['#fbbf24', '#fb7185'];
+}
+/* טבעת גדולה (מוכנות) — גרדיאנט זוהר + סימן יעד + קצוות מעוגלים */
+function bigRingSvg(score, size = 176) {
+  const sw = 13, r = size / 2 - sw / 2 - 2, c = 2 * Math.PI * r, cc = size / 2;
+  const [c1, c2] = readyGrad(score);
   const target = c * (1 - clamp(score, 0, 100) / 100);
   const start = REDUCED ? target : c;
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <defs><linearGradient id="rg-big" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
     <circle class="ring-track" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke-width="${sw}"/>
-    <circle class="ring-val" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round"
+    <circle class="ring-val" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke="url(#rg-big)" stroke-width="${sw}" stroke-linecap="round"
       transform="rotate(-90 ${cc} ${cc})" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${start.toFixed(1)}"
-      data-target="${target.toFixed(1)}" style="filter:drop-shadow(0 0 9px ${col}88)"/></svg>`;
+      data-target="${target.toFixed(1)}" style="filter:drop-shadow(0 0 10px ${c1}88)"/>
+    <circle cx="${cc}" cy="${cc - r}" r="3.2" fill="var(--ink)" opacity=".5"/></svg>`;
 }
 
-/* טבעת מדד קטנה. fillPct=null → טבעת מלאה בצבע המדד (בלי מילוי יחסי, לדופק/HRV).
- * anomalous → הדגשה אדומה מסביב. */
-function miniRingSvg(color, fillPct, anomalous, size = 78) {
-  const sw = 6, r = size / 2 - sw / 2 - (anomalous ? 5 : 1), c = 2 * Math.PI * r, cc = size / 2;
-  const alertCol = getComputedStyle(document.documentElement).getPropertyValue('--alert').trim() || '#f87171';
-  const outer = anomalous
-    ? `<circle cx="${cc}" cy="${cc}" r="${size / 2 - 2}" fill="none" stroke="${alertCol}" stroke-width="2.5"
-        style="filter:drop-shadow(0 0 5px ${alertCol}aa)"/>` : '';
-  let arc;
+/* טבעת מדד קטנה. grad=[var1,var2] גרדיאנט; fillPct=null → טבעת מלאה (דופק/HRV);
+ * anomalous → הדגשה אדומה מסביב; uid → מזהה ייחודי לגרדיאנט. */
+function miniRingSvg(grad, fillPct, anomalous, uid, size = 78) {
+  const sw = 6, r = size / 2 - sw / 2 - 1, c = 2 * Math.PI * r, cc = size / 2;
+  const c1 = cssVar(grad[0], '#4f8ef7'), c2 = cssVar(grad[1], '#7db4ff');
+  const gid = `mg-${uid}`;
+  const defs = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>`;
+  const alertCol = cssVar('--alert', '#fb7185');
+  const halo = anomalous
+    ? `<circle cx="${cc}" cy="${cc}" r="${size / 2 - 1.5}" fill="none" stroke="${alertCol}" stroke-width="2.5"
+        style="filter:drop-shadow(0 0 6px ${alertCol}aa)"/>` : '';
+  const track = `<circle class="ring-track" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke-width="${sw}"/>`;
+  let arc, tick = '';
   if (fillPct === null) {
-    // דופק / HRV — טבעת מלאה בצבע המדד, בלי מילוי יחסי
-    arc = `<circle cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" opacity=".85"/>`;
+    arc = `<circle cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke="url(#${gid})" stroke-width="${sw}"/>`;
   } else {
     const off = c * (1 - clamp(fillPct, 0, 100) / 100);
     const start = REDUCED ? off : c;
-    arc = `<circle class="ring-val" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
+    arc = `<circle class="ring-val" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke="url(#${gid})" stroke-width="${sw}"
       stroke-linecap="round" transform="rotate(-90 ${cc} ${cc})" stroke-dasharray="${c.toFixed(1)}"
       stroke-dashoffset="${start.toFixed(1)}" data-target="${off.toFixed(1)}"/>`;
+    tick = `<circle cx="${cc}" cy="${cc - r}" r="1.9" fill="var(--ink)" opacity=".45"/>`;
   }
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    ${outer}<circle class="ring-track" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke-width="${sw}"/>${arc}</svg>`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${defs}${halo}${track}${arc}${tick}</svg>`;
 }
 
 /* מדדי הטבעות הקטנות סביב המוכנות */
 const DASH_METRICS = [
-  { key: 'sleep_hours', page: 1, label: 'שינה', color: C.blue, fill: true,
+  { key: 'sleep_hours', page: 1, label: 'שינה', ico: 'moon', grad: ['--ring-sleep-1', '--ring-sleep-2'], fill: true,
     goal: () => goalSleep(), disp: v => fmt(v, 1), sub: 'ש׳' },
-  { key: 'steps', page: 3, label: 'צעדים', color: C.violet, fill: true,
+  { key: 'steps', page: 3, label: 'צעדים', ico: 'walk', grad: ['--ring-steps-1', '--ring-steps-2'], fill: true,
     goal: () => goalSteps(), disp: v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : fmt(v), sub: '' },
-  { key: 'rhr', page: 2, label: 'דופק', color: C.red, fill: false, disp: v => fmt(v), sub: 'bpm' },
-  { key: 'hrv', page: 2, label: 'HRV', color: C.green, fill: false, disp: v => fmt(v), sub: 'ms' },
+  { key: 'rhr', page: 2, label: 'דופק', ico: 'heart', grad: ['--ring-rhr-1', '--ring-rhr-2'], fill: false, disp: v => fmt(v), sub: 'bpm' },
+  { key: 'hrv', page: 2, label: 'HRV', ico: 'hrv', grad: ['--ring-hrv-1', '--ring-hrv-2'], fill: false, disp: v => fmt(v), sub: 'ms' },
 ];
+/* ברכה לפי שעת היום */
+function greeting() { const h = new Date().getHours(); return h < 12 ? 'בוקר טוב' : h < 18 ? 'צהריים טובים' : 'ערב טוב'; }
 
 function renderDashboard() {
   const el = $('dashboard');
@@ -331,22 +405,26 @@ function renderDashboard() {
   const score = official ?? heuristicReadiness();
 
   // --- טבעות המדדים הקטנות ---
-  const minis = DASH_METRICS.map(m => {
+  const minis = DASH_METRICS.map((m, i) => {
     const s = statusOf(m.key);
     const v = s ? s.value : latest(m.key);
     const anomalous = s && (s.level === 'watch' || s.level === 'alert');
     const fillPct = (m.fill && v !== null) ? clamp(v / m.goal() * 100, 0, 100) : (m.fill ? 0 : null);
     const center = v === null ? '—' : m.disp(v);
-    return `<button class="mini" data-goto="${m.page}">
-      <span class="mini-ring">${miniRingSvg(m.color, fillPct, anomalous)}
+    return `<button class="mini${anomalous ? ' alert' : ''}" data-goto="${m.page}">
+      <span class="mini-ring">${miniRingSvg(m.grad, fillPct, anomalous, i)}
         <span class="mini-txt"><b>${center}</b>${m.sub ? `<i>${m.sub}</i>` : ''}</span></span>
-      <span class="mini-label">${m.label}</span></button>`;
+      <span class="mini-label">${icon(m.ico, 14)}${m.label}</span></button>`;
   }).join('');
 
+  const last = lastRow();
+  const dateLine = last.date ? `${greeting()} · ${longDate(last.date)}` : greeting();
+
   if (score === null) {
-    el.innerHTML = `<div class="dash-center"><div class="dash-verdict">בהמתנה לנתונים</div>
+    el.innerHTML = `<div class="dash-center"><div class="dash-greet">${dateLine}</div>
+      <div class="dash-verdict">בהמתנה לנתונים</div>
       <div class="dash-note">הסנכרון היומי ימלא את הציון.</div></div>
-      <div class="dash-rings">${minis}</div>`;
+      <div class="sec-title" style="margin-top:18px">מדדים</div><div class="dash-rings">${minis}</div>`;
     animateRings(el);
     return;
   }
@@ -360,11 +438,13 @@ function renderDashboard() {
 
   el.innerHTML = `
     <div class="dash-center">
+      <div class="dash-greet">${dateLine}</div>
       <div class="dash-ring">${bigRingSvg(score)}
         <span class="dash-ring-txt"><b>0</b><span>מוכנות</span></span></div>
       <div class="dash-verdict">${verdictOf(score)}</div>
       <div class="dash-note">${note}</div>
     </div>
+    <div class="sec-title" style="margin-top:18px">מדדים</div>
     <div class="dash-rings">${minis}</div>`;
 
   // ספירה עולה על ציון המוכנות
@@ -388,7 +468,7 @@ function renderAnomalies() {
   const list = anomalies();
   const el = $('anomalies');
   if (!list.length) {
-    el.innerHTML = `<div class="anom ok"><span class="anom-ic">✓</span>
+    el.innerHTML = `<div class="anom ok"><span class="anom-ic">${icon('check', 17)}</span>
       <span>כל המדדים <b>בטווח הרגיל שלך</b> בימים האחרונים.</span></div>`;
     return;
   }
@@ -396,7 +476,7 @@ function renderAnomalies() {
     const d = METRICS[s.key];
     const base = s.base && s.base.mean !== undefined
       ? ` (הרגיל שלך: ${fmt(s.base.mean, d.dec)})` : '';
-    return `<div class="anom ${s.level}"><span class="anom-ic">${s.level === 'alert' ? '⚠️' : '👀'}</span>
+    return `<div class="anom ${s.level}"><span class="anom-ic">${icon(s.level === 'alert' ? 'alert' : 'eye', 17)}</span>
       <span><b>${d.label} ${valueText(s.key, s.value)}</b> — ${s.text}${base}.</span></div>`;
   }).join('')}</div>`;
 }
@@ -475,7 +555,7 @@ function renderHomeInsight() {
       : 'ככל שיצטברו יותר ימי מדידה, כאן יופיעו תובנות אישיות מהצלבת הנתונים שלך.';
   }
   $('insight-home').innerHTML =
-    `<div class="insight"><span class="i-ic">💡</span><p><b>תובנה:</b> ${text}</p></div>`;
+    `<div class="insight"><span class="i-ic">${icon('bulb', 19)}</span><p><b>תובנה:</b> ${text}</p></div>`;
 }
 
 /* =========================================================================
@@ -568,10 +648,26 @@ const constLine = (rows, v, label, color, dash = [6, 5]) => ({
 function bar(rows, key, color) {
   return { data: points(rows, key), backgroundColor: color, borderRadius: 5, borderSkipped: false, maxBarThickness: 22 };
 }
+/* מילוי גרדיאנט אנכי מתחת לקו (מהצבע לשקוף) — מראה עשיר יותר ממילוי אחיד */
+function gradFill(color) {
+  return ctx => {
+    const area = ctx.chart.chartArea;
+    if (!area) return color + '20';
+    const g = ctx.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+    g.addColorStop(0, color + '55');
+    g.addColorStop(1, color + '00');
+    return g;
+  };
+}
+/* נקודת סיום מודגשת — רק הנקודה האחרונה גלויה */
+const ptLast = ctx => ctx.dataIndex === ctx.dataset.data.length - 1 ? 3.5 : 0;
 function line(rows, key, color, filled = true) {
   return {
-    data: points(rows, key), borderColor: color, backgroundColor: color + '2e',
-    borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 5, pointBackgroundColor: color,
+    data: points(rows, key), borderColor: color,
+    backgroundColor: filled ? gradFill(color) : 'transparent',
+    borderWidth: 2.5, pointRadius: ptLast, pointHoverRadius: 5,
+    pointBackgroundColor: ctx => ctx.dataIndex === ctx.dataset.data.length - 1 ? cssVar('--ink', '#fff') : color,
+    pointBorderColor: color, pointBorderWidth: 1.5,
     tension: .38, fill: filled, spanGaps: true,
   };
 }
@@ -740,7 +836,7 @@ function renderChartTips() {
     const s = statusOf(key);
     if (s && (s.level === 'watch' || s.level === 'alert') && TIPS[key]) {
       const tip = TIPS[key][rot % TIPS[key].length];
-      el.innerHTML = `<div class="tip-strip ${s.level}"><span>💡</span><span><b>טיפ:</b> ${tip}</span></div>`;
+      el.innerHTML = `<div class="tip-strip ${s.level}"><span class="ts-ic">${icon('bulb', 16)}</span><span><b>טיפ:</b> ${tip}</span></div>`;
     } else {
       el.innerHTML = '';
     }
@@ -780,7 +876,7 @@ function renderSleepRec() {
   const goal = goalSleep();
   if (avgSleep === null || avgSleep >= goal - 0.3) { el.innerHTML = ''; return; }
   const gapMin = Math.round((goal - avgSleep) * 60);
-  el.innerHTML = `<div class="insight"><span class="i-ic">🌙</span>
+  el.innerHTML = `<div class="insight"><span class="i-ic">${icon('moon', 19)}</span>
     <p><b>חוסר שינה:</b> ממוצע ${fmt(avgSleep, 1)} שעות בשבוע האחרון, מתחת ליעד ${fmt(goal, Number.isInteger(goal) ? 0 : 1)}.
     נסה להקדים את שעת השינה בכ-<b>${gapMin} דקות</b> — עקביות חשובה יותר מלילה בודד ארוך.</p></div>`;
 }
@@ -813,10 +909,10 @@ function renderBreathing() {
   const el = $('sleep-breathing');
   if (spo2 === null && resp === null) { el.innerHTML = ''; return; }
   const rows = [];
-  if (spo2 !== null) rows.push(`<li><span class="r-ic">🫁</span>
+  if (spo2 !== null) rows.push(`<li><span class="r-ic">${icon('drop', 18)}</span>
     <span><span class="r-name">רוויון חמצן ממוצע</span>${lowO2 !== null ? `<br><span class="r-sub">שפל ${lowO2}%</span>` : ''}</span>
     <span class="r-val">${fmt(spo2)}<small>%</small></span></li>`);
-  if (resp !== null) rows.push(`<li><span class="r-ic">💨</span>
+  if (resp !== null) rows.push(`<li><span class="r-ic">${icon('lungs', 18)}</span>
     <span class="r-name">קצב נשימה בשינה</span>
     <span class="r-val">${fmt(resp, 1)}<small>נשימות/דק׳</small></span></li>`);
   el.innerHTML = `<article class="card"><div class="card-head"><h2>נשימה וחמצן בלילה</h2>
@@ -843,7 +939,8 @@ function renderWorkouts() {
     if (w.km) bits.push(`${fmt(w.km, 2)} ק״מ`);
     if (w.avg_hr) bits.push(`דופק ${w.avg_hr}`);
     if (w.calories) bits.push(`${fmt(w.calories)} kcal`);
-    return `<li><span class="r-ic">🏃</span>
+    const wi = w.type_key && w.type_key.includes('strength') ? 'dumbbell' : 'run';
+    return `<li><span class="r-ic">${icon(wi, 18)}</span>
       <span><span class="r-name">${w.type}</span><br><span class="r-sub">${shortDate(w.date)}${bits.length ? ' · ' + bits.join(' · ') : ''}</span></span>
       <span class="r-val">${w.minutes ? `${w.minutes}<small>דק׳</small>` : ''}</span></li>`;
   }).join('');
@@ -860,16 +957,16 @@ function renderBody() {
   const b = bmi(), mh = maxHR();
   const has = profile.age || profile.heightCm || profile.weightKg || profile.sleepGoal || profile.stepsGoal;
   if (!has) {
-    el.innerHTML = `<button class="prompt-card" id="open-profile"><span style="font-size:1.3rem">👤</span>
+    el.innerHTML = `<button class="prompt-card" id="open-profile"><span class="pc-ic">${icon('profile', 22)}</span>
       <span><span class="pc-t">השלם פרופיל אישי</span><br><span class="pc-v">גיל, גובה ומשקל — לניתוח ויעדים מדויקים יותר</span></span>
       <span class="pc-arrow">‹</span></button>`;
     return;
   }
   const chips = [];
-  if (b) chips.push(`<div class="chip"><span>⚖️</span><b>${b.toFixed(1)}</b><small>BMI · ${bmiCat(b)}</small></div>`);
-  if (mh) chips.push(`<div class="chip"><span>❤️</span><b>${mh}</b><small>דופק מקס׳</small></div>`);
-  chips.push(`<div class="chip"><span>🌙</span><b>${fmt(goalSleep(), Number.isInteger(goalSleep()) ? 0 : 1)}</b><small>יעד שינה</small></div>`);
-  chips.push(`<div class="chip"><span>👣</span><b>${fmt(goalSteps())}</b><small>יעד צעדים</small></div>`);
+  if (b) chips.push(`<div class="chip"><span class="chip-ic">${icon('scale', 18)}</span><b>${b.toFixed(1)}</b><small>BMI · ${bmiCat(b)}</small></div>`);
+  if (mh) chips.push(`<div class="chip"><span class="chip-ic">${icon('heart', 18)}</span><b>${mh}</b><small>דופק מקס׳</small></div>`);
+  chips.push(`<div class="chip"><span class="chip-ic">${icon('moon', 18)}</span><b>${fmt(goalSleep(), Number.isInteger(goalSleep()) ? 0 : 1)}</b><small>יעד שינה</small></div>`);
+  chips.push(`<div class="chip"><span class="chip-ic">${icon('walk', 18)}</span><b>${fmt(goalSteps())}</b><small>יעד צעדים</small></div>`);
   el.innerHTML = `<article class="card"><div class="body-head"><h2>הפרופיל שלי</h2>
     <button class="link-btn" id="open-profile">עריכה</button></div><div class="chips">${chips.join('')}</div></article>`;
 }
@@ -915,7 +1012,7 @@ function renderStrain() {
   // צריך לפחות שני סימנים מצטלבים כדי לא להקפיץ אזהרות שווא
   if (signals.length < 2) { el.innerHTML = ''; return; }
   el.innerHTML = `<div class="strain-card">
-    <span class="strain-ic">🩺</span>
+    <span class="strain-ic">${icon('stetho', 22)}</span>
     <div><div class="strain-title">הגוף תחת עומס</div>
     <div class="strain-body">שילוב של ${signals.join(' · ')} — שקול יום מנוחה, שתייה מרובה ושינה מוקדמת.</div></div></div>`;
 }
@@ -936,7 +1033,7 @@ function renderWeight() {
   const el = $('weight-card');
   const last = latestWeight();
   if (!last) {
-    el.innerHTML = `<button class="prompt-card" id="open-weight"><span style="font-size:1.3rem">⚖️</span>
+    el.innerHTML = `<button class="prompt-card" id="open-weight"><span class="pc-ic">${icon('scale', 22)}</span>
       <span><span class="pc-t">התחל מעקב משקל שבועי</span><br><span class="pc-v">שקילה אחת בשבוע מספיקה למגמה אמינה</span></span>
       <span class="pc-arrow">‹</span></button>`;
     return;
@@ -944,7 +1041,7 @@ function renderWeight() {
   const deltas = [deltaChip('מהשקילה הקודמת', weights.length >= 2 ? weights[weights.length - 2] : null),
                   deltaChip('מלפני חודש', weightAt(30))].filter(Boolean).join('');
   const daysSince = Math.floor((new Date(todayISO()) - new Date(last.date)) / 86400000);
-  const nudge = daysSince > 7 ? `<div class="weight-nudge">⏳ עברו ${daysSince} ימים מהשקילה האחרונה</div>` : '';
+  const nudge = daysSince > 7 ? `<div class="weight-nudge">עברו ${daysSince} ימים מהשקילה האחרונה</div>` : '';
   const chart = weights.length >= 3 ? '<div class="chart-wrap chart-sm" dir="ltr" style="height:120px;margin-top:10px"><canvas id="chart-weight"></canvas></div>' : '';
 
   // יעד משקל + תחזית לפי המגמה
@@ -954,13 +1051,13 @@ function renderWeight() {
     const slope = weightSlope(); // kg/יום
     const remaining = goal - last.kg;
     let eta;
-    if (Math.abs(remaining) < 0.3) eta = '<b>הגעת ליעד! 🎯</b>';
+    if (Math.abs(remaining) < 0.3) eta = '<b>הגעת ליעד!</b>';
     else if (slope === null || Math.abs(slope) < 0.002) eta = 'המגמה יציבה — היעד עדיין לא בהישג';
     else if ((remaining < 0) === (slope < 0)) {
       const weeks = Math.round(Math.abs(remaining / slope) / 7);
       eta = `בקצב הנוכחי — היעד בעוד <b>~${weeks} שבועות</b>`;
     } else eta = 'המגמה מתרחקת מהיעד כרגע';
-    goalLine = `<div class="weight-goal">🎯 יעד ${fmt(goal, 1)} ק״ג · ${eta}</div>`;
+    goalLine = `<div class="weight-goal">${icon('gauge', 15)} יעד ${fmt(goal, 1)} ק״ג · ${eta}</div>`;
   }
 
   el.innerHTML = `<article class="card">
@@ -972,7 +1069,7 @@ function renderWeight() {
   if (weights.length >= 3) {
     const wRows = weights.map(w => ({ date: w.date }));
     const datasets = [{ data: weights.map(w => ({ x: shortDate(w.date), y: w.kg, iso: w.date })),
-      borderColor: C.teal, backgroundColor: C.teal + '2e', borderWidth: 2.5, pointRadius: 3,
+      borderColor: C.teal, backgroundColor: gradFill(C.teal), borderWidth: 2.5, pointRadius: 3,
       pointBackgroundColor: C.teal, tension: .3, fill: true }];
     if (goal) datasets.push(constLine(wRows, goal, 'יעד', C.muted));
     make('chart-weight', {
@@ -1023,7 +1120,7 @@ function renderStrength() {
     }
     if (cnt >= goal) streak++; else break;
   }
-  const streakLine = streak >= 2 ? `<div class="strength-streak">🔥 ${streak} שבועות ברצף ביעד</div>` : '';
+  const streakLine = streak >= 2 ? `<div class="strength-streak">${icon('flame', 15)} ${streak} שבועות ברצף ביעד</div>` : '';
 
   el.innerHTML = `<article class="card">
     <div class="body-head"><h2>אימוני כוח</h2>
@@ -1082,8 +1179,23 @@ function renderWeekSummary() {
     chips.push(`<div class="ws-chip"><small>משקל (שבוע)</small><b>${fmt(wLast.kg, 1)}<small> ק״ג</small></b>${wsDelta(wLast.kg, wPrev.kg, 1, true)}</div>`);
   }
 
-  el.innerHTML = `<article class="card"><div class="card-head"><h2>השבוע שלי</h2>
-    <span class="unit">מול השבוע הקודם</span></div><div class="ws-grid">${chips.join('')}</div></article>`;
+  // סיכום כתוב בסגנון מאמן — מספר את הסיפור, לא רק מציג מספרים
+  const bits = [];
+  if (sleepC !== null && sleepP !== null) {
+    const d = sleepC - sleepP;
+    bits.push(Math.abs(d) < 0.2 ? 'השינה יציבה' : d > 0 ? 'השינה השתפרה' : 'השינה ירדה מעט');
+  }
+  const hrvC = avg(cur, 'hrv'), hrvP = avg(prev, 'hrv');
+  if (hrvC !== null && hrvP !== null && hrvP) {
+    const pct = Math.round((hrvC - hrvP) / hrvP * 100);
+    if (Math.abs(pct) >= 4) bits.push(`ה-HRV ${pct > 0 ? 'עלה' : 'ירד'} ב-${Math.abs(pct)}%`);
+  }
+  if (strC < goalStrength()) bits.push(`חסרים ${goalStrength() - strC} אימוני כוח ליעד`);
+  else if (strC >= goalStrength()) bits.push('עמדת ביעד אימוני הכוח');
+  const prose = bits.length ? `<p class="ws-prose">${bits.join(', ')}.</p>` : '';
+
+  el.innerHTML = `<article class="card"><div class="card-head"><h2>הסיכום השבועי שלך</h2>
+    <span class="unit">מול השבוע הקודם</span></div>${prose}<div class="ws-grid">${chips.join('')}</div></article>`;
 }
 
 /* =========================================================================
@@ -1092,10 +1204,10 @@ function renderWeekSummary() {
  * האימונים שאתה מבצע בפועל.
  * ========================================================================= */
 const MY_WORKOUTS = {
-  zone2:    { emoji: '🏃', label: 'ריצת Zone 2', detail: '~5 ק״מ בקצב נוח (אפשר לנהל שיחה)' },
-  tempo:    { emoji: '⚡', label: 'ריצת טמפו',   detail: '~3 ק״מ בקצב מאמץ' },
-  strength: { emoji: '🏋️', label: 'אימון כוח',   detail: 'פול-באדי' },
-  rest:     { emoji: '🧘', label: 'מנוחה פעילה',  detail: 'הליכה קלה, מתיחות או יוגה' },
+  zone2:    { ico: 'run', label: 'ריצת Zone 2', detail: '~5 ק״מ בקצב נוח (אפשר לנהל שיחה)' },
+  tempo:    { ico: 'bolt', label: 'ריצת טמפו',   detail: '~3 ק״מ בקצב מאמץ' },
+  strength: { ico: 'dumbbell', label: 'אימון כוח',   detail: 'פול-באדי' },
+  rest:     { ico: 'yoga', label: 'מנוחה פעילה',  detail: 'הליכה קלה, מתיחות או יוגה' },
 };
 /* בוחר את אימון היום לפי מוכנות + סטטוס אימון + יתרת יעד הכוח */
 function pickSession(score, statusKey, strLeft) {
@@ -1119,9 +1231,9 @@ function renderActivityRec() {
   const statusKey = st ? String(st).toUpperCase().replace(/[^A-Z_0-9]/g, '') : null;
   const statusHeb = statusKey ? (TRAINING_STATUS[statusKey] || st) : null;
   const chips = [];
-  if (vo2 !== null) chips.push(`<div class="chip"><span>🫀</span><b>${fmt(vo2, 1)}</b><small>VO2 Max</small></div>`);
-  if (age !== null) chips.push(`<div class="chip"><span>🎂</span><b>${fmt(age)}</b><small>גיל כושר</small></div>`);
-  if (statusHeb) chips.push(`<div class="chip"><span>📈</span><b style="font-size:.74rem">${statusHeb}</b><small>סטטוס אימון</small></div>`);
+  if (vo2 !== null) chips.push(`<div class="chip"><span class="chip-ic">${icon('vo2', 18)}</span><b>${fmt(vo2, 1)}</b><small>VO2 Max</small></div>`);
+  if (age !== null) chips.push(`<div class="chip"><span class="chip-ic">${icon('calendar', 18)}</span><b>${fmt(age)}</b><small>גיל כושר</small></div>`);
+  if (statusHeb) chips.push(`<div class="chip"><span class="chip-ic">${icon('chart', 18)}</span><b style="font-size:.74rem">${statusHeb}</b><small>סטטוס אימון</small></div>`);
 
   // יעדי השבוע
   const cur = weekRows(0), auto = autoStrengthDates();
@@ -1136,18 +1248,18 @@ function renderActivityRec() {
 
   const targets = [];
   targets.push(strLeft > 0
-    ? `🏋️ עוד <b>${strLeft}</b> אימוני כוח השבוע (${strDone}/${strGoal})`
-    : `🏋️ עמדת ביעד אימוני הכוח (${strDone}/${strGoal}) 👏`);
+    ? `${icon('dumbbell', 16)} עוד <b>${strLeft}</b> אימוני כוח השבוע (${strDone}/${strGoal})`
+    : `${icon('dumbbell', 16)} עמדת ביעד אימוני הכוח (${strDone}/${strGoal})`);
   const intLeft = Math.max(0, intGoal - Math.round(intMin));
   targets.push(intLeft > 0
-    ? `🏃 עוד <b>${intLeft}</b> דק׳ פעילות אינטנסיבית ליעד ה-150 השבועי`
-    : `🏃 מעל יעד ה-WHO (${Math.round(intMin)} דק׳) 👏`);
+    ? `${icon('run', 16)} עוד <b>${intLeft}</b> דק׳ פעילות אינטנסיבית ליעד ה-150 השבועי`
+    : `${icon('run', 16)} מעל יעד ה-WHO (${Math.round(intMin)} דק׳)`);
 
   el.innerHTML = `<article class="card rec-card rec-${tone}">
     <div class="card-head"><h2>כושר ואימון מומלץ</h2><span class="unit">מוכנות ${score}</span></div>
     ${chips.length ? `<div class="chips" style="margin-bottom:12px">${chips.join('')}</div>` : ''}
     <div class="rec-session">
-      <span class="rec-emoji">${w.emoji}</span>
+      <span class="rec-emoji">${icon(w.ico, 24)}</span>
       <div><div class="rec-title">היום: ${w.label}</div>
         <div class="rec-detail">${w.detail}</div>
         <div class="rec-why">${pick.why}</div></div>
@@ -1195,6 +1307,7 @@ $('weight-form').addEventListener('submit', e => {
   const f = e.target, kg = Number(f.kg.value), date = f.date.value;
   if (!kg || !date) return;
   addWeight(date, kg);
+  haptic(12);
   closeWeight();
   renderWeight(); renderBody(); renderWeekSummary();
 });
@@ -1206,6 +1319,7 @@ $('strength-card').addEventListener('click', e => {
   const iso = btn.dataset.iso;
   strengthChecks[iso] = !strengthChecks[iso];
   if (!strengthChecks[iso]) delete strengthChecks[iso];
+  haptic(12);
   saveStrength();
   renderStrength(); renderWeekSummary();
 });
@@ -1320,7 +1434,7 @@ function renderAll() {
   const rows = visibleRows();
   const sleepStreak = trailingStreak(rows, r => r.sleep_score != null && r.sleep_score >= 80);
   renderRecords('sleep-records', [
-    sleepStreak >= 2 && recCard('🔥', `${sleepStreak}`, 'רצף לילות 80+'),
+    sleepStreak >= 2 && recCard(icon('flame', 22), `${sleepStreak}`, 'רצף לילות 80+'),
   ]);
 
   const bestSteps = extremeDay(rows, 'steps', 'max');
@@ -1332,11 +1446,11 @@ function renderAll() {
   const avgCal = calVals.length ? Math.round(calVals.reduce((a, b) => a + b, 0) / calVals.length) : null;
   const totalFloors = fullRows.reduce((a, r) => a + (r.floors || 0), 0);
   renderRecords('steps-records', [
-    bestSteps && recCard('👣', fmt(bestSteps.v), `היום הפעיל · ${shortDate(bestSteps.date)}`),
-    stepStreak >= 2 && recCard('🔥', `${stepStreak}`, 'רצף ימים ביעד'),
-    totalSteps > 0 && recCard('📊', fmt(totalSteps), 'סה״כ בתקופה'),
-    avgCal && recCard('🔥', fmt(avgCal), 'קק״ל ליום בממוצע'),
-    totalFloors > 0 && recCard('🪜', fmt(totalFloors), 'קומות בתקופה'),
+    bestSteps && recCard(icon('walk', 22), fmt(bestSteps.v), `היום הפעיל · ${shortDate(bestSteps.date)}`),
+    stepStreak >= 2 && recCard(icon('flame', 22), `${stepStreak}`, 'רצף ימים ביעד'),
+    totalSteps > 0 && recCard(icon('chartbars', 22), fmt(totalSteps), 'סה״כ בתקופה'),
+    avgCal && recCard(icon('flame', 22), fmt(avgCal), 'קק״ל ליום בממוצע'),
+    totalFloors > 0 && recCard(icon('floors', 22), fmt(totalFloors), 'קומות בתקופה'),
   ]);
 }
 
@@ -1358,6 +1472,7 @@ function setActive(idx) {
   $('range-filter').classList.toggle('hidden', idx === 0);
 }
 function goTo(idx) {
+  haptic(10);
   // מעבר לעמוד מתחיל תמיד מראש העמוד המבוקש
   pages[idx].scrollTop = 0;
   pages[idx].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
@@ -1409,6 +1524,7 @@ let syncing = false;
 async function syncNow() {
   if (syncing) return;
   syncing = true;
+  haptic(10);
   const btn = $('sync-btn');
   btn.classList.add('spinning');
   try {
