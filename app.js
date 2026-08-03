@@ -556,9 +556,9 @@ function renderBreathing() {
 }
 
 const READINESS_FACTORS = [
-  ['readiness_sleep', 'שינה', '🌙'], ['readiness_recovery', 'התאוששות', '🔄'],
-  ['readiness_hrv', 'HRV', '💚'], ['readiness_stress', 'היסטוריית מתח', '🔥'],
-  ['readiness_load', 'עומס אימונים', '🏋️'],
+  ['readiness_sleep', 'שינה', '🌙'], ['readiness_sleep_history', 'היסטוריית שינה', '📅'],
+  ['readiness_recovery', 'התאוששות', '🔄'], ['readiness_hrv', 'HRV', '💚'],
+  ['readiness_stress', 'היסטוריית מתח', '🔥'], ['readiness_load', 'עומס אימונים', '🏋️'],
 ];
 function renderReadinessFactors() {
   const el = $('readiness-factors');

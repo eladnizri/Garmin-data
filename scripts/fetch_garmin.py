@@ -193,13 +193,17 @@ def fetch_day(garmin: Garmin, day: str, deep: bool = False) -> dict:
             record["readiness_level"] = readiness["level"]
         for field, key in (
             ("readiness_sleep", "sleepScoreFactorPercent"),
+            ("readiness_sleep_history", "sleepHistoryFactorPercent"),
             ("readiness_recovery", "recoveryTimeFactorPercent"),
             ("readiness_hrv", "hrvFactorPercent"),
-            ("readiness_load", "acuteLoadFactorPercent"),
+            # עומס האימונים מדווח כ-ACWR (יחס עומס חד/כרוני)
+            ("readiness_load", "acwrFactorPercent"),
             ("readiness_stress", "stressHistoryFactorPercent"),
         ):
             if readiness.get(key) is not None:
                 record[field] = readiness[key]
+        if readiness.get("feedbackShort"):
+            record["readiness_feedback"] = readiness["feedbackShort"]
         # גרמין מדווח את זמן ההתאוששות בשעות
         if readiness.get("recoveryTime") is not None:
             record["recovery_hours"] = readiness["recoveryTime"]
