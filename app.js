@@ -100,6 +100,55 @@ function weekStartISO(d) {
 }
 
 /* =========================================================================
+ * תיוג ימים — מה קרה ביום מסוים (localStorage). הופך את מנוע הבסיס
+ * ממתאר-מספרים למסביר-סיבות: חריגה במדד מוצלבת עם תג שמסביר אותה.
+ * ========================================================================= */
+const DAY_TAGS = {
+  alcohol:    { emoji: '🍺', label: 'אלכוהול' },
+  sick:       { emoji: '🤒', label: 'מרגיש חולה' },
+  flight:     { emoji: '✈️', label: 'טיסה' },
+  caffeine:   { emoji: '☕', label: 'קפאין מאוחר' },
+  heavy_meal: { emoji: '🍕', label: 'ארוחה כבדה' },
+};
+/* אילו מדדים כל תג מסביר באופן סביר (כיוון "רע") */
+const TAG_EXPLAINS = {
+  alcohol:    ['hrv', 'rhr', 'sleep_score'],
+  sick:       ['rhr', 'hrv', 'respiration_avg'],
+  flight:     ['hrv', 'sleep_hours', 'stress_avg'],
+  caffeine:   ['sleep_score', 'sleep_hours', 'stress_avg'],
+  heavy_meal: ['sleep_score', 'rhr'],
+};
+const TAGS_KEY = 'day_tags_v1';
+let dayTags = {};
+function loadTags() {
+  try { dayTags = JSON.parse(localStorage.getItem(TAGS_KEY)) || {}; } catch { dayTags = {}; }
+  if (typeof dayTags !== 'object' || !dayTags) dayTags = {};
+}
+function saveTags() { try { localStorage.setItem(TAGS_KEY, JSON.stringify(dayTags)); } catch {} }
+function tagsOn(iso) { return dayTags[iso] || []; }
+function toggleTag(iso, tag) {
+  const cur = new Set(tagsOn(iso));
+  if (cur.has(tag)) cur.delete(tag); else cur.add(tag);
+  if (cur.size) dayTags[iso] = [...cur]; else delete dayTags[iso];
+  saveTags();
+}
+const yesterdayISO = () => {
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+};
+/* אם תג של אתמול/היום מסביר את המדד M — מחזיר משפט סיבה, אחרת '' */
+function tagCauseFor(key) {
+  for (const [iso, when] of [[yesterdayISO(), 'אתמול'], [todayISO(), 'היום']]) {
+    for (const tag of tagsOn(iso)) {
+      if (TAG_EXPLAINS[tag]?.includes(key)) {
+        return ` — ייתכן בגלל <b>${DAY_TAGS[tag].label}</b> שתייגת ${when}`;
+      }
+    }
+  }
+  return '';
+}
+
+/* =========================================================================
  * עזרי נתונים
  * ========================================================================= */
 function visibleRows() { return state.range === 'all' ? state.data : state.data.slice(-state.range); }
@@ -136,15 +185,21 @@ const METRICS = {
   respiration_avg: { label: 'קצב נשימה', unit: 'נשימות/דק׳', dec: 1, goodUp: false, color: C.teal, emoji: '💨' },
 };
 
+/* ממוצע וסטיית תקן (אוכלוסייה) על ערכי מדד — משותף לבסיס האישי ולעקביות */
+function stdev(rows, key) {
+  const v = vals(rows, key);
+  if (!v.length) return null;
+  const mean = v.reduce((a, b) => a + b, 0) / v.length;
+  const sd = Math.sqrt(v.reduce((a, b) => a + (b - mean) ** 2, 0) / v.length);
+  return { mean, sd, n: v.length, min: Math.min(...v), max: Math.max(...v) };
+}
+
 function baselineOf(key) {
   let rows = state.data.slice(-30);
   // היום החלקי לא נכנס לבסיס של מדד מצטבר
   if (CUMULATIVE.has(key) && rows[rows.length - 1]?.date === todayISO()) rows = rows.slice(0, -1);
-  const v = vals(rows, key);
-  if (v.length < 5) return null;
-  const mean = v.reduce((a, b) => a + b, 0) / v.length;
-  const sd = Math.sqrt(v.reduce((a, b) => a + (b - mean) ** 2, 0) / v.length);
-  return { mean, sd, n: v.length, min: Math.min(...v), max: Math.max(...v) };
+  const b = stdev(rows, key);
+  return b && b.n >= 5 ? b : null;
 }
 
 /* מצב מדד מול הבסיס האישי: ok | normal | watch | alert */
@@ -373,8 +428,10 @@ function renderAnomalies() {
     const d = METRICS[s.key];
     const base = s.base && s.base.mean !== undefined
       ? ` (הרגיל שלך: ${fmt(s.base.mean, d.dec)})` : '';
+    // הצלבה עם תגי היום/אתמול — הופך "מה" ל"למה"
+    const cause = tagCauseFor(s.key);
     return `<div class="anom ${s.level}"><span class="anom-ic">${s.level === 'alert' ? '⚠️' : '👀'}</span>
-      <span><b>${d.label} ${valueText(s.key, s.value)}</b> — ${s.text}${base}.</span></div>`;
+      <span><b>${d.label} ${valueText(s.key, s.value)}</b> — ${s.text}${base}${cause}.</span></div>`;
   }).join('')}</div>`;
 }
 
@@ -408,12 +465,50 @@ function bestCorrelation(rows) {
   return best;
 }
 
+/* זיהוי דפוסים רב-יומיים: רצף מתחת/מעל הבסיס, או מגמה מונוטונית */
+const PATTERN_KEYS = ['sleep_hours', 'hrv', 'rhr', 'stress_avg', 'sleep_score'];
+function detectPatterns() {
+  const recent = state.data.slice(-14);
+  let best = null; // {len, text}
+  for (const key of PATTERN_KEYS) {
+    const def = METRICS[key];
+    const b = baselineOf(key);
+    if (!b || b.sd === 0) continue;
+    const series = recent.map(r => r[key]).filter(v => v != null && !Number.isNaN(v));
+    if (series.length < 3) continue;
+
+    // רצף ימים אחרונים באותו צד של הבסיס (מעבר לחצי סטיית תקן)
+    let run = 0, side = 0;
+    for (let i = series.length - 1; i >= 0; i--) {
+      const dev = (series[i] - b.mean) / b.sd;
+      const s = dev > 0.5 ? 1 : dev < -0.5 ? -1 : 0;
+      if (s === 0) break;
+      if (side === 0) side = s;
+      if (s === side) run++; else break;
+    }
+    if (run >= 3) {
+      const bad = def.goodUp ? side < 0 : side > 0;
+      const dir = side < 0 ? 'מתחת ל' : 'מעל ה';
+      const cause = bad ? tagCauseFor(key) : ''; // כבר מנוסח " — ייתכן בגלל …"
+      const suffix = cause || (bad ? ' — שווה תשומת לב.' : ' — מגמה חיובית!');
+      const text = `${def.label} ${dir}בסיס האישי שלך <b>${run} ימים ברצף</b>${suffix}`;
+      if (!best || run > best.len) best = { len: run, text };
+    }
+  }
+  return best;
+}
+
 function renderHomeInsight() {
-  const rows = state.data.slice(-30);
-  const best = bestCorrelation(rows);
-  const text = best
-    ? (best.r < 0 ? best.neg : best.pos)
-    : 'ככל שיצטברו יותר ימי מדידה, כאן יופיעו תובנות אישיות מהצלבת הנתונים שלך.';
+  const pattern = detectPatterns();
+  let text;
+  if (pattern) {
+    text = pattern.text;
+  } else {
+    const best = bestCorrelation(state.data.slice(-30));
+    text = best
+      ? (best.r < 0 ? best.neg : best.pos)
+      : 'ככל שיצטברו יותר ימי מדידה, כאן יופיעו תובנות אישיות מהצלבת הנתונים שלך.';
+  }
   $('insight-home').innerHTML =
     `<div class="insight"><span class="i-ic">💡</span><p><b>תובנה:</b> ${text}</p></div>`;
 }
@@ -427,7 +522,17 @@ function hrvExtra() {
   const parts = [];
   if (st && HRV_STATUS[st]) parts.push(`<div class="sh-extra">מצב HRV: ${HRV_STATUS[st]}</div>`);
   if (wk !== null) parts.push(`<div class="sh-extra">ממוצע שבועי ${fmt(wk)} ms</div>`);
+  // HRV יורד עם הגיל — ההשוואה הנכונה היא לבסיס האישי, לא לטבלה כללית
+  parts.push(`<div class="sh-extra" style="color:var(--muted)">HRV יורד עם הגיל — הבסיס האישי שלך הוא ההשוואה הנכונה</div>`);
   return parts.join('');
+}
+/* קטגוריית כושר כללית למבוגרים לפי דופק מנוחה (לא ייעוץ רפואי) */
+function rhrCategory(v) {
+  if (v == null) return null;
+  if (v < 60) return 'מעולה';
+  if (v < 70) return 'טוב';
+  if (v < 80) return 'ממוצע';
+  return 'גבוה';
 }
 function statHero(elId, key, extra = '') {
   const def = METRICS[key];
@@ -557,6 +662,8 @@ function renderCharts() {
   });
 
   /* --- לב --- */
+  const rhrCat = rhrCategory(latest('rhr'));
+  $('u-rhr').textContent = rhrCat ? `bpm · ${rhrCat} (רמת כושר)` : 'bpm';
   legend('legend-rhr', [[C.red, 'דופק מנוחה'], [C.ma, 'ממוצע נע 7 ימים']]);
   make('chart-rhr', {
     type: 'line', data: { labels, datasets: [line(rows, 'rhr', C.red), maLine(rows, 'rhr')] },
@@ -699,6 +806,26 @@ function renderRecords(id, items) {
 }
 
 /* =========================================================================
+ * עקביות שינה — סדירות משך השינה (שונות נמוכה = עקבי יותר)
+ * ========================================================================= */
+function renderSleepConsistency() {
+  const el = $('sleep-consistency');
+  const b = stdev(state.data.slice(-14), 'sleep_hours');
+  if (!b || b.n < 7 || b.mean === 0) { el.innerHTML = ''; return; }
+  const cv = b.sd / b.mean;               // מקדם שונות
+  const score = Math.round(clamp(100 - cv * 100 * 2.2, 0, 100));
+  const label = score >= 85 ? 'מעולה' : score >= 70 ? 'טובה' : score >= 50 ? 'בינונית' : 'משתנה';
+  const note = score >= 70
+    ? 'שעות השינה שלך יציבות — השעון הביולוגי מודה לך.'
+    : 'שעות השינה משתנות מלילה ללילה — עקביות חשובה יותר מרצף ארוך בודד.';
+  el.innerHTML = `<article class="card"><div class="card-head"><h2>עקביות שינה</h2>
+    <span class="unit">14 ימים אחרונים</span></div>
+    <div class="sh-top"><div><div class="sh-val">${score}<small>/100</small></div>
+      <div class="sh-base">${note}</div></div>
+      <div class="sh-right"><span class="d-status s-${score >= 70 ? 'ok' : score >= 50 ? 'normal' : 'watch'}">${label}</span></div></div></article>`;
+}
+
+/* =========================================================================
  * כרטיסים ייעודיים לנתונים החדשים (מוסתרים כשאין נתון)
  * ========================================================================= */
 function renderBreathing() {
@@ -824,6 +951,57 @@ function deltaChip(label, from) {
   const arrow = diff > 0 ? '▲' : '▼';
   return `<span class="wd-chip ${dir}">${label}: <b>${arrow} ${fmt(Math.abs(diff), 1)} ק״ג</b></span>`;
 }
+/* =========================================================================
+ * תיוג ימים — כרטיס בבית (ברירת מחדל: אתמול, כי הלילה מושפע מהתנהגות אמש)
+ * ========================================================================= */
+let tagDay = yesterdayISO();
+function renderDayTags() {
+  const el = $('day-tags');
+  const chips = Object.entries(DAY_TAGS).map(([key, t]) => {
+    const on = tagsOn(tagDay).includes(key);
+    return `<button class="tag-chip ${on ? 'on' : ''}" data-tag="${key}">${t.emoji} ${t.label}</button>`;
+  }).join('');
+  const isY = tagDay === yesterdayISO();
+  el.innerHTML = `<article class="card">
+    <div class="body-head"><h2>מה קרה?</h2>
+      <div class="range-seg tag-days">
+        <button class="seg-btn ${isY ? 'active' : ''}" data-day="y">אתמול</button>
+        <button class="seg-btn ${isY ? '' : 'active'}" data-day="t">היום</button>
+      </div></div>
+    <div class="tag-chips">${chips}</div></article>`;
+}
+
+/* =========================================================================
+ * אזהרת מחלה / יתר-אימון — כרטיס מותנה: כשכמה סימנים גופניים מצטלבים
+ * ========================================================================= */
+function renderStrain() {
+  const el = $('strain-warning');
+  const signals = [];
+  const rhr = statusOf('rhr'); if (rhr && (rhr.level === 'watch' || rhr.level === 'alert')) signals.push('דופק מנוחה מוגבר');
+  const hrv = statusOf('hrv'); if (hrv && (hrv.level === 'watch' || hrv.level === 'alert')) signals.push('HRV נמוך');
+  const resp = statusOf('respiration_avg'); if (resp && (resp.level === 'watch' || resp.level === 'alert')) signals.push('קצב נשימה מוגבר');
+  // צריך לפחות שני סימנים מצטלבים כדי לא להקפיץ אזהרות שווא
+  if (signals.length < 2) { el.innerHTML = ''; return; }
+  const sick = tagsOn(yesterdayISO()).includes('sick') || tagsOn(todayISO()).includes('sick');
+  const sickNote = sick ? ' וגם תייגת תחושת מחלה' : '';
+  el.innerHTML = `<div class="strain-card">
+    <span class="strain-ic">🩺</span>
+    <div><div class="strain-title">הגוף תחת עומס</div>
+    <div class="strain-body">שילוב של ${signals.join(' · ')}${sickNote} — שקול יום מנוחה, שתייה מרובה ושינה מוקדמת.</div></div></div>`;
+}
+
+/* שיפוע ליניארי (kg/יום) על השקילות — לתחזית יעד המשקל */
+function weightSlope() {
+  if (weights.length < 2) return null;
+  const t0 = new Date(weights[0].date).getTime();
+  const pts = weights.map(w => [(new Date(w.date).getTime() - t0) / 86400000, w.kg]);
+  const n = pts.length;
+  const sx = pts.reduce((a, p) => a + p[0], 0), sy = pts.reduce((a, p) => a + p[1], 0);
+  const sxx = pts.reduce((a, p) => a + p[0] * p[0], 0), sxy = pts.reduce((a, p) => a + p[0] * p[1], 0);
+  const denom = n * sxx - sx * sx;
+  return denom === 0 ? null : (n * sxy - sx * sy) / denom;
+}
+
 function renderWeight() {
   const el = $('weight-card');
   const last = latestWeight();
@@ -838,19 +1016,38 @@ function renderWeight() {
   const daysSince = Math.floor((new Date(todayISO()) - new Date(last.date)) / 86400000);
   const nudge = daysSince > 7 ? `<div class="weight-nudge">⏳ עברו ${daysSince} ימים מהשקילה האחרונה</div>` : '';
   const chart = weights.length >= 3 ? '<div class="chart-wrap chart-sm" dir="ltr" style="height:120px;margin-top:10px"><canvas id="chart-weight"></canvas></div>' : '';
+
+  // יעד משקל + תחזית לפי המגמה
+  const goal = profile.weightGoal ? Number(profile.weightGoal) : null;
+  let goalLine = '';
+  if (goal) {
+    const slope = weightSlope(); // kg/יום
+    const remaining = goal - last.kg;
+    let eta;
+    if (Math.abs(remaining) < 0.3) eta = '<b>הגעת ליעד! 🎯</b>';
+    else if (slope === null || Math.abs(slope) < 0.002) eta = 'המגמה יציבה — היעד עדיין לא בהישג';
+    else if ((remaining < 0) === (slope < 0)) {
+      const weeks = Math.round(Math.abs(remaining / slope) / 7);
+      eta = `בקצב הנוכחי — היעד בעוד <b>~${weeks} שבועות</b>`;
+    } else eta = 'המגמה מתרחקת מהיעד כרגע';
+    goalLine = `<div class="weight-goal">🎯 יעד ${fmt(goal, 1)} ק״ג · ${eta}</div>`;
+  }
+
   el.innerHTML = `<article class="card">
     <div class="body-head"><h2>משקל</h2><button class="link-btn" id="open-weight">+ שקילה</button></div>
     <div class="weight-top"><div><div class="weight-val">${fmt(last.kg, 1)}<small>ק״ג</small></div>
       <div class="sh-base">עודכן ${shortDate(last.date)}</div></div></div>
     ${deltas ? `<div class="weight-deltas">${deltas}</div>` : ''}
-    ${nudge}${chart}</article>`;
+    ${goalLine}${nudge}${chart}</article>`;
   if (weights.length >= 3) {
+    const wRows = weights.map(w => ({ date: w.date }));
+    const datasets = [{ data: weights.map(w => ({ x: shortDate(w.date), y: w.kg, iso: w.date })),
+      borderColor: C.teal, backgroundColor: C.teal + '2e', borderWidth: 2.5, pointRadius: 3,
+      pointBackgroundColor: C.teal, tension: .3, fill: true }];
+    if (goal) datasets.push(constLine(wRows, goal, 'יעד', C.muted));
     make('chart-weight', {
       type: 'line',
-      data: { labels: weights.map(w => shortDate(w.date)),
-        datasets: [{ data: weights.map(w => ({ x: shortDate(w.date), y: w.kg, iso: w.date })),
-          borderColor: C.teal, backgroundColor: C.teal + '2e', borderWidth: 2.5, pointRadius: 3,
-          pointBackgroundColor: C.teal, tension: .3, fill: true }] },
+      data: { labels: weights.map(w => shortDate(w.date)), datasets },
       options: opts({ grace: '15%' }, i => `משקל: ${fmt(i.raw.y, 1)} ק״ג`),
     });
   }
@@ -962,7 +1159,7 @@ function renderWeekSummary() {
 /* =========================================================================
  * מודאל פרופיל
  * ========================================================================= */
-const PROFILE_FIELDS = ['age', 'heightCm', 'weightKg', 'sleepGoal', 'stepsGoal', 'strengthGoal'];
+const PROFILE_FIELDS = ['age', 'heightCm', 'weightKg', 'sleepGoal', 'stepsGoal', 'strengthGoal', 'weightGoal'];
 function fillProfileForm() {
   const f = $('profile-form');
   PROFILE_FIELDS.forEach(k => { if (f[k]) f[k].value = profile[k] ?? ''; });
@@ -1014,25 +1211,75 @@ $('strength-card').addEventListener('click', e => {
   renderStrength(); renderWeekSummary();
 });
 
+/* --- תיוג ימים --- */
+$('day-tags').addEventListener('click', e => {
+  const day = e.target.closest('[data-day]');
+  if (day) { tagDay = day.dataset.day === 't' ? todayISO() : yesterdayISO(); renderDayTags(); return; }
+  const chip = e.target.closest('[data-tag]');
+  if (chip) {
+    toggleTag(tagDay, chip.dataset.tag);
+    renderDayTags(); renderAnomalies(); renderStrain();
+  }
+});
+
+/* --- ייצוא / ייבוא גיבוי (מקומי בלבד) --- */
+function exportBackup() {
+  const backup = {
+    version: 1, exportedAt: new Date().toISOString(),
+    profile, weight_log_v1: weights, strength_checks_v1: strengthChecks, day_tags_v1: dayTags,
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `health-backup-${todayISO()}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importBackup(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const b = JSON.parse(reader.result);
+      if (typeof b !== 'object' || !b) throw new Error('bad');
+      if (!confirm('הייבוא ידרוס את הנתונים המקומיים הנוכחיים. להמשיך?')) return;
+      if (b.profile) saveProfileObj(b.profile);
+      if (Array.isArray(b.weight_log_v1)) { weights = b.weight_log_v1; saveWeights(); }
+      if (b.strength_checks_v1 && typeof b.strength_checks_v1 === 'object') { strengthChecks = b.strength_checks_v1; saveStrength(); }
+      if (b.day_tags_v1 && typeof b.day_tags_v1 === 'object') { dayTags = b.day_tags_v1; saveTags(); }
+      loadProfile();
+      closeProfile();
+      renderAll();
+      alert('הנתונים יובאו בהצלחה.');
+    } catch { alert('קובץ לא תקין.'); }
+  };
+  reader.readAsText(file);
+}
+$('export-btn').addEventListener('click', exportBackup);
+$('import-btn').addEventListener('click', () => $('import-file').click());
+$('import-file').addEventListener('change', e => { if (e.target.files[0]) importBackup(e.target.files[0]); e.target.value = ''; });
+
 /* =========================================================================
  * רינדור כולל
  * ========================================================================= */
 function renderAll() {
-  document.querySelectorAll('.seg-btn').forEach(b => {
+  document.querySelectorAll('#range-filter .seg-btn').forEach(b => {
     const v = b.dataset.range === 'all' ? 'all' : Number(b.dataset.range);
     b.classList.toggle('active', v === state.range);
   });
 
   // בית
   renderHero();
+  renderStrain();
   renderDomains();
   renderAnomalies();
+  renderDayTags();
   renderWeekSummary();
   renderHomeInsight();
   renderWeight();
   renderBody();
 
   // עמודי פירוט
+  renderSleepConsistency();
   statHero('sleep-hero', 'sleep_hours');
   statHero('heart-hero', 'hrv', hrvExtra());
   statHero('steps-hero', 'steps');
@@ -1143,6 +1390,7 @@ async function init() {
   loadProfile();
   loadWeights();
   loadStrength();
+  loadTags();
   const { data, isDemo } = await loadHealthData();
   state.data = data;
   state.isDemo = isDemo;
