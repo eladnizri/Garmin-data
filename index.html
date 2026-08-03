@@ -35,6 +35,9 @@
           <h1 id="page-title" class="page-title">בית</h1>
           <span id="page-sub" class="page-sub"></span>
         </div>
+        <button id="sync-btn" class="icon-btn" aria-label="סנכרון נתונים">
+          <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+        </button>
         <button id="profile-btn" class="icon-btn" aria-label="פרופיל אישי">
           <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
         </button>
@@ -55,20 +58,14 @@
           מציג <b>נתוני דמו</b> — הנתונים האמיתיים מתעדכנים אוטומטית מגרמין.
         </div>
 
-        <!-- ציון מרכזי -->
-        <div id="hero" class="hero"></div>
+        <!-- לוח טבעות — מוכנות במרכז + מדדים מסביב -->
+        <div id="dashboard" class="dashboard"></div>
 
         <!-- אזהרת עומס/מחלה — מופיע רק כשמצטלבים סימנים -->
         <div id="strain-warning"></div>
 
-        <!-- שורת תחומים — כל מספר מופיע כאן פעם אחת בלבד -->
-        <div id="domains" class="domains"></div>
-
         <!-- מה חריג -->
         <div id="anomalies"></div>
-
-        <!-- תיוג יום — הופך חריגות למובנות -->
-        <div id="day-tags"></div>
 
         <!-- השבוע שלי — סיכום מול השבוע הקודם -->
         <div id="week-summary"></div>
@@ -138,6 +135,9 @@
         <!-- אימוני כוח — לוח V שבועי -->
         <div id="strength-card"></div>
 
+        <!-- פעילות מומלצת לשבוע לפי המוכנות -->
+        <div id="activity-rec"></div>
+
         <article class="card">
           <div class="card-head"><h2>צעדים</h2><span class="unit" id="u-steps"></span></div>
           <div class="legend" id="legend-steps"></div>
@@ -196,6 +196,9 @@
           <div class="field-row">
             <label class="field">יעד אימוני כוח בשבוע<input type="number" name="strengthGoal" min="1" max="7" inputmode="numeric" placeholder="3"></label>
             <label class="field">יעד משקל (ק״ג)<input type="number" name="weightGoal" min="30" max="250" step="0.1" inputmode="decimal" placeholder="72"></label>
+          </div>
+          <div class="field-row">
+            <label class="field">דופק מקסימלי אמיתי<input type="number" name="maxHrOverride" min="120" max="220" inputmode="numeric" placeholder="לא חובה — ברירת מחדל 220 פחות גיל"></label>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-ghost" id="profile-clear">איפוס</button>

@@ -34,7 +34,13 @@ function bmi() {
   return w / (h * h);
 }
 function bmiCat(b) { return b < 18.5 ? 'תת-משקל' : b < 25 ? 'תקין' : b < 30 ? 'עודף' : 'השמנה'; }
-function maxHR() { return profile.age ? 220 - Number(profile.age) : null; }
+/* דופק מקסימלי — עדיפות לערך אמיתי שהמשתמש הזין, אחרת הערכה 220 פחות גיל */
+function maxHR() {
+  if (profile.maxHrOverride) return Number(profile.maxHrOverride);
+  return profile.age ? 220 - Number(profile.age) : null;
+}
+/* האם דופק המקס' הוא ערך אמיתי או הערכת גיל */
+function maxHrIsReal() { return !!profile.maxHrOverride; }
 
 /* =========================================================================
  * מעקב משקל — יומן מקומי בלבד (localStorage), הזנה ידנית שבועית
@@ -99,54 +105,6 @@ function weekStartISO(d) {
   return date.toISOString().slice(0, 10);
 }
 
-/* =========================================================================
- * תיוג ימים — מה קרה ביום מסוים (localStorage). הופך את מנוע הבסיס
- * ממתאר-מספרים למסביר-סיבות: חריגה במדד מוצלבת עם תג שמסביר אותה.
- * ========================================================================= */
-const DAY_TAGS = {
-  alcohol:    { emoji: '🍺', label: 'אלכוהול' },
-  sick:       { emoji: '🤒', label: 'מרגיש חולה' },
-  flight:     { emoji: '✈️', label: 'טיסה' },
-  caffeine:   { emoji: '☕', label: 'קפאין מאוחר' },
-  heavy_meal: { emoji: '🍕', label: 'ארוחה כבדה' },
-};
-/* אילו מדדים כל תג מסביר באופן סביר (כיוון "רע") */
-const TAG_EXPLAINS = {
-  alcohol:    ['hrv', 'rhr', 'sleep_score'],
-  sick:       ['rhr', 'hrv', 'respiration_avg'],
-  flight:     ['hrv', 'sleep_hours', 'stress_avg'],
-  caffeine:   ['sleep_score', 'sleep_hours', 'stress_avg'],
-  heavy_meal: ['sleep_score', 'rhr'],
-};
-const TAGS_KEY = 'day_tags_v1';
-let dayTags = {};
-function loadTags() {
-  try { dayTags = JSON.parse(localStorage.getItem(TAGS_KEY)) || {}; } catch { dayTags = {}; }
-  if (typeof dayTags !== 'object' || !dayTags) dayTags = {};
-}
-function saveTags() { try { localStorage.setItem(TAGS_KEY, JSON.stringify(dayTags)); } catch {} }
-function tagsOn(iso) { return dayTags[iso] || []; }
-function toggleTag(iso, tag) {
-  const cur = new Set(tagsOn(iso));
-  if (cur.has(tag)) cur.delete(tag); else cur.add(tag);
-  if (cur.size) dayTags[iso] = [...cur]; else delete dayTags[iso];
-  saveTags();
-}
-const yesterdayISO = () => {
-  const d = new Date(); d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
-};
-/* אם תג של אתמול/היום מסביר את המדד M — מחזיר משפט סיבה, אחרת '' */
-function tagCauseFor(key) {
-  for (const [iso, when] of [[yesterdayISO(), 'אתמול'], [todayISO(), 'היום']]) {
-    for (const tag of tagsOn(iso)) {
-      if (TAG_EXPLAINS[tag]?.includes(key)) {
-        return ` — ייתכן בגלל <b>${DAY_TAGS[tag].label}</b> שתייגת ${when}`;
-      }
-    }
-  }
-  return '';
-}
 
 /* =========================================================================
  * עזרי נתונים
@@ -252,25 +210,6 @@ function anomalies() {
   return out.sort((a, b) => (a.level === 'alert' ? -1 : 1) - (b.level === 'alert' ? -1 : 1));
 }
 
-/* =========================================================================
- * ספרקליין זעיר (SVG) — קל בהרבה ממופע Chart.js לכל שורה
- * ========================================================================= */
-function sparkSvg(key, color) {
-  const v = state.data.slice(-14).map(r => r[key]).filter(x => x !== undefined);
-  const nums = v.filter(x => x !== null);
-  if (nums.length < 2) return '';
-  const min = Math.min(...nums), max = Math.max(...nums), span = max - min || 1;
-  const W = 62, H = 26, pad = 3;
-  const pts = v.map((x, i) => {
-    if (x === null) return null;
-    const px = (i / (v.length - 1)) * W;
-    const py = H - pad - ((x - min) / span) * (H - pad * 2);
-    return `${px.toFixed(1)},${py.toFixed(1)}`;
-  }).filter(Boolean);
-  return `<svg class="d-spark" viewBox="0 0 ${W} ${H}" fill="none" aria-hidden="true">
-    <polyline points="${pts.join(' ')}" stroke="${color}" stroke-width="2"
-      stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-}
 
 /* =========================================================================
  * מסך הבית — ציון מרכזי
@@ -340,77 +279,106 @@ function countUp(el, target, ms = 600) {
   requestAnimationFrame(step);
 }
 
-function renderHero() {
-  const official = latest('readiness_score', 2);
-  const score = official ?? heuristicReadiness();
-  const el = $('hero');
-  if (score === null) {
-    el.innerHTML = `<div class="hero-body"><div class="hero-verdict">בהמתנה לנתונים</div>
-      <div class="hero-note">הסנכרון היומי ימלא את הציון.</div></div>`;
-    return;
-  }
-  // ההערה מסבירה *ממה* מורכב הציון — לא חוזרת על פסק הדין
-  const level = latest('readiness_level', 2);
-  // המשוב הרשמי של גרמין מקבל עדיפות, עם נפילה חיננית לרמה או לנהגים
-  const feedbackTok = latest('readiness_feedback', 2);
-  const feedback = feedbackTok ? READINESS_FEEDBACK[feedbackTok] : null;
-  const drivers = [];
-  const s3 = avg(state.data.slice(-3), 'sleep_score');
-  if (s3 !== null) drivers.push(`שינה ${fmt(s3)}`);
-  const st3 = avg(state.data.slice(-3), 'stress_avg');
-  if (st3 !== null) drivers.push(`מתח ${fmt(st3)}`);
-  const hv = latest('hrv'); if (hv !== null) drivers.push(`HRV ${fmt(hv)}`);
-  const note = feedback
-    ? feedback
-    : (official !== null && level
-      ? `רמת מוכנות לפי גרמין: ${READINESS_LEVEL[level] || level}`
-      : (drivers.length ? drivers.join(' · ') : 'לפי 3 הימים האחרונים'));
-  const last = lastRow();
-  el.innerHTML = `
-    <div class="ring">${ringSvg(score)}<div class="ring-txt"><b>0</b><span>מוכנות</span></div></div>
-    <div class="hero-body">
-      <div class="hero-verdict">${verdictOf(score)}</div>
-      <div class="hero-note">${note}</div>
-      <div class="hero-src">${official !== null ? 'ציון רשמי של גרמין' : 'הערכה משוקללת'} · ${last.date ? longDate(last.date) : ''}</div>
-    </div>`;
-  // הנפשת הטבעת (rAF כדי לתת ל-CSS להנפיש מהמצב ההתחלתי) והספירה העולה
-  const valCircle = el.querySelector('.ring-val');
-  const scoreEl = el.querySelector('.ring-txt b');
-  requestAnimationFrame(() => {
-    if (valCircle) valCircle.setAttribute('stroke-dashoffset', valCircle.dataset.target);
-    countUp(scoreEl, score);
-  });
+/* טבעת גדולה (מוכנות) — SVG בגודל נתון, עם צבע לפי הציון וזוהר */
+function bigRingSvg(score, size = 168) {
+  const sw = 12, r = size / 2 - sw / 2 - 2, c = 2 * Math.PI * r, cc = size / 2;
+  const col = ringColor(score);
+  const target = c * (1 - clamp(score, 0, 100) / 100);
+  const start = REDUCED ? target : c;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle class="ring-track" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke-width="${sw}"/>
+    <circle class="ring-val" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round"
+      transform="rotate(-90 ${cc} ${cc})" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${start.toFixed(1)}"
+      data-target="${target.toFixed(1)}" style="filter:drop-shadow(0 0 9px ${col}88)"/></svg>`;
 }
 
-/* =========================================================================
- * שורות תחומים — כל מספר מופיע כאן פעם אחת
- * ========================================================================= */
-const DOMAINS = [
-  { page: 1, key: 'sleep_hours', name: 'שינה', emoji: '🌙', color: C.blue,
-    fmtv: v => `${fmt(v, 1)}<small>שעות</small>` },
-  { page: 2, key: 'rhr', name: 'דופק מנוחה', emoji: '❤️', color: C.red,
-    fmtv: v => `${fmt(v)}<small>bpm</small>` },
-  { page: 2, key: 'hrv', name: 'שונות דופק (HRV)', emoji: '💚', color: C.green,
-    fmtv: v => `${fmt(v)}<small>ms</small>` },
-  { page: 3, key: 'steps', name: 'צעדים', emoji: '👣', color: C.violet,
-    fmtv: v => `${fmt(v)}` },
+/* טבעת מדד קטנה. fillPct=null → טבעת מלאה בצבע המדד (בלי מילוי יחסי, לדופק/HRV).
+ * anomalous → הדגשה אדומה מסביב. */
+function miniRingSvg(color, fillPct, anomalous, size = 78) {
+  const sw = 6, r = size / 2 - sw / 2 - (anomalous ? 5 : 1), c = 2 * Math.PI * r, cc = size / 2;
+  const alertCol = getComputedStyle(document.documentElement).getPropertyValue('--alert').trim() || '#f87171';
+  const outer = anomalous
+    ? `<circle cx="${cc}" cy="${cc}" r="${size / 2 - 2}" fill="none" stroke="${alertCol}" stroke-width="2.5"
+        style="filter:drop-shadow(0 0 5px ${alertCol}aa)"/>` : '';
+  let arc;
+  if (fillPct === null) {
+    // דופק / HRV — טבעת מלאה בצבע המדד, בלי מילוי יחסי
+    arc = `<circle cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" opacity=".85"/>`;
+  } else {
+    const off = c * (1 - clamp(fillPct, 0, 100) / 100);
+    const start = REDUCED ? off : c;
+    arc = `<circle class="ring-val" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}"
+      stroke-linecap="round" transform="rotate(-90 ${cc} ${cc})" stroke-dasharray="${c.toFixed(1)}"
+      stroke-dashoffset="${start.toFixed(1)}" data-target="${off.toFixed(1)}"/>`;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    ${outer}<circle class="ring-track" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke-width="${sw}"/>${arc}</svg>`;
+}
+
+/* מדדי הטבעות הקטנות סביב המוכנות */
+const DASH_METRICS = [
+  { key: 'sleep_hours', page: 1, label: 'שינה', color: C.blue, fill: true,
+    goal: () => goalSleep(), disp: v => fmt(v, 1), sub: 'ש׳' },
+  { key: 'steps', page: 3, label: 'צעדים', color: C.violet, fill: true,
+    goal: () => goalSteps(), disp: v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : fmt(v), sub: '' },
+  { key: 'rhr', page: 2, label: 'דופק', color: C.red, fill: false, disp: v => fmt(v), sub: 'bpm' },
+  { key: 'hrv', page: 2, label: 'HRV', color: C.green, fill: false, disp: v => fmt(v), sub: 'ms' },
 ];
 
-function renderDomains() {
-  $('domains').innerHTML = DOMAINS.map(d => {
-    const s = statusOf(d.key);
-    const v = s ? s.value : null;
-    const lvl = s ? s.level : 'normal';
-    return `<button class="domain" data-goto="${d.page}">
-      <span class="d-ic" style="background:${d.color}1a">${d.emoji}</span>
-      <span class="d-main">
-        <span class="d-name">${d.name}</span>
-        <span class="d-val">${v === null ? '—' : d.fmtv(v)}</span>
-      </span>
-      ${sparkSvg(d.key, d.color)}
-      <span class="d-status s-${lvl}">${LEVEL_LABEL[lvl]}</span>
-    </button>`;
+function renderDashboard() {
+  const el = $('dashboard');
+  const official = latest('readiness_score', 2);
+  const score = official ?? heuristicReadiness();
+
+  // --- טבעות המדדים הקטנות ---
+  const minis = DASH_METRICS.map(m => {
+    const s = statusOf(m.key);
+    const v = s ? s.value : latest(m.key);
+    const anomalous = s && (s.level === 'watch' || s.level === 'alert');
+    const fillPct = (m.fill && v !== null) ? clamp(v / m.goal() * 100, 0, 100) : (m.fill ? 0 : null);
+    const center = v === null ? '—' : m.disp(v);
+    return `<button class="mini" data-goto="${m.page}">
+      <span class="mini-ring">${miniRingSvg(m.color, fillPct, anomalous)}
+        <span class="mini-txt"><b>${center}</b>${m.sub ? `<i>${m.sub}</i>` : ''}</span></span>
+      <span class="mini-label">${m.label}</span></button>`;
   }).join('');
+
+  if (score === null) {
+    el.innerHTML = `<div class="dash-center"><div class="dash-verdict">בהמתנה לנתונים</div>
+      <div class="dash-note">הסנכרון היומי ימלא את הציון.</div></div>
+      <div class="dash-rings">${minis}</div>`;
+    animateRings(el);
+    return;
+  }
+
+  // --- מרכז: טבעת המוכנות ---
+  const level = latest('readiness_level', 2);
+  const feedbackTok = latest('readiness_feedback', 2);
+  const feedback = feedbackTok ? READINESS_FEEDBACK[feedbackTok] : null;
+  const note = feedback
+    || (official !== null && level ? `רמת מוכנות לפי גרמין: ${READINESS_LEVEL[level] || level}` : verdictOf(score));
+
+  el.innerHTML = `
+    <div class="dash-center">
+      <div class="dash-ring">${bigRingSvg(score)}
+        <span class="dash-ring-txt"><b>0</b><span>מוכנות</span></span></div>
+      <div class="dash-verdict">${verdictOf(score)}</div>
+      <div class="dash-note">${note}</div>
+    </div>
+    <div class="dash-rings">${minis}</div>`;
+
+  // ספירה עולה על ציון המוכנות
+  const scoreEl = el.querySelector('.dash-ring-txt b');
+  requestAnimationFrame(() => countUp(scoreEl, score));
+  animateRings(el);
+}
+
+/* מפעיל את אנימציית המילוי של כל הטבעות (rAF → CSS transition) */
+function animateRings(el) {
+  requestAnimationFrame(() => {
+    el.querySelectorAll('.ring-val[data-target]').forEach(c =>
+      c.setAttribute('stroke-dashoffset', c.dataset.target));
+  });
 }
 
 /* =========================================================================
@@ -428,10 +396,8 @@ function renderAnomalies() {
     const d = METRICS[s.key];
     const base = s.base && s.base.mean !== undefined
       ? ` (הרגיל שלך: ${fmt(s.base.mean, d.dec)})` : '';
-    // הצלבה עם תגי היום/אתמול — הופך "מה" ל"למה"
-    const cause = tagCauseFor(s.key);
     return `<div class="anom ${s.level}"><span class="anom-ic">${s.level === 'alert' ? '⚠️' : '👀'}</span>
-      <span><b>${d.label} ${valueText(s.key, s.value)}</b> — ${s.text}${base}${cause}.</span></div>`;
+      <span><b>${d.label} ${valueText(s.key, s.value)}</b> — ${s.text}${base}.</span></div>`;
   }).join('')}</div>`;
 }
 
@@ -489,8 +455,7 @@ function detectPatterns() {
     if (run >= 3) {
       const bad = def.goodUp ? side < 0 : side > 0;
       const dir = side < 0 ? 'מתחת ל' : 'מעל ה';
-      const cause = bad ? tagCauseFor(key) : ''; // כבר מנוסח " — ייתכן בגלל …"
-      const suffix = cause || (bad ? ' — שווה תשומת לב.' : ' — מגמה חיובית!');
+      const suffix = bad ? ' — שווה תשומת לב.' : ' — מגמה חיובית!';
       const text = `${def.label} ${dir}בסיס האישי שלך <b>${run} ימים ברצף</b>${suffix}`;
       if (!best || run > best.len) best = { len: run, text };
     }
@@ -932,12 +897,19 @@ function renderBody() {
 function renderHrZones() {
   const el = $('hr-zones'), mh = maxHR();
   if (!mh) { el.innerHTML = ''; return; }
+  // דופק מנוחה אישי (ממוצע הבסיס יציב יותר מערך בודד) — לחישוב Karvonen
+  const rest = Math.round(baselineOf('rhr')?.mean ?? latest('rhr') ?? 0) || null;
   const zones = [[50, 60, 'התאוששות', C.teal], [60, 70, 'שריפת שומן', C.blue],
                  [70, 80, 'אירובי', C.green], [80, 90, 'אנאירובי', C.orange], [90, 100, 'מקסימלי', C.red]];
+  // Karvonen (Heart Rate Reserve): דופק = ((מקס − מנוחה) × אחוז) + מנוחה — מותאם אישית
+  // אם אין דופק מנוחה, נופלים לאחוז מהדופק המקסימלי
+  const bpm = pct => rest ? Math.round((mh - rest) * pct / 100 + rest) : Math.round(mh * pct / 100);
+  const method = rest ? `Karvonen · מנוחה ${rest}` : `אחוז מהמקס׳`;
+  const src = maxHrIsReal() ? 'דופק מקס׳' : 'מקס׳ מוערך';
   el.innerHTML = `<article class="card"><div class="card-head"><h2>אזורי דופק לאימון</h2>
-    <span class="unit">דופק מקס׳ ${mh}</span></div><ul class="rows">${zones.map(z =>
+    <span class="unit">${src} ${mh} · ${method}</span></div><ul class="rows">${zones.map(z =>
       `<li><span class="zdot" style="background:${z[3]}"></span><span class="r-name">${z[2]}</span>
-       <span class="r-val">${Math.round(mh * z[0] / 100)}–${Math.round(mh * z[1] / 100)}<small>bpm</small></span></li>`).join('')}</ul></article>`;
+       <span class="r-val">${bpm(z[0])}–${bpm(z[1])}<small>bpm</small></span></li>`).join('')}</ul></article>`;
 }
 
 /* =========================================================================
@@ -952,26 +924,6 @@ function deltaChip(label, from) {
   return `<span class="wd-chip ${dir}">${label}: <b>${arrow} ${fmt(Math.abs(diff), 1)} ק״ג</b></span>`;
 }
 /* =========================================================================
- * תיוג ימים — כרטיס בבית (ברירת מחדל: אתמול, כי הלילה מושפע מהתנהגות אמש)
- * ========================================================================= */
-let tagDay = yesterdayISO();
-function renderDayTags() {
-  const el = $('day-tags');
-  const chips = Object.entries(DAY_TAGS).map(([key, t]) => {
-    const on = tagsOn(tagDay).includes(key);
-    return `<button class="tag-chip ${on ? 'on' : ''}" data-tag="${key}">${t.emoji} ${t.label}</button>`;
-  }).join('');
-  const isY = tagDay === yesterdayISO();
-  el.innerHTML = `<article class="card">
-    <div class="body-head"><h2>מה קרה?</h2>
-      <div class="range-seg tag-days">
-        <button class="seg-btn ${isY ? 'active' : ''}" data-day="y">אתמול</button>
-        <button class="seg-btn ${isY ? '' : 'active'}" data-day="t">היום</button>
-      </div></div>
-    <div class="tag-chips">${chips}</div></article>`;
-}
-
-/* =========================================================================
  * אזהרת מחלה / יתר-אימון — כרטיס מותנה: כשכמה סימנים גופניים מצטלבים
  * ========================================================================= */
 function renderStrain() {
@@ -982,12 +934,10 @@ function renderStrain() {
   const resp = statusOf('respiration_avg'); if (resp && (resp.level === 'watch' || resp.level === 'alert')) signals.push('קצב נשימה מוגבר');
   // צריך לפחות שני סימנים מצטלבים כדי לא להקפיץ אזהרות שווא
   if (signals.length < 2) { el.innerHTML = ''; return; }
-  const sick = tagsOn(yesterdayISO()).includes('sick') || tagsOn(todayISO()).includes('sick');
-  const sickNote = sick ? ' וגם תייגת תחושת מחלה' : '';
   el.innerHTML = `<div class="strain-card">
     <span class="strain-ic">🩺</span>
     <div><div class="strain-title">הגוף תחת עומס</div>
-    <div class="strain-body">שילוב של ${signals.join(' · ')}${sickNote} — שקול יום מנוחה, שתייה מרובה ושינה מוקדמת.</div></div></div>`;
+    <div class="strain-body">שילוב של ${signals.join(' · ')} — שקול יום מנוחה, שתייה מרובה ושינה מוקדמת.</div></div></div>`;
 }
 
 /* שיפוע ליניארי (kg/יום) על השקילות — לתחזית יעד המשקל */
@@ -1157,9 +1107,51 @@ function renderWeekSummary() {
 }
 
 /* =========================================================================
+ * פעילות מומלצת לשבוע — לפי המוכנות, יעד הכוח ודקות האינטנסיביות
+ * ========================================================================= */
+function renderActivityRec() {
+  const el = $('activity-rec');
+  const score = latest('readiness_score', 2) ?? heuristicReadiness();
+  if (score === null) { el.innerHTML = ''; return; }
+
+  const cur = weekRows(0);
+  const auto = autoStrengthDates();
+  const strDone = strengthCountInWeek(cur, auto), strGoal = goalStrength();
+  const intMin = cur.reduce((a, r) => a + (r.intensity_min || 0), 0), intGoal = 150;
+
+  // כותרת + טון לפי המוכנות של היום
+  let head, tone, todayRec;
+  if (score < 50) {
+    head = 'מוכנות נמוכה — היום למנוחה'; tone = 'rest';
+    todayRec = '🧘 היום: מנוחה פעילה — הליכה קלה, מתיחות או יוגה. תן לגוף להתאושש.';
+  } else if (score < 70) {
+    head = 'מוכנות בינונית — אימון מתון'; tone = 'mod';
+    todayRec = '🚶 היום: אימון אירובי מתון (זון 2) — קצב שמאפשר לנהל שיחה.';
+  } else {
+    head = 'מוכנות טובה — אפשר להעמיס'; tone = 'go';
+    todayRec = '⚡ היום: מתאים לאימון עצים — אינטרוולים, ריצה ארוכה או אימון כוח כבד.';
+  }
+
+  const recs = [todayRec];
+  const strLeft = Math.max(0, strGoal - strDone);
+  recs.push(strLeft > 0
+    ? `🏋️ עוד <b>${strLeft}</b> אימוני כוח השבוע (${strDone}/${strGoal})`
+    : `🏋️ עמדת ביעד אימוני הכוח (${strDone}/${strGoal}) — כל הכבוד`);
+  const intLeft = Math.max(0, intGoal - Math.round(intMin));
+  recs.push(intLeft > 0
+    ? `🏃 עוד <b>${intLeft}</b> דקות פעילות אינטנסיבית ליעד ה-150 השבועי`
+    : `🏃 השלמת ${Math.round(intMin)} דק׳ אינטנסיביות — מעל יעד ה-WHO 👏`);
+
+  el.innerHTML = `<article class="card rec-card rec-${tone}">
+    <div class="card-head"><h2>הפעילות המומלצת שלך</h2><span class="unit">מוכנות ${score}</span></div>
+    <div class="rec-head">${head}</div>
+    <ul class="rec-list">${recs.map(r => `<li>${r}</li>`).join('')}</ul></article>`;
+}
+
+/* =========================================================================
  * מודאל פרופיל
  * ========================================================================= */
-const PROFILE_FIELDS = ['age', 'heightCm', 'weightKg', 'sleepGoal', 'stepsGoal', 'strengthGoal', 'weightGoal'];
+const PROFILE_FIELDS = ['age', 'heightCm', 'weightKg', 'sleepGoal', 'stepsGoal', 'strengthGoal', 'weightGoal', 'maxHrOverride'];
 function fillProfileForm() {
   const f = $('profile-form');
   PROFILE_FIELDS.forEach(k => { if (f[k]) f[k].value = profile[k] ?? ''; });
@@ -1211,22 +1203,11 @@ $('strength-card').addEventListener('click', e => {
   renderStrength(); renderWeekSummary();
 });
 
-/* --- תיוג ימים --- */
-$('day-tags').addEventListener('click', e => {
-  const day = e.target.closest('[data-day]');
-  if (day) { tagDay = day.dataset.day === 't' ? todayISO() : yesterdayISO(); renderDayTags(); return; }
-  const chip = e.target.closest('[data-tag]');
-  if (chip) {
-    toggleTag(tagDay, chip.dataset.tag);
-    renderDayTags(); renderAnomalies(); renderStrain();
-  }
-});
-
 /* --- ייצוא / ייבוא גיבוי (מקומי בלבד) --- */
 function exportBackup() {
   const backup = {
     version: 1, exportedAt: new Date().toISOString(),
-    profile, weight_log_v1: weights, strength_checks_v1: strengthChecks, day_tags_v1: dayTags,
+    profile, weight_log_v1: weights, strength_checks_v1: strengthChecks,
   };
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -1245,7 +1226,6 @@ function importBackup(file) {
       if (b.profile) saveProfileObj(b.profile);
       if (Array.isArray(b.weight_log_v1)) { weights = b.weight_log_v1; saveWeights(); }
       if (b.strength_checks_v1 && typeof b.strength_checks_v1 === 'object') { strengthChecks = b.strength_checks_v1; saveStrength(); }
-      if (b.day_tags_v1 && typeof b.day_tags_v1 === 'object') { dayTags = b.day_tags_v1; saveTags(); }
       loadProfile();
       closeProfile();
       renderAll();
@@ -1268,11 +1248,9 @@ function renderAll() {
   });
 
   // בית
-  renderHero();
+  renderDashboard();
   renderStrain();
-  renderDomains();
   renderAnomalies();
-  renderDayTags();
   renderWeekSummary();
   renderHomeInsight();
   renderWeight();
@@ -1284,6 +1262,7 @@ function renderAll() {
   statHero('heart-hero', 'hrv', hrvExtra());
   statHero('steps-hero', 'steps');
   renderStrength();
+  renderActivityRec();
   renderCharts();
   renderBreathing();
   renderReadinessFactors();
@@ -1364,7 +1343,7 @@ function currentIndex() {
 }
 
 tabs.forEach(t => t.addEventListener('click', () => goTo(Number(t.dataset.index))));
-$('domains').addEventListener('click', e => {
+$('dashboard').addEventListener('click', e => {
   const b = e.target.closest('[data-goto]');
   if (b) goTo(Number(b.dataset.goto));
 });
@@ -1384,13 +1363,46 @@ $('range-filter').addEventListener('click', e => {
 });
 
 /* =========================================================================
+ * סנכרון — משיכה מחדש של health.json (הסנכרון מגרמין עצמו אוטומטי בצהריים)
+ * ========================================================================= */
+function toast(msg) {
+  let t = $('toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), 2600);
+}
+let syncing = false;
+async function syncNow() {
+  if (syncing) return;
+  syncing = true;
+  const btn = $('sync-btn');
+  btn.classList.add('spinning');
+  try {
+    const { data, isDemo } = await loadHealthData();
+    state.data = data;
+    state.isDemo = isDemo;
+    $('demo-banner').classList.toggle('hidden', !isDemo);
+    renderAll();
+    const last = lastRow().date;
+    toast(isDemo ? 'לא נמצאו נתונים — מוצג דמו' : `הנתונים עודכנו · אחרון ${last ? shortDate(last) : ''}`);
+  } catch {
+    toast('הסנכרון נכשל — נסה שוב');
+  } finally {
+    btn.classList.remove('spinning');
+    syncing = false;
+  }
+}
+$('sync-btn').addEventListener('click', syncNow);
+
+/* =========================================================================
  * אתחול
  * ========================================================================= */
 async function init() {
   loadProfile();
   loadWeights();
   loadStrength();
-  loadTags();
   const { data, isDemo } = await loadHealthData();
   state.data = data;
   state.isDemo = isDemo;
