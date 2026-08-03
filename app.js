@@ -569,10 +569,10 @@ function renderReadinessFactors() {
       <span class="fbar"><i style="width:${clamp(v, 0, 100)}%"></i></span>
       <span class="r-val" style="min-width:38px">${fmt(v)}<small>%</small></span></li>`;
   }).filter(Boolean);
-  const recovery = latest('recovery_time_min', 2);
+  const recovery = latest('recovery_hours', 2);
   el.innerHTML = rows.length
     ? `<article class="card"><div class="card-head"><h2>ממה מורכב ציון המוכנות</h2>
-        ${recovery !== null ? `<span class="unit">זמן התאוששות ${Math.round(recovery / 60)} ש׳</span>` : ''}</div>
+        ${recovery !== null ? `<span class="unit">זמן התאוששות ${fmt(recovery)} ש׳</span>` : ''}</div>
         <ul class="rows">${rows.join('')}</ul></article>` : '';
 }
 
