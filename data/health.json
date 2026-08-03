@@ -975,7 +975,8 @@
   "recovery_time_min": 1,
   "respiration_avg": 14.0,
   "training_status": "DETRAINING",
-  "training_load": 207
+  "training_load": 207,
+  "recovery_hours": 1
  },
  {
   "date": "2026-08-03",
@@ -1009,6 +1010,7 @@
   "recovery_time_min": 1,
   "respiration_avg": 14.0,
   "training_status": "DETRAINING",
-  "training_load": 52
+  "training_load": 52,
+  "recovery_hours": 1
  }
 ]
