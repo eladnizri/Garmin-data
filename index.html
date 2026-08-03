@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0">
-  <meta name="theme-color" content="#2563eb">
+  <meta name="theme-color" content="#1d4ed8">
   <title>בריאות ושינה</title>
 
   <link rel="manifest" href="manifest.webmanifest">
@@ -20,78 +20,62 @@
 </head>
 <body>
 
-  <!-- טעינה -->
   <div id="loading" class="loading">
     <img src="icons/icon-192.png" alt="" class="load-logo">
     <div class="spinner"></div>
-    <p>טוען נתונים…</p>
   </div>
 
   <div id="app" class="app hidden">
 
-    <!-- סרגל עליון -->
+    <!-- ===== סרגל עליון ===== -->
     <header class="topbar">
       <div class="topbar-row">
-        <h1 id="page-title" class="page-title">בית</h1>
-        <div class="topbar-actions">
-          <span id="today" class="today"></span>
-          <button id="profile-btn" class="icon-btn" aria-label="פרופיל אישי">
-            <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-          </button>
+        <img src="icons/icon-192.png" alt="" class="brand-mark">
+        <div class="topbar-titles">
+          <h1 id="page-title" class="page-title">בית</h1>
+          <span id="page-sub" class="page-sub"></span>
         </div>
+        <button id="profile-btn" class="icon-btn" aria-label="פרופיל אישי">
+          <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        </button>
       </div>
-      <div id="range-filter" class="range-seg" role="tablist" aria-label="טווח זמן">
-        <button data-range="7" class="seg-btn">7 ימים</button>
-        <button data-range="30" class="seg-btn">30 ימים</button>
+      <div id="range-filter" class="range-seg" aria-label="טווח זמן">
+        <button data-range="7" class="seg-btn">שבוע</button>
+        <button data-range="30" class="seg-btn">חודש</button>
         <button data-range="all" class="seg-btn">הכל</button>
       </div>
     </header>
 
-    <!-- עמודים בהחלקה -->
+    <!-- ===== עמודים בהחלקה ===== -->
     <div id="pager" class="pager">
 
-      <!-- ===== בית ===== -->
-      <section class="page" data-title="בית">
-        <div id="demo-banner" class="demo-banner hidden">
+      <!-- ========== בית ========== -->
+      <section class="page" data-title="בית" data-sub="תמונת מצב">
+        <div id="demo-banner" class="banner hidden">
           מציג <b>נתוני דמו</b> — הנתונים האמיתיים מתעדכנים אוטומטית מגרמין.
         </div>
-        <div id="today-card" class="today-card"></div>
-        <div id="home-readiness" class="readiness-card"></div>
+
+        <!-- ציון מרכזי -->
+        <div id="hero" class="hero"></div>
+
+        <!-- שורת תחומים — כל מספר מופיע כאן פעם אחת בלבד -->
+        <div id="domains" class="domains"></div>
+
+        <!-- מה חריג -->
+        <div id="anomalies"></div>
+
+        <!-- תובנה -->
+        <div id="insight-home"></div>
+
+        <!-- פרופיל -->
         <div id="home-body"></div>
-        <div class="grid-2" id="home-kpis"></div>
-        <div id="home-highlight" class="highlight"></div>
-        <h2 class="section-h">עברו לפי נושא</h2>
-        <div id="home-shortcuts" class="shortcuts"></div>
       </section>
 
-      <!-- ===== בריאות הלב ===== -->
-      <section class="page" data-title="בריאות הלב">
-        <div class="grid-2" id="heart-kpis"></div>
+      <!-- ========== שינה ========== -->
+      <section class="page" data-title="שינה" data-sub="איכות הלילה">
+        <div id="sleep-hero" class="stat-hero"></div>
         <article class="card">
-          <div class="card-head"><h2>דופק מנוחה (RHR)</h2><span class="unit">bpm</span></div>
-          <div class="legend" id="legend-rhr"></div>
-          <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-rhr"></canvas></div>
-        </article>
-        <article class="card">
-          <div class="card-head"><h2>שונות דופק (HRV)</h2><span class="unit">ms · ממוצע לילי</span></div>
-          <div class="legend" id="legend-hrv"></div>
-          <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-hrv"></canvas></div>
-        </article>
-        <article class="card">
-          <div class="card-head"><h2>סטרס ו-Body Battery</h2><span class="unit">0–100</span></div>
-          <div class="legend" id="legend-stress"></div>
-          <div class="chart-wrap" dir="ltr"><canvas id="chart-stress"></canvas></div>
-        </article>
-        <div id="heart-records" class="records"></div>
-        <div id="hr-zones"></div>
-        <div id="heart-insights" class="insights"></div>
-      </section>
-
-      <!-- ===== שינה ===== -->
-      <section class="page" data-title="שינה">
-        <div class="grid-2" id="sleep-kpis"></div>
-        <article class="card">
-          <div class="card-head"><h2>שעות שינה</h2><span class="unit" id="u-sleep">יעד 8 שעות</span></div>
+          <div class="card-head"><h2>שעות שינה</h2><span class="unit" id="u-sleep"></span></div>
           <div class="legend" id="legend-sleep"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-sleep"></canvas></div>
         </article>
@@ -100,54 +84,73 @@
           <div class="legend" id="legend-stages"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-stages"></canvas></div>
         </article>
-        <div id="sleep-records" class="records"></div>
-        <div id="sleep-insights" class="insights"></div>
+        <div id="sleep-breathing"></div>
+        <div id="sleep-insight"></div>
+        <div id="sleep-records"></div>
       </section>
 
-      <!-- ===== צעדים ===== -->
-      <section class="page" data-title="צעדים ופעילות">
-        <div class="grid-2" id="steps-kpis"></div>
+      <!-- ========== לב והתאוששות ========== -->
+      <section class="page" data-title="לב והתאוששות" data-sub="דופק, HRV ומתח">
+        <div id="heart-hero" class="stat-hero"></div>
         <article class="card">
-          <div class="card-head"><h2>צעדים</h2><span class="unit" id="u-steps">יעד 10,000</span></div>
+          <div class="card-head"><h2>דופק מנוחה</h2><span class="unit">bpm</span></div>
+          <div class="legend" id="legend-rhr"></div>
+          <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-rhr"></canvas></div>
+        </article>
+        <article class="card">
+          <div class="card-head"><h2>שונות דופק (HRV)</h2><span class="unit" id="u-hrv">ms</span></div>
+          <div class="legend" id="legend-hrv"></div>
+          <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-hrv"></canvas></div>
+        </article>
+        <article class="card">
+          <div class="card-head"><h2>מתח ו-Body Battery</h2><span class="unit">0–100</span></div>
+          <div class="legend" id="legend-stress"></div>
+          <div class="chart-wrap" dir="ltr"><canvas id="chart-stress"></canvas></div>
+        </article>
+        <div id="readiness-factors"></div>
+        <div id="heart-insight"></div>
+        <div id="heart-records"></div>
+        <div id="hr-zones"></div>
+      </section>
+
+      <!-- ========== פעילות ========== -->
+      <section class="page" data-title="פעילות" data-sub="תנועה ואימונים">
+        <div id="steps-hero" class="stat-hero"></div>
+        <article class="card">
+          <div class="card-head"><h2>צעדים</h2><span class="unit" id="u-steps"></span></div>
           <div class="legend" id="legend-steps"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-steps"></canvas></div>
         </article>
-        <article class="card">
-          <div class="card-head"><h2>קלוריות שרופות</h2><span class="unit">kcal · יומי</span></div>
-          <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-activity"></canvas></div>
-        </article>
-        <div id="steps-records" class="records"></div>
-        <div id="steps-insights" class="insights"></div>
+        <div id="fitness-card"></div>
+        <div id="workouts-card"></div>
+        <div id="steps-insight"></div>
+        <div id="steps-records"></div>
       </section>
 
     </div>
 
-    <!-- ניווט תחתון -->
+    <!-- ===== ניווט תחתון ===== -->
     <nav id="tabbar" class="tabbar" aria-label="ניווט">
       <button class="tab" data-index="0" aria-label="בית">
-        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-        <span>בית</span>
+        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>בית</span>
       </button>
-      <button class="tab" data-index="1" aria-label="בריאות הלב">
-        <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-        <span>לב</span>
+      <button class="tab" data-index="1" aria-label="שינה">
+        <svg viewBox="0 0 24 24"><path d="M12.34 2.02C6.59 1.82 2 6.42 2 12c0 5.52 4.48 10 10 10 3.71 0 6.93-2.02 8.66-5.02-7.51 1.36-13.14-5.24-8.32-14.96z"/></svg><span>שינה</span>
       </button>
-      <button class="tab" data-index="2" aria-label="שינה">
-        <svg viewBox="0 0 24 24"><path d="M12.34 2.02C6.59 1.82 2 6.42 2 12c0 5.52 4.48 10 10 10 3.71 0 6.93-2.02 8.66-5.02-7.51 1.36-13.14-5.24-8.32-14.96z"/></svg>
-        <span>שינה</span>
+      <button class="tab" data-index="2" aria-label="לב והתאוששות">
+        <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg><span>לב</span>
       </button>
-      <button class="tab" data-index="3" aria-label="צעדים">
-        <svg viewBox="0 0 24 24"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6z"/></svg>
-        <span>צעדים</span>
+      <button class="tab" data-index="3" aria-label="פעילות">
+        <svg viewBox="0 0 24 24"><path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6z"/></svg><span>פעילות</span>
       </button>
     </nav>
 
-    <!-- פרופיל אישי -->
+    <!-- ===== פרופיל אישי ===== -->
     <div id="profile-modal" class="modal hidden">
       <div class="modal-backdrop" data-close></div>
       <div class="modal-sheet" role="dialog" aria-label="פרופיל אישי">
         <div class="modal-head">
-          <h2>👤 פרופיל אישי</h2>
+          <h2>פרופיל אישי</h2>
           <button class="icon-btn" data-close aria-label="סגור">✕</button>
         </div>
         <p class="modal-note">🔒 הנתונים נשמרים רק במכשיר שלך ואינם נשלחים לשום מקום. כל השדות אופציונליים.</p>

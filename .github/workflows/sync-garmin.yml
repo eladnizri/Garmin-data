@@ -4,7 +4,12 @@ on:
   schedule:
     # 09:00 UTC ≈ 12:00 שעון ישראל (קיץ) / 11:00 (חורף) — סביב הצהריים
     - cron: "0 9 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "כמה ימים אחורה למשוך (למילוי היסטורי חד-פעמי)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -41,6 +46,7 @@ jobs:
         env:
           GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
           GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+          FETCH_DAYS: ${{ inputs.days }}
         run: python scripts/fetch_garmin.py
 
       - name: Commit updated data
