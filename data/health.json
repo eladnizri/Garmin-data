@@ -557,7 +557,11 @@
   "readiness_hrv": 100,
   "readiness_stress": 62,
   "recovery_time_min": 1,
-  "respiration_avg": 13.0
+  "respiration_avg": 13.0,
+  "readiness_sleep_history": 50,
+  "readiness_load": 100,
+  "readiness_feedback": "WELL_RECOVERED",
+  "recovery_hours": 1
  },
  {
   "date": "2026-07-21",
@@ -589,7 +593,11 @@
   "readiness_hrv": 100,
   "readiness_stress": 57,
   "recovery_time_min": 1,
-  "respiration_avg": 13.0
+  "respiration_avg": 13.0,
+  "readiness_sleep_history": 65,
+  "readiness_load": 100,
+  "readiness_feedback": "EXCELLENT_RECOVERY",
+  "recovery_hours": 1
  },
  {
   "date": "2026-07-22",
@@ -621,7 +629,11 @@
   "readiness_hrv": 100,
   "readiness_stress": 41,
   "recovery_time_min": 0,
-  "respiration_avg": 13.0
+  "respiration_avg": 13.0,
+  "readiness_sleep_history": 81,
+  "readiness_load": 100,
+  "readiness_feedback": "PRIMED_AND_READY",
+  "recovery_hours": 0
  },
  {
   "date": "2026-07-23",
@@ -653,7 +665,11 @@
   "readiness_hrv": 100,
   "readiness_stress": 52,
   "recovery_time_min": 1,
-  "respiration_avg": 12.0
+  "respiration_avg": 12.0,
+  "readiness_sleep_history": 91,
+  "readiness_load": 100,
+  "readiness_feedback": "READY_FOR_ACTION",
+  "recovery_hours": 1
  },
  {
   "date": "2026-07-24",
@@ -685,7 +701,11 @@
   "readiness_hrv": 100,
   "readiness_stress": 46,
   "recovery_time_min": 1,
-  "respiration_avg": 13.0
+  "respiration_avg": 13.0,
+  "readiness_sleep_history": 84,
+  "readiness_load": 100,
+  "readiness_feedback": "EXCELLENT_RECOVERY",
+  "recovery_hours": 1
  },
  {
   "date": "2026-07-25",
@@ -717,7 +737,11 @@
   "readiness_hrv": 99,
   "readiness_stress": 49,
   "recovery_time_min": 102,
-  "respiration_avg": 13.0
+  "respiration_avg": 13.0,
+  "readiness_sleep_history": 70,
+  "readiness_load": 100,
+  "readiness_feedback": "FOCUS_ON_ENERGY_LEVELS",
+  "recovery_hours": 102
  },
  {
   "date": "2026-07-26",
@@ -749,7 +773,11 @@
   "readiness_hrv": 93,
   "readiness_stress": 46,
   "recovery_time_min": 1,
-  "respiration_avg": 13.0
+  "respiration_avg": 13.0,
+  "readiness_sleep_history": 42,
+  "readiness_load": 100,
+  "readiness_feedback": "READY_FOR_THE_DAY",
+  "recovery_hours": 1
  },
  {
   "date": "2026-07-27",
@@ -781,7 +809,11 @@
   "readiness_hrv": 100,
   "readiness_stress": 66,
   "recovery_time_min": 0,
-  "respiration_avg": 13.0
+  "respiration_avg": 13.0,
+  "readiness_sleep_history": 47,
+  "readiness_load": 100,
+  "readiness_feedback": "WELL_RECOVERED",
+  "recovery_hours": 0
  },
  {
   "date": "2026-07-28",
@@ -813,7 +845,11 @@
   "readiness_hrv": 99,
   "readiness_stress": 63,
   "recovery_time_min": 0,
-  "respiration_avg": 13.0
+  "respiration_avg": 13.0,
+  "readiness_sleep_history": 78,
+  "readiness_load": 100,
+  "readiness_feedback": "PRIMED_AND_READY",
+  "recovery_hours": 0
  },
  {
   "date": "2026-07-29",
@@ -845,7 +881,11 @@
   "readiness_hrv": 92,
   "readiness_stress": 52,
   "recovery_time_min": 1,
-  "respiration_avg": 12.0
+  "respiration_avg": 12.0,
+  "readiness_sleep_history": 97,
+  "readiness_load": 100,
+  "readiness_feedback": "READY_TO_GO",
+  "recovery_hours": 1
  },
  {
   "date": "2026-07-30",
@@ -877,7 +917,11 @@
   "readiness_hrv": 84,
   "readiness_stress": 33,
   "recovery_time_min": 1,
-  "respiration_avg": 14.0
+  "respiration_avg": 14.0,
+  "readiness_sleep_history": 91,
+  "readiness_load": 100,
+  "readiness_feedback": "EXCELLENT_RECOVERY",
+  "recovery_hours": 1
  },
  {
   "date": "2026-07-31",
@@ -909,7 +953,11 @@
   "readiness_hrv": 86,
   "readiness_stress": 41,
   "recovery_time_min": 1,
-  "respiration_avg": 14.0
+  "respiration_avg": 14.0,
+  "readiness_sleep_history": 62,
+  "readiness_load": 100,
+  "readiness_feedback": "WELL_RECOVERED",
+  "recovery_hours": 1
  },
  {
   "date": "2026-08-01",
@@ -941,7 +989,11 @@
   "readiness_hrv": 84,
   "readiness_stress": 33,
   "recovery_time_min": 1,
-  "respiration_avg": 10.0
+  "respiration_avg": 10.0,
+  "readiness_sleep_history": 69,
+  "readiness_load": 100,
+  "readiness_feedback": "FIND_TIME_TO_RELAX",
+  "recovery_hours": 1
  },
  {
   "date": "2026-08-02",
@@ -976,7 +1028,10 @@
   "respiration_avg": 14.0,
   "training_status": "DETRAINING",
   "training_load": 207,
-  "recovery_hours": 1
+  "recovery_hours": 1,
+  "readiness_sleep_history": 37,
+  "readiness_load": 100,
+  "readiness_feedback": "GOOD_RECOVERY"
  },
  {
   "date": "2026-08-03",
@@ -1011,6 +1066,9 @@
   "respiration_avg": 14.0,
   "training_status": "DETRAINING",
   "training_load": 52,
-  "recovery_hours": 1
+  "recovery_hours": 1,
+  "readiness_sleep_history": 46,
+  "readiness_load": 100,
+  "readiness_feedback": "TAKE_ON_THE_DAY"
  }
 ]
