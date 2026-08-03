@@ -1495,11 +1495,26 @@ $('dashboard').addEventListener('click', e => {
   if (b) goTo(Number(b.dataset.goto));
 });
 
-let raf = null;
+let raf = null, scrollEndTimer = null;
 pager.addEventListener('scroll', () => {
-  if (raf) return;
-  raf = requestAnimationFrame(() => { raf = null; setActive(currentIndex()); });
+  if (!raf) raf = requestAnimationFrame(() => { raf = null; setActive(currentIndex()); });
+  clearTimeout(scrollEndTimer);
+  scrollEndTimer = setTimeout(onScrollEnd, 110);
 }, { passive: true });
+
+/* אחרי שההחלקה נעצרת: מיישרים לעמוד הקרוב (מונע "תקיעה" בין עמודים),
+ * וכשנוחתים על הבית — מריצים מחדש את אנימציית הטבעות. */
+function onScrollEnd() {
+  const idx = currentIndex();
+  setActive(idx);
+  const off = pages[idx].getBoundingClientRect().left - pager.getBoundingClientRect().left;
+  if (Math.abs(off) > 6) {
+    // תיקון עדין: העמוד לא התיישב במלואו — מחליקים אליו במדויק
+    pages[idx].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+  } else if (idx === 0) {
+    renderDashboard(); // כניסה מחדש לבית → הטבעות מתמלאות מחדש
+  }
+}
 
 $('range-filter').addEventListener('click', e => {
   const b = e.target.closest('.seg-btn');

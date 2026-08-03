@@ -129,6 +129,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   overflow-y: auto; scroll-snap-align: start; scroll-snap-stop: always;
   padding: 16px 16px 32px;
   -webkit-overflow-scrolling: touch;
+  /* כל עמוד על שכבת GPU משלו — ההחלקה האופקית מרכיבה שכבות מוכנות
+     במקום לרסטר מחדש פילטרים/צללים בכל פריים (מעברים חלקים בהרבה) */
+  transform: translateZ(0);
 }
 .page::-webkit-scrollbar { display: none; }
 .page > * + * { margin-top: var(--gap); }
@@ -226,12 +229,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 /* אנימציות כניסה מגניבות לטבעות */
 @keyframes ringIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
 @keyframes popIn { from { opacity: 0; transform: scale(.6) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-@keyframes glowPulse { 0%, 100% { opacity: .45; transform: scale(.96); } 50% { opacity: .85; transform: scale(1.05); } }
+/* פועם באטימות בלבד (לא scale) — זול ל-GPU ולא גורם ריפריים בזמן החלקה */
+@keyframes glowPulse { 0%, 100% { opacity: .4; } 50% { opacity: .82; } }
 .dash-ring { animation: ringIn .6s cubic-bezier(.22, 1, .36, 1) backwards; }
 .dash-ring::before {
   content: ''; position: absolute; inset: 16px; border-radius: 50%; z-index: 0; pointer-events: none;
   background: radial-gradient(circle, rgba(79, 142, 247, .3), transparent 68%);
-  animation: glowPulse 3.2s ease-in-out infinite;
+  animation: glowPulse 3.4s ease-in-out infinite; will-change: opacity;
 }
 .dash-ring svg { position: relative; z-index: 1; }
 .dash-ring-txt { z-index: 2; }
