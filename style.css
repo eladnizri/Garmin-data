@@ -145,45 +145,45 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   border-radius: var(--r-md); padding: 9px 12px; font-size: .8rem; line-height: 1.5;
 }
 
-/* ===== ציון מרכזי (בית) — טבעת זוהרת ===== */
-.hero {
-  background: radial-gradient(120% 140% at 85% 0%, rgba(79, 142, 247, .25), transparent 55%), var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg); padding: 18px;
-  display: flex; align-items: center; gap: 16px;
-  box-shadow: var(--shadow);
-}
-.ring { position: relative; width: 104px; height: 104px; flex: none; }
-.ring svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+/* ===== לוח טבעות (בית) ===== */
 .ring-track { stroke: rgba(148, 163, 184, .15); }
 .ring-val { transition: stroke-dashoffset .9s cubic-bezier(.22, 1, .36, 1); }
-.ring-txt {
+
+.dashboard {
+  background: radial-gradient(120% 90% at 50% 0%, rgba(79, 142, 247, .18), transparent 60%), var(--surface);
+  border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--shadow); padding: 20px 16px 16px;
+}
+.dash-center { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.dash-ring { position: relative; width: 168px; height: 168px; }
+.dash-ring-txt {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; font-weight: 700;
 }
-.ring-txt b { font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; }
-.ring-txt span { font-size: .58rem; color: var(--ink-2); margin-top: 2px; font-weight: 600; }
-.hero-body { flex: 1; min-width: 0; }
-.hero-verdict { font-size: 1.2rem; font-weight: 700; margin-bottom: 3px; }
-.hero-note { font-size: .82rem; color: var(--ink-2); line-height: 1.45; }
-.hero-src { font-size: .63rem; color: var(--muted); margin-top: 6px; }
+.dash-ring-txt b { font-size: 3rem; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.dash-ring-txt span { font-size: .66rem; color: var(--ink-2); margin-top: 3px; font-weight: 600; }
+.dash-verdict { font-size: 1.15rem; font-weight: 700; margin-top: 12px; }
+.dash-note { font-size: .8rem; color: var(--ink-2); line-height: 1.45; margin-top: 3px; }
 
-/* ===== שורות תחומים ===== */
-.domains { display: flex; flex-direction: column; gap: 8px; }
-.domain {
-  width: 100%; text-align: start;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--r-md); box-shadow: var(--shadow-sm);
-  padding: 11px 13px; display: flex; align-items: center; gap: 11px;
-  transition: transform .12s ease, background .12s ease;
+.dash-rings {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line);
 }
-.domain:active { transform: scale(.98); background: var(--surface-2); }
-.d-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; font-size: 1rem; }
-.d-main { flex: 1; min-width: 0; }
-.d-name { font-size: .74rem; color: var(--ink-2); font-weight: 600; }
-.d-val { font-size: 1.35rem; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
-.d-val small { font-size: .66rem; font-weight: 500; color: var(--muted); margin-inline-start: 2px; }
-.d-spark { width: 62px; height: 26px; flex: none; opacity: .9; }
+.mini {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: none; padding: 4px 0; transition: transform .12s ease;
+}
+.mini:active { transform: scale(.93); }
+.mini-ring { position: relative; width: 78px; height: 78px; }
+.mini-txt {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; line-height: 1;
+}
+.mini-txt b { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mini-txt i { font-size: .55rem; color: var(--muted); font-style: normal; margin-top: 2px; }
+.mini-label { font-size: .72rem; color: var(--ink-2); font-weight: 600; }
+
+/* מצבי סטטוס — משמשים גם בכותרות-העל ובכרטיס עקביות */
 .d-status {
   font-size: .65rem; font-weight: 700; padding: 3px 8px; border-radius: 999px;
   white-space: nowrap; flex: none;
@@ -333,18 +333,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .strain-title { font-size: .95rem; font-weight: 700; color: #fca5a5; margin-bottom: 2px; }
 .strain-body { font-size: .82rem; line-height: 1.5; color: var(--ink-2); }
 
-/* ===== תיוג ימים ===== */
-.tag-days { margin-top: 0; }
-.tag-days .seg-btn { padding: 5px 12px; }
-.tag-chips { display: flex; flex-wrap: wrap; gap: 7px; }
-.tag-chip {
-  background: var(--surface-2); border: 1px solid var(--border); color: var(--ink-2);
-  border-radius: 999px; padding: 7px 12px; font-size: .8rem; font-weight: 600;
-  transition: background .12s, border-color .12s, color .12s, transform .1s;
-}
-.tag-chip:active { transform: scale(.94); }
-.tag-chip.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-500); }
-
 /* ===== מעקב משקל ===== */
 .weight-goal { margin-top: 10px; font-size: .8rem; color: var(--ink-2); }
 .weight-goal b { color: var(--ink); font-weight: 700; }
@@ -363,6 +351,16 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .wd-chip.up b { color: var(--alert); }
 .wd-chip.down b { color: var(--ok); }
 .weight-nudge { margin-top: 10px; font-size: .78rem; color: var(--watch); }
+
+/* ===== פעילות מומלצת ===== */
+.rec-head { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+.rec-go .rec-head { color: var(--ok); }
+.rec-mod .rec-head { color: var(--primary-500); }
+.rec-rest .rec-head { color: var(--watch); }
+.rec-list { list-style: none; margin: 0; padding: 0; }
+.rec-list li { font-size: .85rem; line-height: 1.55; color: var(--ink-2); padding: 6px 0; border-bottom: 1px solid var(--line); }
+.rec-list li:last-child { border-bottom: none; }
+.rec-list b { color: var(--ink); font-weight: 700; }
 
 /* ===== לוח אימוני כוח שבועי ===== */
 .week-board { display: flex; justify-content: space-between; gap: 4px; margin-top: 4px; }
@@ -440,6 +438,19 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .modal-actions { display: flex; gap: 10px; margin-top: 4px; }
 .btn-primary { flex: 2; background: var(--primary); color: #fff; font-weight: 700; padding: 12px; border-radius: 12px; }
 .btn-ghost { flex: 1; background: var(--surface-2); color: var(--ink-2); font-weight: 700; padding: 12px; border-radius: 12px; }
+
+/* ===== כפתור סנכרון + הודעה צפה ===== */
+@keyframes syncspin { to { transform: rotate(360deg); } }
+.icon-btn.spinning svg { animation: syncspin .8s linear infinite; }
+.toast {
+  position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 74px);
+  transform: translate(-50%, 20px); z-index: 80;
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
+  padding: 10px 16px; border-radius: 999px; font-size: .82rem; font-weight: 600;
+  box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .25s; max-width: 90vw; text-align: center;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ===== טעינה ===== */
 .loading {
