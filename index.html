@@ -58,11 +58,17 @@
         <!-- ציון מרכזי -->
         <div id="hero" class="hero"></div>
 
+        <!-- אזהרת עומס/מחלה — מופיע רק כשמצטלבים סימנים -->
+        <div id="strain-warning"></div>
+
         <!-- שורת תחומים — כל מספר מופיע כאן פעם אחת בלבד -->
         <div id="domains" class="domains"></div>
 
         <!-- מה חריג -->
         <div id="anomalies"></div>
+
+        <!-- תיוג יום — הופך חריגות למובנות -->
+        <div id="day-tags"></div>
 
         <!-- השבוע שלי — סיכום מול השבוע הקודם -->
         <div id="week-summary"></div>
@@ -80,6 +86,7 @@
       <!-- ========== שינה ========== -->
       <section class="page" data-title="שינה" data-sub="איכות הלילה">
         <div id="sleep-hero" class="stat-hero"></div>
+        <div id="sleep-consistency"></div>
         <article class="card">
           <div class="card-head"><h2>שעות שינה</h2><span class="unit" id="u-sleep"></span></div>
           <div class="legend" id="legend-sleep"></div>
@@ -101,7 +108,7 @@
       <section class="page" data-title="לב והתאוששות" data-sub="דופק, HRV ומתח">
         <div id="heart-hero" class="stat-hero"></div>
         <article class="card">
-          <div class="card-head"><h2>דופק מנוחה</h2><span class="unit">bpm</span></div>
+          <div class="card-head"><h2>דופק מנוחה</h2><span class="unit" id="u-rhr">bpm</span></div>
           <div class="legend" id="legend-rhr"></div>
           <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-rhr"></canvas></div>
           <div id="tip-rhr"></div>
@@ -188,12 +195,18 @@
           </div>
           <div class="field-row">
             <label class="field">יעד אימוני כוח בשבוע<input type="number" name="strengthGoal" min="1" max="7" inputmode="numeric" placeholder="3"></label>
+            <label class="field">יעד משקל (ק״ג)<input type="number" name="weightGoal" min="30" max="250" step="0.1" inputmode="decimal" placeholder="72"></label>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-ghost" id="profile-clear">איפוס</button>
             <button type="submit" class="btn-primary">שמירה</button>
           </div>
         </form>
+        <div class="backup-row">
+          <button type="button" class="btn-ghost" id="export-btn">⬇️ ייצוא גיבוי</button>
+          <button type="button" class="btn-ghost" id="import-btn">⬆️ ייבוא</button>
+          <input type="file" id="import-file" accept="application/json,.json" hidden>
+        </div>
       </div>
     </div>
 

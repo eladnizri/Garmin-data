@@ -323,7 +323,34 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .ws-bar { height: 5px; border-radius: 999px; background: rgba(148, 163, 184, .15); overflow: hidden; margin-top: 4px; }
 .ws-bar i { display: block; height: 100%; border-radius: 999px; background: var(--primary-500); }
 
+/* ===== אזהרת עומס/מחלה ===== */
+.strain-card {
+  background: rgba(248, 113, 113, .1); border: 1px solid rgba(248, 113, 113, .3);
+  border-radius: var(--r-lg); padding: 13px 14px;
+  display: flex; gap: 11px; align-items: flex-start;
+}
+.strain-ic { font-size: 1.4rem; line-height: 1.2; flex: none; }
+.strain-title { font-size: .95rem; font-weight: 700; color: #fca5a5; margin-bottom: 2px; }
+.strain-body { font-size: .82rem; line-height: 1.5; color: var(--ink-2); }
+
+/* ===== תיוג ימים ===== */
+.tag-days { margin-top: 0; }
+.tag-days .seg-btn { padding: 5px 12px; }
+.tag-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.tag-chip {
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--ink-2);
+  border-radius: 999px; padding: 7px 12px; font-size: .8rem; font-weight: 600;
+  transition: background .12s, border-color .12s, color .12s, transform .1s;
+}
+.tag-chip:active { transform: scale(.94); }
+.tag-chip.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-500); }
+
 /* ===== מעקב משקל ===== */
+.weight-goal { margin-top: 10px; font-size: .8rem; color: var(--ink-2); }
+.weight-goal b { color: var(--ink); font-weight: 700; }
+.backup-row { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.backup-row .btn-ghost { flex: 1; font-size: .82rem; padding: 10px; }
+
 .weight-top { display: flex; align-items: flex-start; gap: 12px; }
 .weight-val { font-size: 2.2rem; font-weight: 700; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
 .weight-val small { font-size: .75rem; font-weight: 500; color: var(--muted); margin-inline-start: 3px; }
