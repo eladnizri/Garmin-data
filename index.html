@@ -30,7 +30,6 @@
     <!-- ===== סרגל עליון ===== -->
     <header class="topbar">
       <div class="topbar-row">
-        <img src="icons/icon-192.png" alt="" class="brand-mark">
         <div class="topbar-titles">
           <h1 id="page-title" class="page-title">בית</h1>
           <span id="page-sub" class="page-sub"></span>
@@ -83,15 +82,16 @@
       <!-- ========== שינה ========== -->
       <section class="page" data-title="שינה" data-sub="איכות הלילה">
         <div id="sleep-hero" class="stat-hero"></div>
+        <div id="sleep-rec"></div>
         <div id="sleep-consistency"></div>
         <article class="card">
-          <div class="card-head"><h2>שעות שינה</h2><span class="unit" id="u-sleep"></span></div>
+          <div class="card-head"><h2 class="ct" data-info="sleep_hours">שעות שינה<span class="info-i">ⓘ</span></h2><span class="unit" id="u-sleep"></span></div>
           <div class="legend" id="legend-sleep"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-sleep"></canvas></div>
           <div id="tip-sleep"></div>
         </article>
         <article class="card">
-          <div class="card-head"><h2>שלבי שינה</h2><span class="unit">שעות לפי שלב</span></div>
+          <div class="card-head"><h2 class="ct" data-info="stages">שלבי שינה<span class="info-i">ⓘ</span></h2><span class="unit">שעות לפי שלב</span></div>
           <div class="legend" id="legend-stages"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-stages"></canvas></div>
           <div id="tip-stages"></div>
@@ -105,26 +105,24 @@
       <section class="page" data-title="לב והתאוששות" data-sub="דופק, HRV ומתח">
         <div id="heart-hero" class="stat-hero"></div>
         <article class="card">
-          <div class="card-head"><h2>דופק מנוחה</h2><span class="unit" id="u-rhr">bpm</span></div>
+          <div class="card-head"><h2 class="ct" data-info="rhr">דופק מנוחה<span class="info-i">ⓘ</span></h2><span class="unit" id="u-rhr">bpm</span></div>
           <div class="legend" id="legend-rhr"></div>
           <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-rhr"></canvas></div>
           <div id="tip-rhr"></div>
         </article>
         <article class="card">
-          <div class="card-head"><h2>שונות דופק (HRV)</h2><span class="unit" id="u-hrv">ms</span></div>
+          <div class="card-head"><h2 class="ct" data-info="hrv">שונות דופק (HRV)<span class="info-i">ⓘ</span></h2><span class="unit" id="u-hrv">ms</span></div>
           <div class="legend" id="legend-hrv"></div>
           <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-hrv"></canvas></div>
           <div id="tip-hrv"></div>
         </article>
         <article class="card">
-          <div class="card-head"><h2>מתח</h2><span class="unit">0–100</span></div>
+          <div class="card-head"><h2 class="ct" data-info="stress_avg">מתח<span class="info-i">ⓘ</span></h2><span class="unit">0–100</span></div>
           <div class="legend" id="legend-stress"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-stress"></canvas></div>
           <div id="tip-stress"></div>
         </article>
-        <div id="readiness-factors"></div>
         <div id="heart-insight"></div>
-        <div id="heart-records"></div>
         <div id="hr-zones"></div>
       </section>
 
@@ -139,12 +137,11 @@
         <div id="activity-rec"></div>
 
         <article class="card">
-          <div class="card-head"><h2>צעדים</h2><span class="unit" id="u-steps"></span></div>
+          <div class="card-head"><h2 class="ct" data-info="steps">צעדים<span class="info-i">ⓘ</span></h2><span class="unit" id="u-steps"></span></div>
           <div class="legend" id="legend-steps"></div>
           <div class="chart-wrap" dir="ltr"><canvas id="chart-steps"></canvas></div>
           <div id="tip-steps"></div>
         </article>
-        <div id="fitness-card"></div>
         <div id="workouts-card"></div>
         <div id="steps-insight"></div>
         <div id="steps-records"></div>
@@ -232,6 +229,18 @@
             <button type="submit" class="btn-primary">שמירה</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- ===== הסבר על גרף ===== -->
+    <div id="info-modal" class="modal hidden">
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-sheet" role="dialog" aria-label="הסבר">
+        <div class="modal-head">
+          <h2 id="info-title"></h2>
+          <button class="icon-btn" data-close aria-label="סגור">✕</button>
+        </div>
+        <div id="info-body"></div>
       </div>
     </div>
 

@@ -771,6 +771,21 @@ function renderRecords(id, items) {
 }
 
 /* =========================================================================
+ * המלצת שינה — כשממוצע השינה מתחת ליעד, ממליץ להקדים את שעת השינה
+ * ========================================================================= */
+function renderSleepRec() {
+  const el = $('sleep-rec');
+  const recent = state.data.slice(-7);
+  const avgSleep = avg(recent, 'sleep_hours');
+  const goal = goalSleep();
+  if (avgSleep === null || avgSleep >= goal - 0.3) { el.innerHTML = ''; return; }
+  const gapMin = Math.round((goal - avgSleep) * 60);
+  el.innerHTML = `<div class="insight"><span class="i-ic">🌙</span>
+    <p><b>חוסר שינה:</b> ממוצע ${fmt(avgSleep, 1)} שעות בשבוע האחרון, מתחת ליעד ${fmt(goal, Number.isInteger(goal) ? 0 : 1)}.
+    נסה להקדים את שעת השינה בכ-<b>${gapMin} דקות</b> — עקביות חשובה יותר מלילה בודד ארוך.</p></div>`;
+}
+
+/* =========================================================================
  * עקביות שינה — סדירות משך השינה (שונות נמוכה = עקבי יותר)
  * ========================================================================= */
 function renderSleepConsistency() {
@@ -808,47 +823,12 @@ function renderBreathing() {
     <span class="unit">מהמדידה האחרונה</span></div><ul class="rows">${rows.join('')}</ul></article>`;
 }
 
-const READINESS_FACTORS = [
-  ['readiness_sleep', 'שינה', '🌙'], ['readiness_sleep_history', 'היסטוריית שינה', '📅'],
-  ['readiness_recovery', 'התאוששות', '🔄'], ['readiness_hrv', 'HRV', '💚'],
-  ['readiness_stress', 'היסטוריית מתח', '🔥'], ['readiness_load', 'עומס אימונים', '🏋️'],
-];
-function renderReadinessFactors() {
-  const el = $('readiness-factors');
-  const rows = READINESS_FACTORS.map(([key, name, emoji]) => {
-    const v = latest(key, 2);
-    if (v === null) return null;
-    return `<li><span class="r-ic">${emoji}</span><span class="r-name" style="min-width:88px">${name}</span>
-      <span class="fbar"><i style="width:${clamp(v, 0, 100)}%"></i></span>
-      <span class="r-val" style="min-width:38px">${fmt(v)}<small>%</small></span></li>`;
-  }).filter(Boolean);
-  const recovery = latest('recovery_hours', 2);
-  el.innerHTML = rows.length
-    ? `<article class="card"><div class="card-head"><h2>ממה מורכב ציון המוכנות</h2>
-        ${recovery !== null ? `<span class="unit">זמן התאוששות ${fmt(recovery)} ש׳</span>` : ''}</div>
-        <ul class="rows">${rows.join('')}</ul></article>` : '';
-}
-
 const TRAINING_STATUS = {
   PRODUCTIVE: 'מתקדם', PRODUCTIVE_1: 'מתקדם', MAINTAINING: 'שומר על הקיים',
   MAINTAINING_1: 'שומר על הקיים', PEAKING: 'בשיא', OVERREACHING: 'יתר-אימון',
   UNPRODUCTIVE: 'לא פורה', DETRAINING: 'ירידה בכושר', RECOVERY: 'התאוששות',
   STRAINED: 'עומס יתר', NO_STATUS: 'אין סטטוס',
 };
-function renderFitness() {
-  const vo2 = latest('vo2max', 10), age = latest('fitness_age', 10), st = latest('training_status', 10);
-  const el = $('fitness-card');
-  if (vo2 === null && age === null && st === null) { el.innerHTML = ''; return; }
-  const chips = [];
-  if (vo2 !== null) chips.push(`<div class="chip"><span>🫀</span><b>${fmt(vo2, 1)}</b><small>VO2 Max</small></div>`);
-  if (age !== null) chips.push(`<div class="chip"><span>🎂</span><b>${fmt(age)}</b><small>גיל כושר</small></div>`);
-  if (st !== null) {
-    const key = String(st).toUpperCase().replace(/[^A-Z_0-9]/g, '');
-    chips.push(`<div class="chip"><span>📈</span><b style="font-size:.74rem">${TRAINING_STATUS[key] || st}</b><small>סטטוס אימון</small></div>`);
-  }
-  el.innerHTML = `<article class="card"><div class="card-head"><h2>כושר ומגמה</h2>
-    <span class="unit">לפי גרמין</span></div><div class="chips">${chips.join('')}</div></article>`;
-}
 
 function renderWorkouts() {
   const el = $('workouts-card');
@@ -1107,45 +1087,72 @@ function renderWeekSummary() {
 }
 
 /* =========================================================================
- * פעילות מומלצת לשבוע — לפי המוכנות, יעד הכוח ודקות האינטנסיביות
+ * כושר ואימון מומלץ — כרטיס מאוחד: נתוני הכושר + ההמלצה של היום.
+ * ההמלצה נגזרת גם מהמוכנות וגם מסטטוס האימון (המגמה), ובוחרת מסוגי
+ * האימונים שאתה מבצע בפועל.
  * ========================================================================= */
+const MY_WORKOUTS = {
+  zone2:    { emoji: '🏃', label: 'ריצת Zone 2', detail: '~5 ק״מ בקצב נוח (אפשר לנהל שיחה)' },
+  tempo:    { emoji: '⚡', label: 'ריצת טמפו',   detail: '~3 ק״מ בקצב מאמץ' },
+  strength: { emoji: '🏋️', label: 'אימון כוח',   detail: 'פול-באדי' },
+  rest:     { emoji: '🧘', label: 'מנוחה פעילה',  detail: 'הליכה קלה, מתיחות או יוגה' },
+};
+/* בוחר את אימון היום לפי מוכנות + סטטוס אימון + יתרת יעד הכוח */
+function pickSession(score, statusKey, strLeft) {
+  const strained = ['STRAINED', 'OVERREACHING', 'UNPRODUCTIVE'].includes(statusKey);
+  if (score < 50 || strained)
+    return { key: 'rest', why: strained ? 'סטטוס האימון מצביע על עומס — תן לגוף להתאושש' : 'המוכנות נמוכה — עדיף יום מנוחה' };
+  if (score >= 70) {
+    if (strLeft > 0) return { key: 'strength', why: 'מוכנות טובה ונותרו אימוני כוח להשלים השבוע' };
+    return { key: 'tempo', why: 'מוכנות טובה — יום מצוין לאימון איכות' };
+  }
+  if (strLeft > 0) return { key: 'strength', why: 'מוכנות בינונית ונותרו אימוני כוח ליעד' };
+  return { key: 'zone2', why: 'מוכנות בינונית — יום טוב לבניית בסיס אירובי' };
+}
 function renderActivityRec() {
   const el = $('activity-rec');
   const score = latest('readiness_score', 2) ?? heuristicReadiness();
   if (score === null) { el.innerHTML = ''; return; }
 
-  const cur = weekRows(0);
-  const auto = autoStrengthDates();
+  // נתוני כושר ומגמה
+  const vo2 = latest('vo2max', 10), age = latest('fitness_age', 10), st = latest('training_status', 10);
+  const statusKey = st ? String(st).toUpperCase().replace(/[^A-Z_0-9]/g, '') : null;
+  const statusHeb = statusKey ? (TRAINING_STATUS[statusKey] || st) : null;
+  const chips = [];
+  if (vo2 !== null) chips.push(`<div class="chip"><span>🫀</span><b>${fmt(vo2, 1)}</b><small>VO2 Max</small></div>`);
+  if (age !== null) chips.push(`<div class="chip"><span>🎂</span><b>${fmt(age)}</b><small>גיל כושר</small></div>`);
+  if (statusHeb) chips.push(`<div class="chip"><span>📈</span><b style="font-size:.74rem">${statusHeb}</b><small>סטטוס אימון</small></div>`);
+
+  // יעדי השבוע
+  const cur = weekRows(0), auto = autoStrengthDates();
   const strDone = strengthCountInWeek(cur, auto), strGoal = goalStrength();
+  const strLeft = Math.max(0, strGoal - strDone);
   const intMin = cur.reduce((a, r) => a + (r.intensity_min || 0), 0), intGoal = 150;
 
-  // כותרת + טון לפי המוכנות של היום
-  let head, tone, todayRec;
-  if (score < 50) {
-    head = 'מוכנות נמוכה — היום למנוחה'; tone = 'rest';
-    todayRec = '🧘 היום: מנוחה פעילה — הליכה קלה, מתיחות או יוגה. תן לגוף להתאושש.';
-  } else if (score < 70) {
-    head = 'מוכנות בינונית — אימון מתון'; tone = 'mod';
-    todayRec = '🚶 היום: אימון אירובי מתון (זון 2) — קצב שמאפשר לנהל שיחה.';
-  } else {
-    head = 'מוכנות טובה — אפשר להעמיס'; tone = 'go';
-    todayRec = '⚡ היום: מתאים לאימון עצים — אינטרוולים, ריצה ארוכה או אימון כוח כבד.';
-  }
+  // אימון היום
+  const pick = pickSession(score, statusKey, strLeft);
+  const w = MY_WORKOUTS[pick.key];
+  const tone = pick.key === 'rest' ? 'rest' : (score >= 70 ? 'go' : 'mod');
 
-  const recs = [todayRec];
-  const strLeft = Math.max(0, strGoal - strDone);
-  recs.push(strLeft > 0
+  const targets = [];
+  targets.push(strLeft > 0
     ? `🏋️ עוד <b>${strLeft}</b> אימוני כוח השבוע (${strDone}/${strGoal})`
-    : `🏋️ עמדת ביעד אימוני הכוח (${strDone}/${strGoal}) — כל הכבוד`);
+    : `🏋️ עמדת ביעד אימוני הכוח (${strDone}/${strGoal}) 👏`);
   const intLeft = Math.max(0, intGoal - Math.round(intMin));
-  recs.push(intLeft > 0
-    ? `🏃 עוד <b>${intLeft}</b> דקות פעילות אינטנסיבית ליעד ה-150 השבועי`
-    : `🏃 השלמת ${Math.round(intMin)} דק׳ אינטנסיביות — מעל יעד ה-WHO 👏`);
+  targets.push(intLeft > 0
+    ? `🏃 עוד <b>${intLeft}</b> דק׳ פעילות אינטנסיבית ליעד ה-150 השבועי`
+    : `🏃 מעל יעד ה-WHO (${Math.round(intMin)} דק׳) 👏`);
 
   el.innerHTML = `<article class="card rec-card rec-${tone}">
-    <div class="card-head"><h2>הפעילות המומלצת שלך</h2><span class="unit">מוכנות ${score}</span></div>
-    <div class="rec-head">${head}</div>
-    <ul class="rec-list">${recs.map(r => `<li>${r}</li>`).join('')}</ul></article>`;
+    <div class="card-head"><h2>כושר ואימון מומלץ</h2><span class="unit">מוכנות ${score}</span></div>
+    ${chips.length ? `<div class="chips" style="margin-bottom:12px">${chips.join('')}</div>` : ''}
+    <div class="rec-session">
+      <span class="rec-emoji">${w.emoji}</span>
+      <div><div class="rec-title">היום: ${w.label}</div>
+        <div class="rec-detail">${w.detail}</div>
+        <div class="rec-why">${pick.why}</div></div>
+    </div>
+    <ul class="rec-list">${targets.map(t => `<li>${t}</li>`).join('')}</ul></article>`;
 }
 
 /* =========================================================================
@@ -1203,6 +1210,43 @@ $('strength-card').addEventListener('click', e => {
   renderStrength(); renderWeekSummary();
 });
 
+/* --- הסבר על גרפים (לחיצה על שם הגרף) --- */
+const CHART_INFO = {
+  sleep_hours: { title: 'שעות שינה', what: 'סך שעות השינה בפועל בלילה, כפי שהשעון מזהה.',
+    help: 'שינה היא הזמן שבו הגוף מתקן את עצמו — חוסר שינה פוגע בהתאוששות, במצב הרוח ובביצועים.',
+    conclude: 'עקביות (אותה שעת שינה) חשובה יותר מלילה בודד ארוך. חוסר מצטבר מסמן שכדאי להקדים את השינה.' },
+  stages: { title: 'שלבי שינה', what: 'פירוק השינה לשלבים: עמוקה, קלה ו-REM.',
+    help: 'שינה עמוקה משקמת את הגוף, REM את המוח והזיכרון. האיזון ביניהם מעיד על איכות השינה.',
+    conclude: 'מעט שינה עמוקה למרות שעות רבות = שינה מקוטעת. אלכוהול וארוחה כבדה פוגעים בעיקר בשינה העמוקה.' },
+  rhr: { title: 'דופק מנוחה', what: 'מספר פעימות הלב בדקה במנוחה מוחלטת, נמדד בעיקר בשינה.',
+    help: 'מדד רגיש למצב הגוף: מתח, מחלה, התייבשות או אימון קשה מעלים אותו; כושר טוב ומנוחה מורידים אותו.',
+    conclude: 'מגמת ירידה לאורך זמן = שיפור בכושר ובהתאוששות. עלייה של כמה ימים ברצף = סימן מוקדם לעומס או מחלה.' },
+  hrv: { title: 'שונות דופק (HRV)', what: 'השונות בזמן שבין פעימה לפעימה. ערך גבוה יותר = מערכת עצבים גמישה ומאוששת.',
+    help: 'אחד המדדים הטובים למוכנות הגוף לעומס — יורד כשאתה עייף, לחוץ, חולה או אחרי אלכוהול.',
+    conclude: 'מעל הבסיס האישי שלך = יום טוב להעמיס. מתחת אליו = עדיף יום קל. ההשוואה תמיד לבסיס שלך, כי HRV אישי מאוד.' },
+  stress_avg: { title: 'רמת מתח', what: 'ציון של גרמין (0–100) הנגזר משילוב הדופק וה-HRV לאורך היום.',
+    help: 'מראה כמה זמן הגוף היה במצב "לחץ" מול "רגיעה" — עוזר לזהות ימים עמוסים ולתזמן התאוששות.',
+    conclude: 'ערכים גבוהים לאורך זמן פוגעים בשינה ובהתאוששות. הפוגות נשימה והליכה קצרה בחוץ מורידות אותו.' },
+  steps: { title: 'צעדים', what: 'מספר הצעדים היומי — מדד לפעילות הכללית שלך לאורך היום.',
+    help: 'תנועה מצטברת תומכת בלב, במשקל ובשינה, גם בלי אימון ייעודי.',
+    conclude: 'עקביות עדיפה על "הכול בבת אחת". פיזור הליכות קצרות מצטבר מהר ליעד היומי.' },
+};
+function openInfo(key) {
+  const info = CHART_INFO[key];
+  if (!info) return;
+  $('info-title').textContent = info.title;
+  $('info-body').innerHTML = `
+    <div class="info-sec"><h3>מה זה?</h3><p>${info.what}</p></div>
+    <div class="info-sec"><h3>איך זה עוזר לך?</h3><p>${info.help}</p></div>
+    <div class="info-sec"><h3>מה אפשר להסיק?</h3><p>${info.conclude}</p></div>`;
+  $('info-modal').classList.remove('hidden');
+}
+$('pager').addEventListener('click', e => {
+  const t = e.target.closest('[data-info]');
+  if (t) openInfo(t.dataset.info);
+});
+$('info-modal').addEventListener('click', e => { if (e.target.closest('[data-close]')) $('info-modal').classList.add('hidden'); });
+
 /* --- ייצוא / ייבוא גיבוי (מקומי בלבד) --- */
 function exportBackup() {
   const backup = {
@@ -1257,6 +1301,7 @@ function renderAll() {
   renderBody();
 
   // עמודי פירוט
+  renderSleepRec();
   renderSleepConsistency();
   statHero('sleep-hero', 'sleep_hours');
   statHero('heart-hero', 'hrv', hrvExtra());
@@ -1265,8 +1310,6 @@ function renderAll() {
   renderActivityRec();
   renderCharts();
   renderBreathing();
-  renderReadinessFactors();
-  renderFitness();
   renderWorkouts();
   renderHrZones();
 
@@ -1275,22 +1318,9 @@ function renderAll() {
   verdictCard('steps-insight', 'מה זה אומר', ['steps']);
 
   const rows = visibleRows();
-  const bestSleep = extremeDay(rows, 'sleep_score', 'max');
-  const longest = extremeDay(rows, 'sleep_hours', 'max');
   const sleepStreak = trailingStreak(rows, r => r.sleep_score != null && r.sleep_score >= 80);
   renderRecords('sleep-records', [
-    bestSleep && recCard('⭐', fmt(bestSleep.v), `הלילה הטוב · ${shortDate(bestSleep.date)}`),
-    longest && recCard('🛏️', `${fmt(longest.v, 1)}ש׳`, `הארוך ביותר · ${shortDate(longest.date)}`),
     sleepStreak >= 2 && recCard('🔥', `${sleepStreak}`, 'רצף לילות 80+'),
-  ]);
-
-  const lowRhr = extremeDay(rows, 'rhr', 'min');
-  const hiHrv = extremeDay(rows, 'hrv', 'max');
-  const calm = extremeDay(rows, 'stress_avg', 'min');
-  renderRecords('heart-records', [
-    lowRhr && recCard('❤️', fmt(lowRhr.v), `דופק נמוך · ${shortDate(lowRhr.date)}`),
-    hiHrv && recCard('💚', fmt(hiHrv.v), `HRV גבוה · ${shortDate(hiHrv.date)}`),
-    calm && recCard('🧘', fmt(calm.v), `הכי רגוע · ${shortDate(calm.date)}`),
   ]);
 
   const bestSteps = extremeDay(rows, 'steps', 'max');
@@ -1328,6 +1358,8 @@ function setActive(idx) {
   $('range-filter').classList.toggle('hidden', idx === 0);
 }
 function goTo(idx) {
+  // מעבר לעמוד מתחיל תמיד מראש העמוד המבוקש
+  pages[idx].scrollTop = 0;
   pages[idx].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
   setActive(idx);
 }

@@ -86,7 +86,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   z-index: 5;
 }
 .topbar-row { display: flex; align-items: center; gap: 10px; }
-.brand-mark { width: 30px; height: 30px; border-radius: 8px; flex: none; }
 .topbar-titles { flex: 1; min-width: 0; }
 .page-title { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
 .page-sub { font-size: .72rem; color: var(--muted); font-weight: 500; }
@@ -132,6 +131,15 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .card-head h2 { font-size: 1.05rem; font-weight: 700; }
+/* כותרת גרף שניתן ללחוץ עליה להסבר */
+.ct { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.ct .info-i { font-size: .8rem; color: var(--primary-500); opacity: .8; }
+.ct:active { opacity: .6; }
+/* הסבר במודאל */
+.info-sec { margin-bottom: 14px; }
+.info-sec:last-child { margin-bottom: 0; }
+.info-sec h3 { font-size: .82rem; font-weight: 700; color: var(--primary-500); margin-bottom: 3px; }
+.info-sec p { font-size: .88rem; line-height: 1.6; color: var(--ink-2); }
 .unit { font-size: .7rem; color: var(--muted); white-space: nowrap; }
 .chart-wrap { position: relative; height: 210px; }
 .chart-sm { height: 158px; }
@@ -182,6 +190,24 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .mini-txt b { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .mini-txt i { font-size: .55rem; color: var(--muted); font-style: normal; margin-top: 2px; }
 .mini-label { font-size: .72rem; color: var(--ink-2); font-weight: 600; }
+
+/* אנימציות כניסה מגניבות לטבעות */
+@keyframes ringIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+@keyframes popIn { from { opacity: 0; transform: scale(.6) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes glowPulse { 0%, 100% { opacity: .45; transform: scale(.96); } 50% { opacity: .85; transform: scale(1.05); } }
+.dash-ring { animation: ringIn .6s cubic-bezier(.22, 1, .36, 1) backwards; }
+.dash-ring::before {
+  content: ''; position: absolute; inset: 16px; border-radius: 50%; z-index: 0; pointer-events: none;
+  background: radial-gradient(circle, rgba(79, 142, 247, .3), transparent 68%);
+  animation: glowPulse 3.2s ease-in-out infinite;
+}
+.dash-ring svg { position: relative; z-index: 1; }
+.dash-ring-txt { z-index: 2; }
+.mini { animation: popIn .5s cubic-bezier(.34, 1.56, .64, 1) backwards; }
+.dash-rings .mini:nth-child(1) { animation-delay: .05s; }
+.dash-rings .mini:nth-child(2) { animation-delay: .12s; }
+.dash-rings .mini:nth-child(3) { animation-delay: .19s; }
+.dash-rings .mini:nth-child(4) { animation-delay: .26s; }
 
 /* מצבי סטטוס — משמשים גם בכותרות-העל ובכרטיס עקביות */
 .d-status {
@@ -352,11 +378,19 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .wd-chip.down b { color: var(--ok); }
 .weight-nudge { margin-top: 10px; font-size: .78rem; color: var(--watch); }
 
-/* ===== פעילות מומלצת ===== */
-.rec-head { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
-.rec-go .rec-head { color: var(--ok); }
-.rec-mod .rec-head { color: var(--primary-500); }
-.rec-rest .rec-head { color: var(--watch); }
+/* ===== כושר ואימון מומלץ ===== */
+.rec-session {
+  display: flex; gap: 12px; align-items: center;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: 12px 14px; margin-bottom: 10px;
+}
+.rec-emoji { font-size: 1.7rem; line-height: 1; flex: none; }
+.rec-title { font-size: 1.05rem; font-weight: 700; }
+.rec-go .rec-title { color: var(--ok); }
+.rec-mod .rec-title { color: var(--primary-500); }
+.rec-rest .rec-title { color: var(--watch); }
+.rec-detail { font-size: .82rem; color: var(--ink-2); margin-top: 1px; }
+.rec-why { font-size: .72rem; color: var(--muted); margin-top: 4px; }
 .rec-list { list-style: none; margin: 0; padding: 0; }
 .rec-list li { font-size: .85rem; line-height: 1.55; color: var(--ink-2); padding: 6px 0; border-bottom: 1px solid var(--line); }
 .rec-list li:last-child { border-bottom: none; }
