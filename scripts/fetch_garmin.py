@@ -84,6 +84,22 @@ def dig(obj, *keys):
     return obj
 
 
+def debug_shape(name, payload, depth=2):
+    """מדפיס רק את שמות המפתחות (ללא ערכים) כדי לאבחן מבנה API — הלוג ציבורי."""
+    if not os.environ.get("DEBUG_GARMIN"):
+        return
+    def keys(obj, d):
+        if isinstance(obj, list):
+            return {f"list[{len(obj)}]": keys(obj[0], d) if obj and d else None}
+        if isinstance(obj, dict):
+            if d <= 0:
+                return sorted(obj.keys())
+            return {k: keys(v, d - 1) if isinstance(v, (dict, list)) else type(v).__name__
+                    for k, v in sorted(obj.items())}
+        return type(obj).__name__
+    print(f"  [shape] {name}: {json.dumps(keys(payload, depth), ensure_ascii=False)[:1200]}")
+
+
 def first(*values):
     """Return the first value that is not None."""
     for value in values:
@@ -167,7 +183,9 @@ def fetch_day(garmin: Garmin, day: str, deep: bool = False) -> dict:
         record["hrv_base_high"] = baseline["balancedUpper"]
 
     # ציון המוכנות הרשמי של גרמין (Training Readiness)
-    readiness = unwrap(safe(garmin.get_training_readiness, day))
+    readiness_raw = safe(garmin.get_training_readiness, day)
+    debug_shape("training_readiness", readiness_raw)
+    readiness = unwrap(readiness_raw)
     if isinstance(readiness, dict):
         if readiness.get("score") is not None:
             record["readiness_score"] = readiness["score"]
@@ -175,18 +193,24 @@ def fetch_day(garmin: Garmin, day: str, deep: bool = False) -> dict:
             record["readiness_level"] = readiness["level"]
         for field, key in (
             ("readiness_sleep", "sleepScoreFactorPercent"),
+            ("readiness_sleep_history", "sleepHistoryFactorPercent"),
             ("readiness_recovery", "recoveryTimeFactorPercent"),
             ("readiness_hrv", "hrvFactorPercent"),
-            ("readiness_load", "acuteLoadFactorPercent"),
+            # עומס האימונים מדווח כ-ACWR (יחס עומס חד/כרוני)
+            ("readiness_load", "acwrFactorPercent"),
             ("readiness_stress", "stressHistoryFactorPercent"),
         ):
             if readiness.get(key) is not None:
                 record[field] = readiness[key]
+        if readiness.get("feedbackShort"):
+            record["readiness_feedback"] = readiness["feedbackShort"]
+        # גרמין מדווח את זמן ההתאוששות בשעות
         if readiness.get("recoveryTime") is not None:
-            record["recovery_time_min"] = readiness["recoveryTime"]
+            record["recovery_hours"] = readiness["recoveryTime"]
 
     if record.get("spo2_avg") is None:
         spo2 = safe(garmin.get_spo2_data, day)
+        debug_shape("spo2", spo2)
         if isinstance(spo2, dict):
             avg = first(spo2.get("averageSpO2"), spo2.get("avgSleepSpO2"))
             if avg is not None:
@@ -220,7 +244,9 @@ def fetch_fitness(garmin: Garmin, day: str) -> dict:
     """VO2 Max, גיל כושר וסטטוס אימון — משתנים לאט, נמשכים רק לימים האחרונים."""
     out = {}
 
-    metrics = unwrap(safe(garmin.get_max_metrics, day))
+    metrics_raw = safe(garmin.get_max_metrics, day)
+    debug_shape("max_metrics", metrics_raw, depth=3)
+    metrics = unwrap(metrics_raw)
     generic = dig(metrics, "generic") or {}
     vo2 = first(generic.get("vo2MaxPreciseValue"), generic.get("vo2MaxValue"))
     if vo2 is not None:
