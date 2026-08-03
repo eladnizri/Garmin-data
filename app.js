@@ -8,13 +8,12 @@
 
 const state = { data: [], isDemo: false, range: 30, page: 0 };
 const charts = {};
+/* Chart.defaults מוגדרים ב-common.js (מקור יחיד) */
 
-if (typeof Chart !== 'undefined') {
-  Chart.defaults.color = '#93a3b8';
-  Chart.defaults.borderColor = C.grid;
-  Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', sans-serif";
-  Chart.defaults.animation.duration = 350;
-}
+/* העדפת תנועה מופחתת — מדלגים על אנימציות (טבעת, ספירה עולה) */
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* דגל לדיכוי אנימציית כניסה של הגרפים בעת רינדור חוזר (שינוי טווח) */
+let chartAnim = true;
 
 /* =========================================================================
  * פרופיל אישי — מקומי בלבד (localStorage)
@@ -27,13 +26,78 @@ function loadProfile() {
 function saveProfileObj(p) { profile = p; try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {} }
 function goalSleep() { return profile.sleepGoal ? Number(profile.sleepGoal) : SLEEP_GOAL_HOURS; }
 function goalSteps() { return profile.stepsGoal ? Number(profile.stepsGoal) : STEPS_GOAL; }
+function goalStrength() { return profile.strengthGoal ? Number(profile.strengthGoal) : 3; }
 function bmi() {
-  if (!profile.heightCm || !profile.weightKg) return null;
+  const w = latestWeight()?.kg ?? profile.weightKg;
+  if (!profile.heightCm || !w) return null;
   const h = profile.heightCm / 100;
-  return profile.weightKg / (h * h);
+  return w / (h * h);
 }
 function bmiCat(b) { return b < 18.5 ? 'תת-משקל' : b < 25 ? 'תקין' : b < 30 ? 'עודף' : 'השמנה'; }
 function maxHR() { return profile.age ? 220 - Number(profile.age) : null; }
+
+/* =========================================================================
+ * מעקב משקל — יומן מקומי בלבד (localStorage), הזנה ידנית שבועית
+ * ========================================================================= */
+const WEIGHT_KEY = 'weight_log_v1';
+let weights = [];
+function loadWeights() {
+  try { weights = JSON.parse(localStorage.getItem(WEIGHT_KEY)) || []; } catch { weights = []; }
+  if (!Array.isArray(weights)) weights = [];
+  weights.sort((a, b) => a.date.localeCompare(b.date));
+}
+function saveWeights() { try { localStorage.setItem(WEIGHT_KEY, JSON.stringify(weights)); } catch {} }
+function addWeight(date, kg) {
+  const existing = weights.find(w => w.date === date);
+  if (existing) existing.kg = kg; else weights.push({ date, kg });
+  weights.sort((a, b) => a.date.localeCompare(b.date));
+  saveWeights();
+  // המשקל בפרופיל מתעדכן לשקילה האחרונה כדי ש-BMI והטופס יישארו מסונכרנים
+  const last = latestWeight();
+  if (last) saveProfileObj({ ...profile, weightKg: last.kg });
+}
+function latestWeight() { return weights.length ? weights[weights.length - 1] : null; }
+/* השקילה הקרובה ביותר ל-days ימים אחורה (להשוואת מגמה) */
+function weightAt(days) {
+  if (!weights.length) return null;
+  const target = new Date(latestWeight().date);
+  target.setDate(target.getDate() - days);
+  const targetISO = target.toISOString().slice(0, 10);
+  let best = null;
+  for (const w of weights) {
+    if (w.date === latestWeight().date) continue;
+    if (!best || Math.abs(new Date(w.date) - target) < Math.abs(new Date(best.date) - target)) best = w;
+    if (w.date <= targetISO) best = w;
+  }
+  return best;
+}
+
+/* =========================================================================
+ * מעקב אימוני כוח — זיהוי אוטומטי מהשעון + סימון ידני (localStorage)
+ * ========================================================================= */
+const STRENGTH_TYPES = new Set(['strength_training', 'hiit']); // נקודת הרחבה
+const STRENGTH_KEY = 'strength_checks_v1';
+let strengthChecks = {};
+function loadStrength() {
+  try { strengthChecks = JSON.parse(localStorage.getItem(STRENGTH_KEY)) || {}; } catch { strengthChecks = {}; }
+  if (typeof strengthChecks !== 'object' || !strengthChecks) strengthChecks = {};
+}
+function saveStrength() { try { localStorage.setItem(STRENGTH_KEY, JSON.stringify(strengthChecks)); } catch {} }
+/* התאריכים שבהם השעון תיעד אימון כוח */
+function autoStrengthDates() {
+  const set = new Set();
+  for (const r of state.data)
+    for (const w of (r.workouts || []))
+      if (STRENGTH_TYPES.has(w.type_key)) set.add(r.date);
+  return set;
+}
+function strengthDone(iso, auto) { return auto.has(iso) || strengthChecks[iso] === true; }
+/* תחילת השבוע (ראשון) עבור תאריך נתון */
+function weekStartISO(d) {
+  const date = new Date(d);
+  date.setDate(date.getDate() - date.getDay());
+  return date.toISOString().slice(0, 10);
+}
 
 /* =========================================================================
  * עזרי נתונים
@@ -68,7 +132,6 @@ const METRICS = {
   hrv:          { label: 'HRV',        unit: 'ms',  dec: 0, goodUp: true,  color: C.green,  emoji: '💚' },
   stress_avg:   { label: 'רמת מתח',    unit: '/100', dec: 0, goodUp: false, color: C.orange, emoji: '🔥' },
   steps:        { label: 'צעדים',      unit: '',    dec: 0, goodUp: true,  color: C.violet, emoji: '👣' },
-  body_battery_high: { label: 'Body Battery', unit: '', dec: 0, goodUp: true, color: C.blue, emoji: '🔋' },
   spo2_avg:     { label: 'חמצן בדם',   unit: '%',   dec: 0, goodUp: true,  color: C.teal,   emoji: '🫁' },
   respiration_avg: { label: 'קצב נשימה', unit: 'נשימות/דק׳', dec: 1, goodUp: false, color: C.teal, emoji: '💨' },
 };
@@ -175,6 +238,15 @@ const READINESS_LEVEL = {
   READY: 'מוכן', LOW: 'נמוך', MODERATE: 'בינוני', HIGH: 'גבוה', PRIME: 'שיא',
 };
 
+/* המשוב המילולי הרשמי של גרמין (Training Readiness feedback) */
+const READINESS_FEEDBACK = {
+  READY_FOR_ACTION: 'מוכן לפעולה', GOOD_RECOVERY: 'התאוששות טובה',
+  FIND_TIME_TO_RELAX: 'מצא זמן להירגע', FOCUS_ON_ENERGY_LEVELS: 'שים לב לרמות האנרגיה',
+  EXCELLENT_RECOVERY: 'התאוששות מצוינת', WELL_RECOVERED: 'מאושש היטב',
+  READY_FOR_THE_DAY: 'מוכן ליום', TAKE_ON_THE_DAY: 'קדימה, יום מוצלח',
+  PRIMED_AND_READY: 'בכושר שיא ומוכן', READY_TO_GO: 'מוכן לצאת לדרך',
+};
+
 function verdictOf(score) {
   if (score >= 80) return 'מצוין — הגוף מאושש';
   if (score >= 65) return 'טוב — מוכנות סבירה';
@@ -182,12 +254,35 @@ function verdictOf(score) {
   return 'נמוך — עדיף יום התאוששות';
 }
 
+/* צבע הטבעת לפי הציון */
+function ringColor(score) {
+  if (score >= 80) return getComputedStyle(document.documentElement).getPropertyValue('--ok').trim() || '#34d399';
+  if (score >= 50) return getComputedStyle(document.documentElement).getPropertyValue('--primary-500').trim() || '#6ba3ff';
+  return getComputedStyle(document.documentElement).getPropertyValue('--watch').trim() || '#fbbf24';
+}
 function ringSvg(score) {
-  const r = 42, c = 2 * Math.PI * r, off = c * (1 - clamp(score, 0, 100) / 100);
-  return `<svg width="96" height="96" viewBox="0 0 96 96">
-    <circle cx="48" cy="48" r="${r}" fill="none" stroke="rgba(255,255,255,.26)" stroke-width="8"/>
-    <circle cx="48" cy="48" r="${r}" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"
-      stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg>`;
+  const r = 46, c = 2 * Math.PI * r;
+  const col = ringColor(score);
+  // מתחילים ריק (offset=c) ומאפשרים ל-CSS להנפיש עד היעד — ה-JS יעדכן ב-rAF
+  const target = c * (1 - clamp(score, 0, 100) / 100);
+  const start = REDUCED ? target : c;
+  return `<svg width="104" height="104" viewBox="0 0 104 104">
+    <circle class="ring-track" cx="52" cy="52" r="${r}" fill="none" stroke-width="9"/>
+    <circle class="ring-val" cx="52" cy="52" r="${r}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round"
+      stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${start.toFixed(1)}"
+      data-target="${target.toFixed(1)}" style="filter:drop-shadow(0 0 7px ${col}88)"/></svg>`;
+}
+/* ספירה עולה על מספר (מדלג בהעדפת תנועה מופחתת) */
+function countUp(el, target, ms = 600) {
+  if (REDUCED) { el.textContent = target; return; }
+  const start = performance.now();
+  function step(now) {
+    const t = clamp((now - start) / ms, 0, 1);
+    const eased = 1 - (1 - t) ** 3;
+    el.textContent = Math.round(target * eased);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
 }
 
 function renderHero() {
@@ -201,23 +296,35 @@ function renderHero() {
   }
   // ההערה מסבירה *ממה* מורכב הציון — לא חוזרת על פסק הדין
   const level = latest('readiness_level', 2);
+  // המשוב הרשמי של גרמין מקבל עדיפות, עם נפילה חיננית לרמה או לנהגים
+  const feedbackTok = latest('readiness_feedback', 2);
+  const feedback = feedbackTok ? READINESS_FEEDBACK[feedbackTok] : null;
   const drivers = [];
   const s3 = avg(state.data.slice(-3), 'sleep_score');
   if (s3 !== null) drivers.push(`שינה ${fmt(s3)}`);
   const st3 = avg(state.data.slice(-3), 'stress_avg');
   if (st3 !== null) drivers.push(`מתח ${fmt(st3)}`);
   const hv = latest('hrv'); if (hv !== null) drivers.push(`HRV ${fmt(hv)}`);
-  const note = official !== null && level
-    ? `רמת מוכנות לפי גרמין: ${READINESS_LEVEL[level] || level}`
-    : (drivers.length ? drivers.join(' · ') : 'לפי 3 הימים האחרונים');
+  const note = feedback
+    ? feedback
+    : (official !== null && level
+      ? `רמת מוכנות לפי גרמין: ${READINESS_LEVEL[level] || level}`
+      : (drivers.length ? drivers.join(' · ') : 'לפי 3 הימים האחרונים'));
   const last = lastRow();
   el.innerHTML = `
-    <div class="ring">${ringSvg(score)}<div class="ring-txt"><b>${score}</b><span>מוכנות</span></div></div>
+    <div class="ring">${ringSvg(score)}<div class="ring-txt"><b>0</b><span>מוכנות</span></div></div>
     <div class="hero-body">
       <div class="hero-verdict">${verdictOf(score)}</div>
       <div class="hero-note">${note}</div>
       <div class="hero-src">${official !== null ? 'ציון רשמי של גרמין' : 'הערכה משוקללת'} · ${last.date ? longDate(last.date) : ''}</div>
     </div>`;
+  // הנפשת הטבעת (rAF כדי לתת ל-CSS להנפיש מהמצב ההתחלתי) והספירה העולה
+  const valCircle = el.querySelector('.ring-val');
+  const scoreEl = el.querySelector('.ring-txt b');
+  requestAnimationFrame(() => {
+    if (valCircle) valCircle.setAttribute('stroke-dashoffset', valCircle.dataset.target);
+    countUp(scoreEl, score);
+  });
 }
 
 /* =========================================================================
@@ -287,9 +394,9 @@ const CORR = [
   { a: 'steps', b: 'sleep_score',
     pos: 'בימים שבהם צעדת יותר, ציון השינה נטה להיות גבוה יותר — פעילות תומכת בשינה.',
     neg: 'יותר צעדים לוו בציון שינה נמוך יותר — ייתכן שפעילות מאוחרת מדי משפיעה.' },
-  { a: 'stress_avg', b: 'body_battery_high',
-    neg: 'בימים עם מתח גבוה, שיא ה-Body Battery היה נמוך יותר — מתח שוחק את מאגרי האנרגיה.',
-    pos: 'מתח גבוה ו-Body Battery גבוה הופיעו יחד — קשר לא שגרתי.' },
+  { a: 'rhr', b: 'stress_avg',
+    pos: 'בימים עם דופק מנוחה גבוה יותר, רמת המתח נטתה להיות גבוהה יותר — שני סימנים לעומס על הגוף.',
+    neg: 'דופק מנוחה גבוה ומתח נמוך הופיעו יחד — קשר לא שגרתי, שווה מעקב.' },
 ];
 
 function bestCorrelation(rows) {
@@ -314,6 +421,14 @@ function renderHomeInsight() {
 /* =========================================================================
  * כותרת-על לעמודי הפירוט
  * ========================================================================= */
+const HRV_STATUS = { BALANCED: 'מאוזן', UNBALANCED: 'לא מאוזן', LOW: 'נמוך', POOR: 'ירוד' };
+function hrvExtra() {
+  const st = latest('hrv_status', 7), wk = latest('hrv_weekly_avg', 7);
+  const parts = [];
+  if (st && HRV_STATUS[st]) parts.push(`<div class="sh-extra">מצב HRV: ${HRV_STATUS[st]}</div>`);
+  if (wk !== null) parts.push(`<div class="sh-extra">ממוצע שבועי ${fmt(wk)} ms</div>`);
+  return parts.join('');
+}
 function statHero(elId, key, extra = '') {
   const def = METRICS[key];
   const s = statusOf(key);
@@ -355,8 +470,8 @@ function TT(labelFn) {
   const cb = { title: i => longDate(i[0].raw.iso) };
   if (labelFn) cb.label = labelFn;
   return {
-    rtl: true, textDirection: 'rtl', backgroundColor: '#fff', titleColor: '#0b1729',
-    bodyColor: '#4a5b73', borderColor: '#e6edf7', borderWidth: 1, padding: 10,
+    rtl: true, textDirection: 'rtl', backgroundColor: '#1c2537', titleColor: C.ink,
+    bodyColor: C.ink2, borderColor: 'rgba(148,163,184,.2)', borderWidth: 1, padding: 10,
     cornerRadius: 10, boxPadding: 4, titleFont: { weight: '700' },
     filter: i => !['ממוצע 7 ימים', 'יעד', 'טווח מאוזן'].includes(i.dataset.label),
     callbacks: cb,
@@ -365,6 +480,7 @@ function TT(labelFn) {
 function opts(y = {}, labelFn, stacked) {
   return {
     responsive: true, maintainAspectRatio: false,
+    animation: chartAnim ? undefined : false,
     interaction: { mode: 'index', intersect: false },
     plugins: { legend: { display: false }, tooltip: TT(labelFn) },
     scales: {
@@ -384,7 +500,7 @@ function bar(rows, key, color) {
 }
 function line(rows, key, color, filled = true) {
   return {
-    data: points(rows, key), borderColor: color, backgroundColor: color + '1f',
+    data: points(rows, key), borderColor: color, backgroundColor: color + '2e',
     borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 5, pointBackgroundColor: color,
     tension: .38, fill: filled, spanGaps: true,
   };
@@ -405,7 +521,7 @@ function maLine(rows, key) {
   return {
     label: 'ממוצע 7 ימים',
     data: rows.map((r, i) => ({ x: shortDate(r.date), y: ma[i], iso: r.date })),
-    type: 'line', borderColor: '#334155', borderWidth: 2, borderDash: [5, 4],
+    type: 'line', borderColor: C.ma, borderWidth: 2, borderDash: [5, 4],
     pointRadius: 0, pointHoverRadius: 0, tension: .4, fill: false, spanGaps: true,
   };
 }
@@ -419,7 +535,7 @@ function renderCharts() {
 
   /* --- שינה --- */
   $('u-sleep').textContent = `יעד ${fmt(goalSleep(), Number.isInteger(goalSleep()) ? 0 : 1)} שעות`;
-  legend('legend-sleep', [[C.blue, 'שעות שינה'], ['#334155', 'ממוצע נע 7 ימים']]);
+  legend('legend-sleep', [[C.blue, 'שעות שינה'], [C.ma, 'ממוצע נע 7 ימים']]);
   make('chart-sleep', {
     type: 'bar',
     data: { labels, datasets: [bar(rows, 'sleep_hours', C.blue), constLine(rows, goalSleep(), 'יעד', C.muted), maLine(rows, 'sleep_hours')] },
@@ -434,14 +550,14 @@ function renderCharts() {
       labels, datasets: stages.map((s, i) => ({
         label: s[1], data: points(rows, s[0]), backgroundColor: s[2], stack: 'sleep',
         borderRadius: i === stages.length - 1 ? 5 : 0, borderSkipped: false,
-        borderWidth: { top: 2, bottom: 0, left: 0, right: 0 }, borderColor: '#fff', maxBarThickness: 22,
+        borderWidth: { top: 2, bottom: 0, left: 0, right: 0 }, borderColor: C.surface, maxBarThickness: 22,
       })),
     },
     options: opts({ beginAtZero: true, ticks: { callback: v => minToHm(v) } }, i => `${i.dataset.label}: ${minToHm(i.raw.y)} שעות`, true),
   });
 
   /* --- לב --- */
-  legend('legend-rhr', [[C.red, 'דופק מנוחה'], ['#334155', 'ממוצע נע 7 ימים']]);
+  legend('legend-rhr', [[C.red, 'דופק מנוחה'], [C.ma, 'ממוצע נע 7 ימים']]);
   make('chart-rhr', {
     type: 'line', data: { labels, datasets: [line(rows, 'rhr', C.red), maLine(rows, 'rhr')] },
     options: opts({ grace: '20%' }, i => `דופק מנוחה: ${fmt(i.raw.y)} bpm`),
@@ -454,74 +570,109 @@ function renderCharts() {
   if (hasBand) {
     hrvSets.push(
       { label: 'טווח מאוזן', data: rows.map(r => ({ x: shortDate(r.date), y: bHi, iso: r.date })),
-        type: 'line', borderColor: 'rgba(0,131,0,.28)', borderWidth: 1, borderDash: [4, 4],
-        backgroundColor: 'rgba(0,131,0,.10)', pointRadius: 0, fill: '+1' },
+        type: 'line', borderColor: 'rgba(74,222,128,.30)', borderWidth: 1, borderDash: [4, 4],
+        backgroundColor: 'rgba(74,222,128,.10)', pointRadius: 0, fill: '+1' },
       { label: 'טווח מאוזן', data: rows.map(r => ({ x: shortDate(r.date), y: bLo, iso: r.date })),
-        type: 'line', borderColor: 'rgba(0,131,0,.28)', borderWidth: 1, borderDash: [4, 4],
+        type: 'line', borderColor: 'rgba(74,222,128,.30)', borderWidth: 1, borderDash: [4, 4],
         pointRadius: 0, fill: false },
     );
     $('u-hrv').textContent = `ms · טווח מאוזן ${bLo}–${bHi}`;
-    legend('legend-hrv', [[C.green, 'HRV לילי'], ['rgba(0,131,0,.25)', 'הטווח המאוזן שלך'], ['#334155', 'ממוצע נע']]);
+    legend('legend-hrv', [[C.green, 'HRV לילי'], ['rgba(74,222,128,.4)', 'הטווח המאוזן שלך'], [C.ma, 'ממוצע נע']]);
   } else {
     $('u-hrv').textContent = 'ms · ממוצע לילי';
-    legend('legend-hrv', [[C.green, 'HRV לילי'], ['#334155', 'ממוצע נע 7 ימים']]);
+    legend('legend-hrv', [[C.green, 'HRV לילי'], [C.ma, 'ממוצע נע 7 ימים']]);
   }
   // כשמוצגת רצועת הטווח המאוזן, הקו עצמו ללא מילוי — אחרת שני האזורים מתמזגים
   hrvSets.push(line(rows, 'hrv', C.green, !hasBand), maLine(rows, 'hrv'));
   make('chart-hrv', { type: 'line', data: { labels, datasets: hrvSets }, options: opts({ grace: '20%' }, i => `HRV: ${fmt(i.raw.y)} ms`) });
 
-  legend('legend-stress', [[C.orange, 'מתח ממוצע'], [C.blue + '80', 'טווח Body Battery']]);
+  legend('legend-stress', [[C.orange, 'מתח ממוצע'], [C.ma, 'ממוצע נע 7 ימים']]);
   make('chart-stress', {
     type: 'line',
-    data: {
-      labels, datasets: [
-        { label: 'Body Battery — שיא', data: points(rows, 'body_battery_high'), borderColor: C.blue + '99',
-          backgroundColor: C.blue + '1f', borderWidth: 1.5, pointRadius: 0, tension: .38, fill: '+1', spanGaps: true },
-        { label: 'Body Battery — שפל', data: points(rows, 'body_battery_low'), borderColor: C.blue + '99',
-          borderWidth: 1.5, pointRadius: 0, tension: .38, fill: false, spanGaps: true },
-        { label: 'מתח ממוצע', data: points(rows, 'stress_avg'), borderColor: C.orange, borderWidth: 2.5,
-          pointRadius: 0, pointHoverRadius: 5, pointBackgroundColor: C.orange, tension: .38, fill: false, spanGaps: true },
-      ],
-    },
-    options: opts({ min: 0, max: 100 }, i => `${i.dataset.label}: ${fmt(i.raw.y)}`),
+    data: { labels, datasets: [line(rows, 'stress_avg', C.orange), maLine(rows, 'stress_avg')] },
+    options: opts({ min: 0, max: 100 }, i => `מתח: ${fmt(i.raw.y)}`),
   });
 
   /* --- פעילות --- */
   $('u-steps').textContent = `יעד ${fmt(goalSteps())}`;
-  legend('legend-steps', [[C.violet, 'צעדים'], ['#334155', 'ממוצע נע 7 ימים']]);
+  legend('legend-steps', [[C.violet, 'צעדים'], [C.ma, 'ממוצע נע 7 ימים']]);
   make('chart-steps', {
     type: 'bar',
     data: { labels, datasets: [bar(rows, 'steps', C.violet), constLine(rows, goalSteps(), 'יעד', C.muted), maLine(rows, 'steps')] },
     options: opts({ beginAtZero: true }, i => `צעדים: ${fmt(i.raw.y)}`),
   });
+
+  renderChartTips();
 }
 
 /* =========================================================================
  * מסקנה מאוחדת לכל עמוד (מחליפה שלושה כרטיסי תובנה נפרדים)
  * ========================================================================= */
-const ADVICE = {
-  sleep_hours: { low: 'הקדמת שעת השינה ב-30 דקות היא השינוי היחיד עם ההשפעה הגדולה ביותר.', high: 'המשך כך — עקביות חשובה יותר מלילה בודד ארוך.' },
-  sleep_score: { low: 'ציון נמוך למרות שעות סבירות מרמז על שינה מקוטעת — בדוק אלכוהול, ארוחה כבדה או מסכים לפני השינה.', high: 'איכות השינה שלך טובה — הרגלי הערב שלך עובדים.' },
-  rhr:  { low: 'דופק מנוחה גבוה מהרגיל נמשך כמה ימים? שווה לשתות יותר, להאט קצת ולוודא שאינך חולה.', high: 'דופק המנוחה נמוך — סימן לכושר והתאוששות טובים.' },
-  hrv:  { low: 'HRV מתחת לבסיס מרמז על עומס — עדיף יום קל, נשימות איטיות והימנעות מאלכוהול.', high: 'HRV מעל הבסיס — הגוף מאושש, יום טוב לאתגר את עצמך.' },
-  stress_avg: { low: 'רמת מתח גבוהה לאורך זמן — שלב הפוגות נשימה קצרות במהלך היום, לא רק בסופו.', high: 'רמת המתח נמוכה — האיזון בין עומס להתאוששות עובד.' },
-  steps: { low: 'הליכות קצרות מפוזרות במהלך היום עדיפות על "הכול בבת אחת".', high: 'רמת הפעילות שלך טובה — היא תומכת גם בלב וגם בשינה.' },
-};
-
 function verdictCard(elId, title, keys) {
   const lines = keys.map(key => {
     const s = statusOf(key);
     if (!s) return null;
     const d = METRICS[key];
-    const good = s.level === 'ok';
-    const advice = ADVICE[key] ? (good ? ADVICE[key].high : ADVICE[key].low) : '';
     const color = s.level === 'alert' ? 'var(--alert)' : s.level === 'watch' ? 'var(--watch)' : s.level === 'ok' ? 'var(--ok)' : 'var(--muted)';
+    // הטיפים עצמם חיים מתחת לגרפים (renderChartTips) — כאן רק סיכום סטטוס
     return `<div class="vline"><span class="vdot" style="background:${color}"></span>
-      <span><b>${d.label} ${valueText(key, s.value)}</b> — ${s.text}.
-      ${s.level === 'normal' ? '' : advice}</span></div>`;
+      <span><b>${d.label} ${valueText(key, s.value)}</b> — ${s.text}.</span></div>`;
   }).filter(Boolean);
   $(elId).innerHTML = lines.length
     ? `<div class="verdict-card"><h3>${title}</h3>${lines.join('')}</div>` : '';
+}
+
+/* =========================================================================
+ * טיפים לשיפור — מוצגים רק מתחת לגרף שהמדד בו חורג (watch/alert).
+ * statusOf כבר מקפל את כיוון "הטוב", כך ש-watch/alert תמיד = הצד הבעייתי.
+ * ========================================================================= */
+const TIPS = {
+  sleep_hours: [
+    'נסה להקדים את שעת השינה ב-30 דקות הערב — עקביות חשובה מרצף אחד ארוך.',
+    'בלי מסכים בחצי השעה שלפני השינה — האור מעכב הירדמות.',
+  ],
+  sleep_score: [
+    'הימנע מארוחה כבדה או אלכוהול ב-3 השעות שלפני השינה.',
+    'חדר קריר וחשוך משפר את השינה העמוקה.',
+  ],
+  rhr: [
+    'שתה יותר מים היום והסתפק באימון קל.',
+    'דופק מנוחה מוגבר כמה ימים ברצף? ודא שאינך חולה ותן לגוף לנוח.',
+  ],
+  hrv: [
+    '5 דקות נשימה איטית (4–6 נשימות בדקה) לפני השינה מעלות HRV.',
+    'יום קל היום — עומס נוסף רק ירחיק את החזרה לטווח.',
+  ],
+  stress_avg: [
+    'שלב הפסקות נשימה של דקה לאורך היום, לא רק בסופו.',
+    'הליכה קצרה בחוץ מורידה מתח נמדד יותר מהפסקת מסך.',
+  ],
+  steps: [
+    'פזר הליכות קצרות של 10 דקות — קל יותר מהשלמה בערב.',
+    'רד תחנה מוקדם או חנה רחוק — צעדים סמויים מצטברים מהר.',
+  ],
+};
+const CHART_TIPS = {
+  'tip-sleep': 'sleep_hours', 'tip-stages': 'sleep_score', 'tip-rhr': 'rhr',
+  'tip-hrv': 'hrv', 'tip-stress': 'stress_avg', 'tip-steps': 'steps',
+};
+function dayOfYear() {
+  const now = new Date();
+  return Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
+}
+function renderChartTips() {
+  const rot = dayOfYear();
+  for (const [slot, key] of Object.entries(CHART_TIPS)) {
+    const el = $(slot);
+    if (!el) continue;
+    const s = statusOf(key);
+    if (s && (s.level === 'watch' || s.level === 'alert') && TIPS[key]) {
+      const tip = TIPS[key][rot % TIPS[key].length];
+      el.innerHTML = `<div class="tip-strip ${s.level}"><span>💡</span><span><b>טיפ:</b> ${tip}</span></div>`;
+    } else {
+      el.innerHTML = '';
+    }
+  }
 }
 
 /* =========================================================================
@@ -663,9 +814,155 @@ function renderHrZones() {
 }
 
 /* =========================================================================
+ * מעקב משקל — כרטיס בעמוד הבית
+ * ========================================================================= */
+function deltaChip(label, from) {
+  if (!from) return '';
+  const diff = latestWeight().kg - from.kg;
+  if (Math.abs(diff) < 0.05) return `<span class="wd-chip">${label}: ללא שינוי</span>`;
+  const dir = diff > 0 ? 'up' : 'down';
+  const arrow = diff > 0 ? '▲' : '▼';
+  return `<span class="wd-chip ${dir}">${label}: <b>${arrow} ${fmt(Math.abs(diff), 1)} ק״ג</b></span>`;
+}
+function renderWeight() {
+  const el = $('weight-card');
+  const last = latestWeight();
+  if (!last) {
+    el.innerHTML = `<button class="prompt-card" id="open-weight"><span style="font-size:1.3rem">⚖️</span>
+      <span><span class="pc-t">התחל מעקב משקל שבועי</span><br><span class="pc-v">שקילה אחת בשבוע מספיקה למגמה אמינה</span></span>
+      <span class="pc-arrow">‹</span></button>`;
+    return;
+  }
+  const deltas = [deltaChip('מהשקילה הקודמת', weights.length >= 2 ? weights[weights.length - 2] : null),
+                  deltaChip('מלפני חודש', weightAt(30))].filter(Boolean).join('');
+  const daysSince = Math.floor((new Date(todayISO()) - new Date(last.date)) / 86400000);
+  const nudge = daysSince > 7 ? `<div class="weight-nudge">⏳ עברו ${daysSince} ימים מהשקילה האחרונה</div>` : '';
+  const chart = weights.length >= 3 ? '<div class="chart-wrap chart-sm" dir="ltr" style="height:120px;margin-top:10px"><canvas id="chart-weight"></canvas></div>' : '';
+  el.innerHTML = `<article class="card">
+    <div class="body-head"><h2>משקל</h2><button class="link-btn" id="open-weight">+ שקילה</button></div>
+    <div class="weight-top"><div><div class="weight-val">${fmt(last.kg, 1)}<small>ק״ג</small></div>
+      <div class="sh-base">עודכן ${shortDate(last.date)}</div></div></div>
+    ${deltas ? `<div class="weight-deltas">${deltas}</div>` : ''}
+    ${nudge}${chart}</article>`;
+  if (weights.length >= 3) {
+    make('chart-weight', {
+      type: 'line',
+      data: { labels: weights.map(w => shortDate(w.date)),
+        datasets: [{ data: weights.map(w => ({ x: shortDate(w.date), y: w.kg, iso: w.date })),
+          borderColor: C.teal, backgroundColor: C.teal + '2e', borderWidth: 2.5, pointRadius: 3,
+          pointBackgroundColor: C.teal, tension: .3, fill: true }] },
+      options: opts({ grace: '15%' }, i => `משקל: ${fmt(i.raw.y, 1)} ק״ג`),
+    });
+  }
+}
+
+/* =========================================================================
+ * מעקב אימוני כוח — לוח V שבועי בעמוד הפעילות
+ * ========================================================================= */
+function renderStrength() {
+  const el = $('strength-card');
+  const auto = autoStrengthDates();
+  const goal = goalStrength();
+  const today = new Date(todayISO());
+  const weekStart = new Date(weekStartISO(today));
+
+  // 7 ימי השבוע הנוכחי, ראשון→שבת
+  const days = [];
+  let doneThisWeek = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    const isFuture = d > today;
+    const isToday = iso === todayISO();
+    const isAuto = auto.has(iso);
+    const done = strengthDone(iso, auto);
+    if (done && !isFuture) doneThisWeek++;
+    const cls = [done ? 'done' : '', isAuto ? 'auto' : '', isToday ? 'today' : '', isFuture ? 'future' : ''].filter(Boolean).join(' ');
+    days.push(`<button class="wday ${cls}" data-iso="${iso}" ${isFuture || isAuto ? 'disabled' : ''}>
+      <i>${done ? '✓' : ''}</i><small>${DAY_NAMES[i][0]}</small></button>`);
+  }
+
+  // רצף שבועות ביעד (השבוע נספר רק אם כבר עמד ביעד)
+  let streak = 0;
+  for (let back = 0; back < 12; back++) {
+    const ws = new Date(weekStart);
+    ws.setDate(weekStart.getDate() - back * 7);
+    let cnt = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(ws); d.setDate(ws.getDate() + i);
+      if (d > today) continue;
+      if (strengthDone(d.toISOString().slice(0, 10), auto)) cnt++;
+    }
+    if (cnt >= goal) streak++; else break;
+  }
+  const streakLine = streak >= 2 ? `<div class="strength-streak">🔥 ${streak} שבועות ברצף ביעד</div>` : '';
+
+  el.innerHTML = `<article class="card">
+    <div class="body-head"><h2>אימוני כוח</h2>
+      <span class="strength-count"><b>${doneThisWeek}</b>/${goal} השבוע</span></div>
+    <div class="week-board">${days.join('')}</div>${streakLine}</article>`;
+}
+
+/* =========================================================================
+ * סיכום שבועי — השבוע מול השבוע הקודם
+ * ========================================================================= */
+function weekRows(startOffset) {
+  // startOffset=0 → השבוע הנוכחי; 1 → השבוע הקודם
+  const today = new Date(todayISO());
+  const ws = new Date(weekStartISO(today));
+  ws.setDate(ws.getDate() - startOffset * 7);
+  const we = new Date(ws); we.setDate(ws.getDate() + 6);
+  const wsISO = ws.toISOString().slice(0, 10), weISO = we.toISOString().slice(0, 10);
+  return state.data.filter(r => r.date >= wsISO && r.date <= weISO);
+}
+function wsDelta(cur, prev, dec = 0, invert = false) {
+  if (cur === null || prev === null) return '';
+  const diff = cur - prev;
+  if (Math.abs(diff) < (dec ? 0.05 : 0.5)) return `<span class="ws-delta flat">ללא שינוי</span>`;
+  const good = invert ? diff < 0 : diff > 0;
+  const arrow = diff > 0 ? '▲' : '▼';
+  return `<span class="ws-delta ${good ? 'up' : 'down'}">${arrow} ${fmt(Math.abs(diff), dec)}</span>`;
+}
+function strengthCountInWeek(rows, auto) {
+  const set = new Set();
+  for (const r of rows) if (strengthDone(r.date, auto)) set.add(r.date);
+  return set.size;
+}
+function renderWeekSummary() {
+  const el = $('week-summary');
+  const cur = weekRows(0), prev = weekRows(1);
+  if (!cur.length && !prev.length) { el.innerHTML = ''; return; }
+  const auto = autoStrengthDates();
+
+  const sleepC = avg(cur, 'sleep_hours'), sleepP = avg(prev, 'sleep_hours');
+  const stepsC = avg(cur, 'steps'), stepsP = avg(prev, 'steps');
+  const strC = strengthCountInWeek(cur, auto), strP = strengthCountInWeek(prev, auto);
+  const intC = cur.reduce((a, r) => a + (r.intensity_min || 0), 0);
+  const intP = prev.reduce((a, r) => a + (r.intensity_min || 0), 0);
+  const intGoal = 150; // המלצת ה-WHO לדקות פעילות אינטנסיבית בשבוע
+
+  const chips = [];
+  chips.push(`<div class="ws-chip"><small>שינה ממוצעת</small><b>${sleepC !== null ? fmt(sleepC, 1) : '—'}<small> ש׳</small></b>${wsDelta(sleepC, sleepP, 1)}</div>`);
+  chips.push(`<div class="ws-chip"><small>צעדים ליום</small><b>${stepsC !== null ? fmt(Math.round(stepsC)) : '—'}</b>${wsDelta(stepsC, stepsP)}</div>`);
+  chips.push(`<div class="ws-chip"><small>אימוני כוח</small><b>${strC}<small>/${goalStrength()}</small></b>${wsDelta(strC, strP)}</div>`);
+  chips.push(`<div class="ws-chip"><small>דקות אינטנסיביות</small><b>${fmt(intC)}<small>/${intGoal}</small></b>
+    <div class="ws-bar"><i style="width:${clamp(intC / intGoal * 100, 0, 100)}%"></i></div></div>`);
+  // צ׳יפ דלתא-משקל רק כשיש יומן משקל
+  const wLast = latestWeight(), wPrev = weightAt(7);
+  if (wLast && wPrev) {
+    const diff = wLast.kg - wPrev.kg;
+    chips.push(`<div class="ws-chip"><small>משקל (שבוע)</small><b>${fmt(wLast.kg, 1)}<small> ק״ג</small></b>${wsDelta(wLast.kg, wPrev.kg, 1, true)}</div>`);
+  }
+
+  el.innerHTML = `<article class="card"><div class="card-head"><h2>השבוע שלי</h2>
+    <span class="unit">מול השבוע הקודם</span></div><div class="ws-grid">${chips.join('')}</div></article>`;
+}
+
+/* =========================================================================
  * מודאל פרופיל
  * ========================================================================= */
-const PROFILE_FIELDS = ['age', 'heightCm', 'weightKg', 'sleepGoal', 'stepsGoal'];
+const PROFILE_FIELDS = ['age', 'heightCm', 'weightKg', 'sleepGoal', 'stepsGoal', 'strengthGoal'];
 function fillProfileForm() {
   const f = $('profile-form');
   PROFILE_FIELDS.forEach(k => { if (f[k]) f[k].value = profile[k] ?? ''; });
@@ -686,6 +983,37 @@ $('profile-form').addEventListener('submit', e => {
 });
 $('profile-clear').addEventListener('click', () => { saveProfileObj({}); fillProfileForm(); closeProfile(); renderAll(); });
 
+/* --- מודאל שקילה --- */
+function openWeight() {
+  const f = $('weight-form');
+  f.date.value = todayISO();
+  f.date.max = todayISO();
+  f.kg.value = latestWeight()?.kg ?? '';
+  $('weight-modal').classList.remove('hidden');
+}
+function closeWeight() { $('weight-modal').classList.add('hidden'); }
+$('weight-card').addEventListener('click', e => { if (e.target.closest('#open-weight')) openWeight(); });
+$('weight-modal').addEventListener('click', e => { if (e.target.closest('[data-close]')) closeWeight(); });
+$('weight-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target, kg = Number(f.kg.value), date = f.date.value;
+  if (!kg || !date) return;
+  addWeight(date, kg);
+  closeWeight();
+  renderWeight(); renderBody(); renderWeekSummary();
+});
+
+/* --- סימון ידני של אימון כוח --- */
+$('strength-card').addEventListener('click', e => {
+  const btn = e.target.closest('.wday');
+  if (!btn || btn.disabled) return;
+  const iso = btn.dataset.iso;
+  strengthChecks[iso] = !strengthChecks[iso];
+  if (!strengthChecks[iso]) delete strengthChecks[iso];
+  saveStrength();
+  renderStrength(); renderWeekSummary();
+});
+
 /* =========================================================================
  * רינדור כולל
  * ========================================================================= */
@@ -699,13 +1027,16 @@ function renderAll() {
   renderHero();
   renderDomains();
   renderAnomalies();
+  renderWeekSummary();
   renderHomeInsight();
+  renderWeight();
   renderBody();
 
   // עמודי פירוט
   statHero('sleep-hero', 'sleep_hours');
-  statHero('heart-hero', 'hrv');
+  statHero('heart-hero', 'hrv', hrvExtra());
   statHero('steps-hero', 'steps');
+  renderStrength();
   renderCharts();
   renderBreathing();
   renderReadinessFactors();
@@ -739,10 +1070,17 @@ function renderAll() {
   const bestSteps = extremeDay(rows, 'steps', 'max');
   const stepStreak = trailingStreak(rows, r => r.steps != null && r.steps >= goalSteps());
   const totalSteps = rows.reduce((a, r) => a + (r.steps || 0), 0);
+  // מדדים מצטברים — בלי היום החלקי (כמו ב-CUMULATIVE)
+  const fullRows = rows[rows.length - 1]?.date === todayISO() ? rows.slice(0, -1) : rows;
+  const calVals = vals(fullRows, 'calories');
+  const avgCal = calVals.length ? Math.round(calVals.reduce((a, b) => a + b, 0) / calVals.length) : null;
+  const totalFloors = fullRows.reduce((a, r) => a + (r.floors || 0), 0);
   renderRecords('steps-records', [
     bestSteps && recCard('👣', fmt(bestSteps.v), `היום הפעיל · ${shortDate(bestSteps.date)}`),
     stepStreak >= 2 && recCard('🔥', `${stepStreak}`, 'רצף ימים ביעד'),
     totalSteps > 0 && recCard('📊', fmt(totalSteps), 'סה״כ בתקופה'),
+    avgCal && recCard('🔥', fmt(avgCal), 'קק״ל ליום בממוצע'),
+    totalFloors > 0 && recCard('🪜', fmt(totalFloors), 'קומות בתקופה'),
   ]);
 }
 
@@ -757,6 +1095,7 @@ function setActive(idx) {
   if (idx === state.page) return;
   state.page = idx;
   tabs.forEach((t, i) => t.classList.toggle('active', i === idx));
+  $('tabbar').style.setProperty('--tab-idx', idx);
   $('page-title').textContent = pages[idx].dataset.title;
   $('page-sub').textContent = pages[idx].dataset.sub || '';
   // בורר הטווח רלוונטי רק לעמודים עם גרפים
@@ -793,7 +1132,8 @@ $('range-filter').addEventListener('click', e => {
   const b = e.target.closest('.seg-btn');
   if (!b) return;
   state.range = b.dataset.range === 'all' ? 'all' : Number(b.dataset.range);
-  renderAll();
+  // בלי אנימציית כניסה בבנייה מחדש של 6 גרפים — מונע תקיעה בזמן החלפת טווח
+  chartAnim = false; renderAll(); chartAnim = true;
 });
 
 /* =========================================================================
@@ -801,6 +1141,8 @@ $('range-filter').addEventListener('click', e => {
  * ========================================================================= */
 async function init() {
   loadProfile();
+  loadWeights();
+  loadStrength();
   const { data, isDemo } = await loadHealthData();
   state.data = data;
   state.isDemo = isDemo;
