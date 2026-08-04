@@ -1074,15 +1074,15 @@
  {
   "date": "2026-08-04",
   "rhr": 56,
-  "stress_avg": 34,
+  "stress_avg": 40,
   "body_battery_high": 63,
   "body_battery_low": 20,
   "body_battery_charged": 43,
-  "body_battery_drained": 26,
-  "steps": 2734,
-  "calories": 1247.0,
-  "floors": 1.55282,
-  "intensity_min": 0,
+  "body_battery_drained": 41,
+  "steps": 7387,
+  "calories": 2047.0,
+  "floors": 2.33104,
+  "intensity_min": 49,
   "sleep_hours": 9.15,
   "deep_min": 67,
   "light_min": 440,
@@ -1105,7 +1105,16 @@
   "readiness_feedback": "TAKE_ON_THE_DAY",
   "recovery_hours": 1,
   "respiration_avg": 13.0,
-  "training_status": "DETRAINING",
-  "training_load": 52
+  "training_status": "RECOVERY_1",
+  "training_load": 64,
+  "workouts": [
+   {
+    "type": "פילאטיס",
+    "type_key": "pilates",
+    "minutes": 46,
+    "avg_hr": 115,
+    "calories": 285
+   }
+  ]
  }
 ]
