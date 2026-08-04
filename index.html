@@ -232,6 +232,33 @@
       </div>
     </div>
 
+    <!-- ===== טוקן סנכרון מגרמין ===== -->
+    <div id="token-modal" class="modal hidden">
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-sheet" role="dialog" aria-label="סנכרון מגרמין">
+        <div class="modal-head">
+          <h2>סנכרון מגרמין</h2>
+          <button class="icon-btn" data-close aria-label="סגור">✕</button>
+        </div>
+        <p class="modal-note">🔒 כדי למשוך נתונים מגרמין בלחיצה, האפליקציה מפעילה את ה-GitHub Action שלך. לשם כך צריך טוקן GitHub אישי — הוא נשמר <b>רק במכשיר שלך</b> ונשלח אך ורק ל-GitHub.</p>
+        <ol class="token-steps">
+          <li>פתח <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">יצירת טוקן Fine-grained</a></li>
+          <li>Repository access → Only select repositories → <b>Garmin-data</b></li>
+          <li>Permissions → Repository permissions → <b>Actions</b> → Read and write</li>
+          <li>Generate → העתק את הטוקן והדבק כאן</li>
+        </ol>
+        <form id="token-form">
+          <div class="field-row">
+            <label class="field">טוקן GitHub<input type="password" id="token-input" autocomplete="off" spellcheck="false" placeholder="github_pat_..." required></label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-ghost hidden" id="token-remove">מחק טוקן</button>
+            <button type="submit" class="btn-primary">שמור וסנכרן</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- ===== הסבר על גרף ===== -->
     <div id="info-modal" class="modal hidden">
       <div class="modal-backdrop" data-close></div>
