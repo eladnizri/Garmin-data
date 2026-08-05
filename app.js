@@ -399,6 +399,26 @@ const DASH_METRICS = [
 /* ברכה לפי שעת היום */
 function greeting() { const h = new Date().getHours(); return h < 12 ? 'בוקר טוב' : h < 18 ? 'צהריים טובים' : 'ערב טוב'; }
 
+/* פירוט שלבי השינה של הלילה האחרון + סיווג צבע לפי חלקם מסך השינה:
+ * ירוק=תקין · צהוב=סביר · אדום=לא תקין. */
+function sleepStages() {
+  const deep = latest('deep_min', 5), light = latest('light_min', 5), rem = latest('rem_min', 5);
+  if (deep == null && light == null && rem == null) return null;
+  const total = (deep || 0) + (light || 0) + (rem || 0) || 1;
+  const cls = (v, kind) => {
+    if (v == null) return 'muted';
+    const p = v / total * 100;
+    if (kind === 'light') return (p >= 45 && p <= 65) ? 'ok' : (p >= 40 && p <= 72) ? 'watch' : 'alert';
+    if (kind === 'deep') return p >= 15 ? 'ok' : p >= 10 ? 'watch' : 'alert';
+    return p >= 18 ? 'ok' : p >= 13 ? 'watch' : 'alert'; // REM
+  };
+  return [
+    { name: 'עמוקה', v: deep, cls: cls(deep, 'deep') },
+    { name: 'קלה', v: light, cls: cls(light, 'light') },
+    { name: 'REM', v: rem, cls: cls(rem, 'rem') },
+  ];
+}
+
 function renderDashboard() {
   const el = $('dashboard');
   const official = latest('readiness_score', 2);
@@ -411,10 +431,24 @@ function renderDashboard() {
     const anomalous = s && (s.level === 'watch' || s.level === 'alert');
     const fillPct = (m.fill && v !== null) ? clamp(v / m.goal() * 100, 0, 100) : (m.fill ? 0 : null);
     const center = v === null ? '—' : m.disp(v);
+    const ringInner = `${miniRingSvg(m.grad, fillPct, anomalous, i)}
+      <span class="mini-txt"><b>${center}</b>${m.sub ? `<i>${m.sub}</i>` : ''}</span>`;
+    const label = `<span class="mini-label">${icon(m.ico, 14)}${m.label}</span>`;
+
+    // טבעת השינה מתהפכת בלחיצה ומציגה את פירוט שלבי השינה
+    if (m.key === 'sleep_hours') {
+      const stages = sleepStages();
+      const back = stages
+        ? `<span class="flip-back">${stages.map(st =>
+            `<span class="stg"><i>${st.name}</i><b class="c-${st.cls}">${st.v == null ? '—' : minToHm(st.v)}</b></span>`).join('')}</span>`
+        : `<span class="flip-back"><span class="stg-empty">אין נתוני שלבים</span></span>`;
+      return `<button class="mini${anomalous ? ' alert' : ''}" data-flip aria-label="פירוט שינה">
+        <span class="mini-ring flip3d"><span class="flip-inner">
+          <span class="flip-front">${ringInner}</span>${back}</span></span>
+        ${label}</button>`;
+    }
     return `<button class="mini${anomalous ? ' alert' : ''}" data-goto="${m.page}">
-      <span class="mini-ring">${miniRingSvg(m.grad, fillPct, anomalous, i)}
-        <span class="mini-txt"><b>${center}</b>${m.sub ? `<i>${m.sub}</i>` : ''}</span></span>
-      <span class="mini-label">${icon(m.ico, 14)}${m.label}</span></button>`;
+      <span class="mini-ring">${ringInner}</span>${label}</button>`;
   }).join('');
 
   const last = lastRow();
@@ -1491,6 +1525,8 @@ function currentIndex() {
 
 tabs.forEach(t => t.addEventListener('click', () => goTo(Number(t.dataset.index))));
 $('dashboard').addEventListener('click', e => {
+  const flip = e.target.closest('[data-flip]');
+  if (flip) { flip.classList.toggle('flipped'); haptic(8); return; }
   const b = e.target.closest('[data-goto]');
   if (b) goTo(Number(b.dataset.goto));
 });
