@@ -215,7 +215,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   background: none; padding: 4px 0; transition: transform .12s ease;
 }
 .mini:active { transform: scale(.93); }
-.mini-ring { position: relative; width: 78px; height: 78px; }
+.mini-ring { position: relative; width: 78px; height: 78px; display: block; }
+.mini-ring > svg { display: block; width: 100%; height: 100%; }
 .mini-txt {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; line-height: 1;
@@ -225,6 +226,33 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .mini-label { display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; color: var(--ink-2); font-weight: 600; }
 .mini-label .ic { width: 14px; height: 14px; }
 .mini.alert .mini-label { color: var(--alert); }
+
+/* ===== היפוך טבעת השינה → פירוט שלבים ===== */
+.flip3d { perspective: 700px; }
+.flip3d .flip-inner {
+  display: block; position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  transition: transform .6s cubic-bezier(.4, .15, .2, 1);
+}
+.mini.flipped .flip-inner { transform: rotateY(180deg); }
+.flip-front, .flip-back {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.flip-front > svg { display: block; width: 100%; height: 100%; }
+.flip-back {
+  transform: rotateY(180deg); flex-direction: column; gap: 3px;
+  border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border);
+}
+.flip-back .stg { display: flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; }
+.flip-back .stg i { font-size: .58rem; color: var(--muted); font-style: normal; width: 30px; text-align: start; }
+.flip-back .stg b { font-size: .74rem; font-weight: 700; min-width: 30px; text-align: end; }
+.flip-back .stg-empty { font-size: .58rem; color: var(--muted); text-align: center; padding: 0 6px; }
+.c-ok { color: var(--ok); }
+.c-watch { color: var(--watch); }
+.c-alert { color: var(--alert); }
+.c-muted { color: var(--muted); }
 
 /* אנימציות כניסה מגניבות לטבעות */
 @keyframes ringIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
