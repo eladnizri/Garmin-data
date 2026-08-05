@@ -254,6 +254,20 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .c-alert { color: var(--alert); }
 .c-muted { color: var(--muted); }
 
+/* ===== ניתוח שלבי שינה ===== */
+.sa-item { padding: 12px 0; border-top: 1px solid var(--line); }
+.sa-item:first-of-type { border-top: none; padding-top: 2px; }
+.sa-head { font-size: .92rem; font-weight: 600; color: var(--ink-2); display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.sa-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.sa-item.watch .sa-dot { background: var(--watch); }
+.sa-item.alert .sa-dot { background: var(--alert); }
+.sa-item.watch .sa-head b { color: var(--watch); }
+.sa-item.alert .sa-head b { color: var(--alert); }
+.sa-row { display: flex; gap: 9px; margin-top: 7px; }
+.sa-row:first-of-type { margin-top: 0; }
+.sa-k { font-size: .68rem; font-weight: 700; color: var(--primary-500); min-width: 66px; flex: none; padding-top: 2px; }
+.sa-row p { font-size: .83rem; line-height: 1.55; color: var(--ink-2); }
+
 /* אנימציות כניסה מגניבות לטבעות */
 @keyframes ringIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
 @keyframes popIn { from { opacity: 0; transform: scale(.6) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }

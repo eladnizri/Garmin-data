@@ -936,6 +936,65 @@ function renderSleepConsistency() {
 }
 
 /* =========================================================================
+ * ניתוח שלבי השינה — למה חריגה משפיעה ואיך לשפר (מתחת לגרף השלבים)
+ * ========================================================================= */
+const STAGE_TEXT = {
+  deep: {
+    name: 'שינה עמוקה',
+    lowImpact: 'שינה עמוקה משקמת את הגוף — מחסור בה פוגע בהתאוששות הפיזית, במערכת החיסון ובתחושת הרעננות בבוקר.',
+    lowImprove: 'חדר קריר וחשוך, הימנעות מאלכוהול ומארוחה כבדה בערב, ופעילות גופנית במהלך היום — כולם מגבירים שינה עמוקה.',
+  },
+  rem: {
+    name: 'שנת REM',
+    lowImpact: 'שנת REM חיונית לזיכרון, ללמידה ולוויסות רגשי — מחסור בה משפיע על ריכוז ועל מצב הרוח.',
+    lowImprove: 'שעת שינה קבועה, שינה מספקת (7–8 שעות) והימנעות מאלכוהול — מאריכים את מחזורי ה-REM לפנות בוקר.',
+  },
+  light: {
+    name: 'שינה קלה',
+    highImpact: 'חלק גבוה מדי של שינה קלה מעיד על שינה מקוטעת — פחות שינה עמוקה ו-REM, ולכן פחות שיקום למרות הזמן במיטה.',
+    highImprove: 'שגרת ערב רגועה, פחות קפאין אחרי הצהריים וסביבת שינה שקטה — מפחיתים יקיצות ומעמיקים את השינה.',
+    lowImpact: 'חלק נמוך מהרגיל של שינה קלה — בדרך כלל לא מדאיג, אך שווה מעקב אם הוא מלווה בעייפות.',
+    lowImprove: 'שמור על עקביות בשעות השינה.',
+  },
+};
+function stageEntry(stage, dir, sev) {
+  const t = STAGE_TEXT[stage];
+  return {
+    sev, name: t.name,
+    headline: dir === 'low' ? 'מתחת לטווח הבריא' : 'גבוהה מהטווח הבריא',
+    impact: dir === 'low' ? t.lowImpact : t.highImpact,
+    improve: dir === 'low' ? t.lowImprove : t.highImprove,
+  };
+}
+function renderSleepAnalysis() {
+  const el = $('stages-analysis');
+  const deep = latest('deep_min', 5), light = latest('light_min', 5), rem = latest('rem_min', 5);
+  if (deep == null && light == null && rem == null) { el.innerHTML = ''; return; }
+  const total = (deep || 0) + (light || 0) + (rem || 0) || 1;
+  const pct = v => v / total * 100;
+  const items = [];
+  if (deep != null && pct(deep) < 15) items.push(stageEntry('deep', 'low', pct(deep) < 10 ? 'alert' : 'watch'));
+  if (rem != null && pct(rem) < 18) items.push(stageEntry('rem', 'low', pct(rem) < 13 ? 'alert' : 'watch'));
+  if (light != null) {
+    const p = pct(light);
+    if (p > 65) items.push(stageEntry('light', 'high', p > 72 ? 'alert' : 'watch'));
+    else if (p < 45) items.push(stageEntry('light', 'low', p < 40 ? 'alert' : 'watch'));
+  }
+  if (!items.length) {
+    el.innerHTML = `<div class="anom ok"><span class="anom-ic">${icon('check', 17)}</span>
+      <span>חלוקת שלבי השינה שלך <b>מאוזנת</b> — עמוקה, קלה ו-REM בטווח הבריא.</span></div>`;
+    return;
+  }
+  el.innerHTML = `<article class="card"><div class="card-head"><h2>ניתוח שלבי השינה</h2>
+    <span class="unit">מהלילה האחרון</span></div>
+    ${items.map(it => `<div class="sa-item ${it.sev}">
+      <div class="sa-head"><span class="sa-dot"></span><b>${it.name}</b> — ${it.headline}</div>
+      <div class="sa-row"><span class="sa-k">למה זה משפיע</span><p>${it.impact}</p></div>
+      <div class="sa-row"><span class="sa-k">איך לשפר</span><p>${it.improve}</p></div>
+    </div>`).join('')}</article>`;
+}
+
+/* =========================================================================
  * כרטיסים ייעודיים לנתונים החדשים (מוסתרים כשאין נתון)
  * ========================================================================= */
 function renderBreathing() {
@@ -1451,6 +1510,7 @@ function renderAll() {
   // עמודי פירוט
   renderSleepRec();
   renderSleepConsistency();
+  renderSleepAnalysis();
   statHero('sleep-hero', 'sleep_hours');
   statHero('heart-hero', 'hrv', hrvExtra());
   statHero('steps-hero', 'steps');
