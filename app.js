@@ -413,9 +413,9 @@ function sleepStages() {
     return p >= 18 ? 'ok' : p >= 13 ? 'watch' : 'alert'; // REM
   };
   return [
-    { name: 'עמוקה', v: deep, cls: cls(deep, 'deep') },
-    { name: 'קלה', v: light, cls: cls(light, 'light') },
-    { name: 'REM', v: rem, cls: cls(rem, 'rem') },
+    { name: 'ע׳', v: deep, cls: cls(deep, 'deep') },
+    { name: 'ק׳', v: light, cls: cls(light, 'light') },
+    { name: 'R', v: rem, cls: cls(rem, 'rem') },
   ];
 }
 
