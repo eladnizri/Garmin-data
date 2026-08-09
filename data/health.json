@@ -1268,15 +1268,15 @@
  {
   "date": "2026-08-09",
   "rhr": 54,
-  "stress_avg": 23,
+  "stress_avg": 39,
   "body_battery_high": 68,
   "body_battery_low": 5,
-  "body_battery_charged": 63,
-  "body_battery_drained": 7,
-  "steps": 20,
-  "calories": 946.0,
-  "floors": 0.0,
-  "intensity_min": 0,
+  "body_battery_charged": 71,
+  "body_battery_drained": 51,
+  "steps": 3844,
+  "calories": 1988.0,
+  "floors": 3.20768,
+  "intensity_min": 35,
   "sleep_hours": 9.63,
   "deep_min": 47,
   "light_min": 376,
@@ -1300,6 +1300,15 @@
   "recovery_hours": 1,
   "respiration_avg": 16.0,
   "training_status": "STRAINED_3",
-  "training_load": 64
+  "training_load": 87,
+  "workouts": [
+   {
+    "type": "ספורט משולב",
+    "type_key": "multi_sport",
+    "minutes": 12,
+    "km": 1.55,
+    "calories": 123
+   }
+  ]
  }
 ]
