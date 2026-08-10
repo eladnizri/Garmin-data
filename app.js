@@ -307,6 +307,14 @@ function verdictOf(score) {
   return 'נמוך — עדיף יום התאוששות';
 }
 
+/* דרגת איכות (לצביעת המשפט) — בלי מספר, רק גוון */
+function verdictLevel(score) {
+  if (score >= 80) return 'good';
+  if (score >= 65) return 'ok';
+  if (score >= 50) return 'mid';
+  return 'low';
+}
+
 /* צבע הטבעת לפי הציון */
 function ringColor(score) {
   if (score >= 80) return getComputedStyle(document.documentElement).getPropertyValue('--ok').trim() || '#34d399';
@@ -326,40 +334,6 @@ function ringSvg(score) {
       data-target="${target.toFixed(1)}" style="filter:drop-shadow(0 0 7px ${col}88)"/></svg>`;
 }
 /* ספירה עולה על מספר (מדלג בהעדפת תנועה מופחתת) */
-function countUp(el, target, ms = 600) {
-  if (REDUCED) { el.textContent = target; return; }
-  const start = performance.now();
-  function step(now) {
-    const t = clamp((now - start) / ms, 0, 1);
-    const eased = 1 - (1 - t) ** 3;
-    el.textContent = Math.round(target * eased);
-    if (t < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
-}
-
-/* זוג צבעי גרדיאנט לטבעת המוכנות לפי הציון (שומר על משמעות: ירוק/כחול/אדום) */
-function readyGrad(score) {
-  if (score >= 80) return ['#34d399', '#7ce7c0'];
-  if (score >= 50) return ['#5b9dff', '#63e6b0'];
-  return ['#fbbf24', '#fb7185'];
-}
-/* טבעת גדולה (מוכנות) — גרדיאנט זוהר + סימן יעד + קצוות מעוגלים */
-function bigRingSvg(score, size = 176) {
-  const sw = 13, r = size / 2 - sw / 2 - 2, c = 2 * Math.PI * r, cc = size / 2;
-  const [c1, c2] = readyGrad(score);
-  const target = c * (1 - clamp(score, 0, 100) / 100);
-  const start = REDUCED ? target : c;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <defs><linearGradient id="rg-big" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
-    <circle class="ring-track" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke-width="${sw}"/>
-    <circle class="ring-val" cx="${cc}" cy="${cc}" r="${r}" fill="none" stroke="url(#rg-big)" stroke-width="${sw}" stroke-linecap="round"
-      transform="rotate(-90 ${cc} ${cc})" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${start.toFixed(1)}"
-      data-target="${target.toFixed(1)}" style="filter:drop-shadow(0 0 10px ${c1}88)"/>
-    <circle cx="${cc}" cy="${cc - r}" r="3.2" fill="var(--ink)" opacity=".5"/></svg>`;
-}
-
 /* טבעת מדד קטנה. grad=[var1,var2] גרדיאנט; fillPct=null → טבעת מלאה (דופק/HRV);
  * anomalous → הדגשה אדומה מסביב; uid → מזהה ייחודי לגרדיאנט. */
 function miniRingSvg(grad, fillPct, anomalous, uid, size = 78) {
@@ -457,33 +431,28 @@ function renderDashboard() {
   if (score === null) {
     el.innerHTML = `<div class="dash-center"><div class="dash-greet">${dateLine}</div>
       <div class="dash-verdict">בהמתנה לנתונים</div>
-      <div class="dash-note">הסנכרון היומי ימלא את הציון.</div></div>
+      <div class="dash-note">הסנכרון היומי ימלא את הנתונים.</div></div>
       <div class="sec-title" style="margin-top:18px">מדדים</div><div class="dash-rings">${minis}</div>`;
     animateRings(el);
     return;
   }
 
-  // --- מרכז: טבעת המוכנות ---
+  // --- מרכז: אבחון איכותי (בלי מספר — כדי לא להעמיס פסיכולוגית) ---
   const level = latest('readiness_level', 2);
   const feedbackTok = latest('readiness_feedback', 2);
   const feedback = feedbackTok ? READINESS_FEEDBACK[feedbackTok] : null;
   const note = feedback
-    || (official !== null && level ? `רמת מוכנות לפי גרמין: ${READINESS_LEVEL[level] || level}` : verdictOf(score));
+    || (official !== null && level ? `רמת מוכנות לפי גרמין: ${READINESS_LEVEL[level] || level}` : '');
 
   el.innerHTML = `
     <div class="dash-center">
       <div class="dash-greet">${dateLine}</div>
-      <div class="dash-ring">${bigRingSvg(score)}
-        <span class="dash-ring-txt"><b>0</b><span>מוכנות</span></span></div>
-      <div class="dash-verdict">${verdictOf(score)}</div>
-      <div class="dash-note">${note}</div>
+      <div class="dash-verdict lvl-${verdictLevel(score)}">${verdictOf(score)}</div>
+      ${note ? `<div class="dash-note">${note}</div>` : ''}
     </div>
     <div class="sec-title" style="margin-top:18px">מדדים</div>
     <div class="dash-rings">${minis}</div>`;
 
-  // ספירה עולה על ציון המוכנות
-  const scoreEl = el.querySelector('.dash-ring-txt b');
-  requestAnimationFrame(() => countUp(scoreEl, score));
   animateRings(el);
 }
 
