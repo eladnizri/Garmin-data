@@ -1054,13 +1054,24 @@ function renderHrZones() {
 /* =========================================================================
  * מעקב משקל — כרטיס בעמוד הבית
  * ========================================================================= */
+/* כיוון טוב/רע לשינוי משקל — נקבע לפי יעד המשקל של המשתמש, לא לפי הנחה
+ * ש״ירידה = טוב״. עלייה לכיוון היעד = טוב (ירוק); התרחקות = רע (אדום).
+ * מחזיר 'good' | 'bad' | null (נייטרלי כשאין יעד או שכבר על היעד). */
+function weightDir(diff, fromKg) {
+  const goal = profile.weightGoal ? Number(profile.weightGoal) : null;
+  if (!goal || fromKg == null) return null;
+  const need = goal - fromKg;              // לאן צריך לזוז מהנקודה הקודמת
+  if (Math.abs(need) < 0.1) return null;   // כבר על היעד — בלי צביעה
+  return (diff > 0) === (need > 0) ? 'good' : 'bad';
+}
 function deltaChip(label, from) {
   if (!from) return '';
   const diff = latestWeight().kg - from.kg;
   if (Math.abs(diff) < 0.05) return `<span class="wd-chip">${label}: ללא שינוי</span>`;
-  const dir = diff > 0 ? 'up' : 'down';
   const arrow = diff > 0 ? '▲' : '▼';
-  return `<span class="wd-chip ${dir}">${label}: <b>${arrow} ${fmt(Math.abs(diff), 1)} ק״ג</b></span>`;
+  const dir = weightDir(diff, from.kg);    // 'good' | 'bad' | null
+  const cls = dir ? ` ${dir}` : '';
+  return `<span class="wd-chip${cls}">${label}: <b>${arrow} ${fmt(Math.abs(diff), 1)} ק״ג</b></span>`;
 }
 /* =========================================================================
  * אזהרת מחלה / יתר-אימון — כרטיס מותנה: כשכמה סימנים גופניים מצטלבים
@@ -1238,7 +1249,15 @@ function renderWeekSummary() {
   const wLast = latestWeight(), wPrev = weightAt(7);
   if (wLast && wPrev) {
     const diff = wLast.kg - wPrev.kg;
-    chips.push(`<div class="ws-chip"><small>משקל (שבוע)</small><b>${fmt(wLast.kg, 1)}<small> ק״ג</small></b>${wsDelta(wLast.kg, wPrev.kg, 1, true)}</div>`);
+    let wd;
+    if (Math.abs(diff) < 0.05) wd = `<span class="ws-delta flat">ללא שינוי</span>`;
+    else {
+      const arrow = diff > 0 ? '▲' : '▼';
+      const dir = weightDir(diff, wPrev.kg);   // good/bad/null → ירוק/אדום/נייטרלי
+      const cls = dir === 'good' ? 'up' : dir === 'bad' ? 'down' : 'flat';
+      wd = `<span class="ws-delta ${cls}">${arrow} ${fmt(Math.abs(diff), 1)}</span>`;
+    }
+    chips.push(`<div class="ws-chip"><small>משקל (שבוע)</small><b>${fmt(wLast.kg, 1)}<small> ק״ג</small></b>${wd}</div>`);
   }
 
   // סיכום כתוב בסגנון מאמן — מספר את הסיפור, לא רק מציג מספרים
