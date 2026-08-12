@@ -38,10 +38,14 @@
  * (0 = פעיל, ±100% = מחוץ למסך). כך כל עולם שומר על גודל מלא גם כשהוא בחוץ —
  * חשוב כדי שקנבסים של Chart.js בעולם הבריאות יימדדו נכון. */
 /* direction:ltr על ה-container מבטל דו-משמעות של מיקום אבסולוטי ב-RTL
- * (left:0 → x=0 באופן ודאי); התוכן בכל עולם חוזר ל-RTL. */
-#worlds { flex: 1; min-height: 0; position: relative; overflow: hidden; direction: ltr; }
+ * (left:0 → x=0 באופן ודאי); התוכן בכל עולם חוזר ל-RTL.
+ * overflow: clip (ולא hidden) בכוונה — hidden עדיין יוצר מכל-גלילה שאפשר
+ * לגלול בקוד, ולכן scrollIntoView מתוך עולם (או מתוך האיפריים של הכסף) הצליח
+ * להזיז את כל העולמות ולהוציא אותם מהמסך. clip אינו מכל-גלילה כלל. */
+#worlds { flex: 1; min-height: 0; position: relative; overflow: hidden; overflow: clip; direction: ltr; }
 .world {
-  position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; direction: rtl;
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; direction: rtl;
+  overflow: hidden; overflow: clip;
   transition: transform .34s cubic-bezier(.4, .15, .2, 1); will-change: transform;
 }
 /* מצב התחלתי: מרכז פעיל */

@@ -1144,13 +1144,29 @@ function setActiveScreen(idx) {
   const name = SCREENS[idx];
   document.querySelectorAll(".tabbar button").forEach((x) => x.classList.toggle("on", x.dataset.s === name));
 }
+/* גלילה אל מסך — scrollBy על הפייג'ר בלבד, לפי הפרש המלבנים.
+ * במכוון *לא* scrollIntoView: הוא מגלגל כל מכל-גלילה בשרשרת ההורים, וכשרצים
+ * בתוך iframe הוא מגלגל גם את מסמך האב — מה שהזיז את #worlds במסך-המרכז
+ * והוציא את עולם הכסף מהמסך ("דיווח מהיר"). scrollBy נוגע רק בפייג'ר.
+ * ההפרש נמדד בפיקסלים על המסך ולכן נכון גם ב-RTL וגם ב-LTR. */
+function snapToScreen(idx, smooth) {
+  const delta = screenEls[idx].getBoundingClientRect().left - pagerEl.getBoundingClientRect().left;
+  if (!delta) return;
+  if (smooth) { pagerEl.scrollBy({ left: delta, behavior: "smooth" }); return; }
+  // קפיצה מיידית: scroll-snap-stop:always מחייב עצירה בכל מסך בדרך ולכן בולם
+  // גלילה תכנותית של יותר ממסך אחד — משביתים את ההצמדה לרגע, קופצים במדויק,
+  // ומחזירים אותה (הנחיתה ממילא בדיוק על נקודת הצמדה).
+  const prev = pagerEl.style.scrollSnapType;
+  pagerEl.style.scrollSnapType = "none";
+  pagerEl.scrollBy({ left: delta, behavior: "instant" });
+  pagerEl.style.scrollSnapType = prev;
+}
 function goToScreen(i) {
   const target = Math.max(0, Math.min(SCREENS.length - 1, i));
-  const el = screenEls[target];
-  el.scrollTop = 0;                       // מעבר למסך מתחיל תמיד מלמעלה
+  screenEls[target].scrollTop = 0;         // מעבר למסך מתחיל תמיד מלמעלה
   // קפיצה למסך לא-סמוך נעשית מיידית; מעבר למסך שכן נשאר חלק ומחובר
   const far = Math.abs(target - curScreen) > 1;
-  el.scrollIntoView({ behavior: far ? "auto" : "smooth", inline: "start", block: "nearest" });
+  snapToScreen(target, !far);
   setActiveScreen(target);
   positionTabInd();
 }
@@ -1200,7 +1216,7 @@ function onPagerScrollEnd() {
   const off = screenEls[idx].getBoundingClientRect().left - pagerEl.getBoundingClientRect().left;
   if (Math.abs(off) > 6) {
     // תיקון עדין: המסך לא התיישב במלואו — מחליקים אליו במדויק
-    screenEls[idx].scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+    snapToScreen(idx, true);
     return;
   }
   positionTabInd();
@@ -1288,8 +1304,12 @@ $("#repeat-last").addEventListener("click", () => {
   renderAmount();
   $("#note-input").value = (last.note || "");
   showToast(`חוזר: ${catById(last.cat).name} — בחר קטגוריה לשמירה`, false);
-  // Scroll to categories
-  setTimeout(() => document.querySelector("#cats").scrollIntoView({ behavior: "smooth", block: "nearest" }), 200);
+  // Scroll to categories — גלילה של מסך הדיווח בלבד, בלי לגעת בהורים
+  setTimeout(() => {
+    const cats = $("#cats"), scr = document.getElementById("s-report");
+    const delta = cats.getBoundingClientRect().bottom - scr.getBoundingClientRect().bottom;
+    if (delta > 0) scr.scrollBy({ top: delta + 8, behavior: "smooth" });
+  }, 200);
 });
 $("#type-toggle").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
@@ -2847,7 +2867,7 @@ save(); // persist any one-time data migrations (e.g. retired "other" bucket) so
 render();
 // פתיחה במסך הדיווח (חשוב ב-RTL, שבו ההיסט ההתחלתי אינו בהכרח 0) + מיקום המחוון
 requestAnimationFrame(() => {
-  screenEls[0].scrollIntoView({ inline: "start", block: "nearest" });
+  snapToScreen(0, false);
   positionTabInd();
 });
 
