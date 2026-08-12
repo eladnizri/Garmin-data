@@ -63,18 +63,32 @@ input, select { font: inherit; color: var(--ink); background: var(--surface-2);
 input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .num { font-variant-numeric: tabular-nums; }
 
-.screen { display: none; padding: calc(8px + env(safe-area-inset-top)) 16px calc(72px + env(safe-area-inset-bottom)); }
-.screen.active { display: block; }
+/* ===== פייג'ר — אותו מנגנון כמו באפליקציית הבריאות =====
+ * גלילה אופקית מקורית של הדפדפן עם scroll-snap: האצבע מזיזה את המסכים
+ * אחד-לאחד, עם מומנטום והצמדה של המערכת. scroll-snap-stop: always מונע
+ * דילוג על מסך; overscroll-behavior-x: contain מבטל "גומי" בקצוות. */
+.pager {
+  display: flex;
+  height: 100vh; height: 100dvh;
+  overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+}
+.pager::-webkit-scrollbar { display: none; }
+.pager { scrollbar-width: none; }
+.screen {
+  flex: 0 0 100%; min-width: 100%; height: 100%;
+  overflow-y: auto; scroll-snap-align: start; scroll-snap-stop: always;
+  padding: calc(8px + env(safe-area-inset-top)) 16px calc(72px + env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
+  /* כל מסך על שכבת GPU משלו — ההחלקה מרכיבה שכבות מוכנות במקום לרסטר מחדש */
+  transform: translateZ(0);
+}
+.screen::-webkit-scrollbar { display: none; }
+.screen { scrollbar-width: none; }
 /* report fills the viewport: keypad grows to sit just above the tab bar */
-#s-report.active { display: flex; flex-direction: column; min-height: 100dvh; }
+#s-report { display: flex; flex-direction: column; }
 #s-report #keypad { flex: 1 1 auto; grid-template-rows: repeat(4, minmax(46px, 1fr)); margin-top: 8px; }
-.screen.from-next { animation: slide-next .34s cubic-bezier(.33,1,.68,1); }
-.screen.from-prev { animation: slide-prev .34s cubic-bezier(.33,1,.68,1); }
-@keyframes slide-next { from { opacity: 0; transform: translateX(-44px); } to { opacity: 1; transform: none; } }
-@keyframes slide-prev { from { opacity: 0; transform: translateX(44px); } to { opacity: 1; transform: none; } }
-/* בזמן גרירה חיה — האצבע מזיזה את המסך, בלי אנימציית מעבר שתילחם בה */
-.screen.dragging { animation: none !important; will-change: transform; }
-@media (prefers-reduced-motion: reduce) { .screen.from-next, .screen.from-prev { animation: none; } }
 .card { background: var(--surface); border: 1px solid var(--border);
   border-radius: 16px; padding: 14px 16px; margin: 10px 0; }
 .mut { color: var(--muted); font-size: 13px; }
@@ -236,7 +250,9 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1p
 .bucket-seg button { flex: 1; padding: 6px 4px; }
 .bucket-seg button.on { background: var(--accent); }
 .cats-strip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 4px;
-  -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  /* גלילת הקטגוריות לא "נשפכת" להחלפת מסך בקצה */
+  overscroll-behavior-x: contain; }
 .cats-strip::-webkit-scrollbar { display: none; }
 .cats-strip .cat-btn { flex: 0 0 auto; width: 78px; }
 .note-inline { width: 100%; padding: 6px 12px; margin-bottom: 3px; }
@@ -335,7 +351,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; 
 .tx-filter { margin-bottom: 8px; }
 .tx-search { width: 100%; margin-bottom: 8px; }
 .filter-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
-  -webkit-overflow-scrolling: touch; }
+  -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
 .filter-chips::-webkit-scrollbar { display: none; }
 .chip { flex: 0 0 auto; background: var(--surface); border: 1px solid var(--border);
   border-radius: 999px; padding: 5px 13px; font-size: 12.5px; font-weight: 600;
@@ -443,10 +459,10 @@ h2 { font-weight: 800; }
   backdrop-filter: saturate(1.5) blur(14px); -webkit-backdrop-filter: saturate(1.5) blur(14px);
   box-shadow: 0 -1px 0 var(--border), 0 -10px 30px -12px rgba(16,24,40,.12); }
 .tabbar button.on::before { display: none; } /* replaced by the sliding indicator */
+/* המחוון נגרר ישירות מתנוחת הגלילה של הפייג'ר (בלי transition שירדוף אחריו) */
 .tab-ind { position: absolute; top: 0; left: 0; width: 24px; height: 3px; border-radius: 0 0 3px 3px;
   background: var(--grad-accent); box-shadow: 0 1px 6px -1px color-mix(in srgb, var(--accent) 70%, transparent);
-  transition: transform .28s cubic-bezier(.4, 0, .2, 1); pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { .tab-ind { transition: none; } }
+  pointer-events: none; }
 
 /* badges & chips: softer surfaces */
 .badge { border-color: color-mix(in srgb, var(--border) 80%, transparent);
@@ -469,6 +485,7 @@ h2 { font-weight: 800; }
 /* respect reduced motion for the new transitions too */
 @media (prefers-reduced-motion: reduce) {
   .ring-wrap svg circle:last-child, .btn.primary, .save-income { transition: none; }
+  .pager { scroll-behavior: auto; }
 }
 
 /* ---------- monthly recap card (health-app "coach card" tint) ---------- */
@@ -626,7 +643,7 @@ h2 { font-weight: 800; }
    Keeps the whole entry flow — amount, quick amounts, categories, keypad —
    above the tab bar without scrolling on shorter viewports. */
 @media (max-height: 730px) {
-  #s-report.active { padding-top: calc(4px + env(safe-area-inset-top)); }
+  #s-report { padding-top: calc(4px + env(safe-area-inset-top)); }
   #s-report .budget-strip { padding: 5px 12px; margin: 0 0 4px; }
   #s-report .seg { margin-bottom: 3px; }
   #s-report .seg button, #s-report .bucket-seg button { padding: 4px 14px; }
@@ -742,8 +759,10 @@ body {
 </head>
 <body>
 
+<div id="pager" class="pager">
+
 <!-- ================= REPORT ================= -->
-<section id="s-report" class="screen active">
+<section id="s-report" class="screen">
   <div id="budget-strip" class="budget-strip"></div>
   <div class="seg" id="type-toggle">
     <button data-type="expense" class="on">הוצאה</button>
@@ -762,7 +781,7 @@ body {
     <button class="qa-btn" id="repeat-last" title="חזור על ההוצאה האחרונה">↻</button>
   </div>
   <input id="note-input" class="note-inline" placeholder="הערה (אופציונלי)" autocomplete="off">
-  <div class="cats-strip" id="cats" data-noswipe></div>
+  <div class="cats-strip" id="cats"></div>
   <button class="save-income" id="save-income" style="display:none">שמור הכנסה ✓</button>
   <div class="keypad" id="keypad">
     <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
@@ -854,7 +873,7 @@ body {
       <span class="chev" aria-hidden="true">⌄</span>
     </button>
     <div class="collapse-body">
-      <div class="tx-filter" data-noswipe>
+      <div class="tx-filter">
         <input id="m-search" class="tx-search" placeholder="🔍 חיפוש לפי קטגוריה או הערה" autocomplete="off">
         <div class="filter-chips" id="m-filter-chips">
           <button class="chip on" data-filter="all">הכל</button>
@@ -935,6 +954,8 @@ body {
     <input type="file" id="import-file" accept="application/json" style="display:none">
   </div>
 </section>
+
+</div><!-- /pager -->
 
 <!-- tab bar -->
 <nav class="tabbar" id="tabbar">
@@ -1109,29 +1130,83 @@ function pastWeekends(maxN = 26) {
 const $ = (q) => document.querySelector(q);
 const SCREENS = ["report", "weekend", "month", "settings"];
 let curScreen = 0;
+
+/* פייג'ר בגלילה מקורית עם scroll-snap — זהה לאפליקציית הבריאות.
+ * הכול נמדד ב-getBoundingClientRect ולא ב-scrollLeft, כדי לעבוד נכון
+ * גם ב-RTL (שבו כיוון הגלילה הפוך בין דפדפנים). */
+const pagerEl = document.getElementById("pager");
+const screenEls = SCREENS.map((n) => document.getElementById("s-" + n));
+
+/* עדכון מצב בלבד — קל מספיק לרוץ בכל פריים של גלילה */
+function setActiveScreen(idx) {
+  if (idx === curScreen) return;
+  curScreen = idx;
+  const name = SCREENS[idx];
+  document.querySelectorAll(".tabbar button").forEach((x) => x.classList.toggle("on", x.dataset.s === name));
+}
 function goToScreen(i) {
   const target = Math.max(0, Math.min(SCREENS.length - 1, i));
-  const dir = target > curScreen ? 1 : target < curScreen ? -1 : 0;
-  curScreen = target;
-  const name = SCREENS[curScreen];
-  document.querySelectorAll(".tabbar button").forEach((x) => x.classList.toggle("on", x.dataset.s === name));
-  document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active", "from-next", "from-prev"));
-  const el = $("#s-" + name);
-  el.classList.add("active");
-  if (dir) el.classList.add(dir > 0 ? "from-next" : "from-prev");
-  window.scrollTo(0, 0);
-  render();
+  const el = screenEls[target];
+  el.scrollTop = 0;                       // מעבר למסך מתחיל תמיד מלמעלה
+  // קפיצה למסך לא-סמוך נעשית מיידית; מעבר למסך שכן נשאר חלק ומחובר
+  const far = Math.abs(target - curScreen) > 1;
+  el.scrollIntoView({ behavior: far ? "auto" : "smooth", inline: "start", block: "nearest" });
+  setActiveScreen(target);
   positionTabInd();
-  if (name === "month") animateMonthNumbers();
 }
-/* slide the tab-bar indicator under the active button */
+/* איזה מסך קרוב ביותר לתחילת המכל — עובד גם ב-RTL וגם ב-LTR */
+function currentScreenIndex() {
+  const box = pagerEl.getBoundingClientRect();
+  let best = 0, bestD = Infinity;
+  screenEls.forEach((s, i) => {
+    const d = Math.abs(s.getBoundingClientRect().left - box.left);
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  return best;
+}
+/* המחוון בסרגל התחתון נגרר ברציפות עם הגלילה — נע יחד עם האצבע */
 function positionTabInd() {
   const ind = $("#tab-ind"); if (!ind) return;
-  const btn = document.querySelector(`.tabbar button[data-s="${SCREENS[curScreen]}"]`); if (!btn) return;
-  const x = btn.offsetLeft + btn.offsetWidth / 2 - ind.offsetWidth / 2;
+  const w = screenEls[0].offsetWidth || 1;
+  // מרחק המסך הראשון מתחילת המכל = ההתקדמות בין המסכים (0..3), בלי תלות בכיוון
+  const frac = Math.max(0, Math.min(SCREENS.length - 1,
+    Math.abs(screenEls[0].getBoundingClientRect().left - pagerEl.getBoundingClientRect().left) / w));
+  const lo = Math.floor(frac), hi = Math.min(SCREENS.length - 1, lo + 1), t = frac - lo;
+  const center = (i) => {
+    const b = document.querySelector(`.tabbar button[data-s="${SCREENS[i]}"]`);
+    return b ? b.offsetLeft + b.offsetWidth / 2 : 0;
+  };
+  const x = center(lo) + (center(hi) - center(lo)) * t - ind.offsetWidth / 2;
   ind.style.transform = `translateX(${x}px)`;
 }
-window.addEventListener("resize", positionTabInd);
+window.addEventListener("resize", () => { goToScreen(curScreen); positionTabInd(); });
+
+/* מעקב אחרי הגלילה: מצב הטאבים והמחוון מתעדכנים תוך כדי תנועה,
+ * והעבודה הכבדה (רינדור, אנימציות) קורית רק אחרי שההחלקה נעצרה. */
+let pagerRaf = null, pagerEndTimer = null;
+pagerEl.addEventListener("scroll", () => {
+  if (!pagerRaf) pagerRaf = requestAnimationFrame(() => {
+    pagerRaf = null;
+    setActiveScreen(currentScreenIndex());
+    positionTabInd();
+  });
+  clearTimeout(pagerEndTimer);
+  pagerEndTimer = setTimeout(onPagerScrollEnd, 110);
+}, { passive: true });
+
+function onPagerScrollEnd() {
+  const idx = currentScreenIndex();
+  setActiveScreen(idx);
+  const off = screenEls[idx].getBoundingClientRect().left - pagerEl.getBoundingClientRect().left;
+  if (Math.abs(off) > 6) {
+    // תיקון עדין: המסך לא התיישב במלואו — מחליקים אליו במדויק
+    screenEls[idx].scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+    return;
+  }
+  positionTabInd();
+  render();
+  if (SCREENS[idx] === "month") animateMonthNumbers();
+}
 /* gentle count-up on the month's headline numbers when the screen is opened/navigated */
 function animateMonthNumbers() {
   if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -1151,50 +1226,8 @@ document.getElementById("tabbar").addEventListener("click", (e) => {
   goToScreen(SCREENS.indexOf(b.dataset.s));
 });
 
-/* מעבר בהחלקה בין המסכים — גרירה חיה שעוקבת אחרי האצבע ומתייצבת רכות.
- * RTL: החלקה ימינה = המסך הבא, שמאלה = הקודם. */
-let tsx = 0, tsy = 0, swiping = false, dragging = false, dragEl = null;
-const SWIPE_MIN = 44;                          // מרחק מינימלי להחלפת מסך
-const atEdge = (dx) => (dx > 0 && curScreen === SCREENS.length - 1) || (dx < 0 && curScreen === 0);
-document.body.addEventListener("touchstart", (e) => {
-  if (e.touches.length !== 1 || $("#modal-back").classList.contains("show")
-      || e.target.closest("[data-noswipe]")) { swiping = false; return; }
-  tsx = e.touches[0].clientX; tsy = e.touches[0].clientY;
-  swiping = true; dragging = false; dragEl = document.querySelector(".screen.active");
-}, { passive: true });
-document.body.addEventListener("touchmove", (e) => {
-  if (!swiping || !dragEl) return;
-  const dx = e.touches[0].clientX - tsx, dy = e.touches[0].clientY - tsy;
-  if (!dragging) {
-    if (Math.abs(dx) < 6) return;
-    if (Math.abs(dx) < Math.abs(dy)) { swiping = false; return; }   // גלילה אנכית מנצחת
-    dragging = true; dragEl.classList.add("dragging"); dragEl.style.transition = "none";
-  }
-  // התנגדות בקצוות ולאורך כל הגרירה כדי שירגיש מחובר אך לא "בורח"
-  const d = atEdge(dx) ? dx * 0.22 : dx * 0.45;
-  dragEl.style.transform = `translateX(${d}px)`;
-  dragEl.style.opacity = String(1 - Math.min(0.28, Math.abs(d) / 620));
-}, { passive: true });
-function endDrag(dx, dy) {
-  const el = dragEl; dragEl = null;
-  if (el) {
-    el.classList.remove("dragging");
-    el.style.transition = "transform .2s cubic-bezier(.33,1,.68,1), opacity .2s";
-    el.style.transform = ""; el.style.opacity = "";
-    setTimeout(() => { el.style.transition = ""; }, 220);
-  }
-  if (dragging && Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy) * 1.3 && !atEdge(dx)) {
-    goToScreen(curScreen + (dx > 0 ? 1 : -1));
-  }
-  dragging = false;
-}
-document.body.addEventListener("touchend", (e) => {
-  if (!swiping) return; swiping = false;
-  endDrag(e.changedTouches[0].clientX - tsx, e.changedTouches[0].clientY - tsy);
-}, { passive: true });
-document.body.addEventListener("touchcancel", () => {
-  if (!swiping) return; swiping = false; endDrag(0, 0);
-}, { passive: true });
+/* אין קוד החלקה ידני — הפייג'ר למעלה משתמש בגלילה המקורית של הדפדפן
+ * (scroll-snap), בדיוק כמו באפליקציית הבריאות. */
 
 /* ============================ report screen ========================== */
 let amountStr = "";
@@ -1683,7 +1716,7 @@ function txItem(t) {
   const night = t.type === "expense" && isNight(t.ts);
   const swatch = t.type === "income" ? `<span class="cat-sw" style="background:var(--good)"></span>` : catSwatch(t.cat);
   const when = `${DAY_NAMES[d.getDay()]} ${d.getDate()}.${d.getMonth() + 1} · ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  return `<div class="tx-item${night ? " night" : ""}" data-tx="${t.id}" data-noswipe>
+  return `<div class="tx-item${night ? " night" : ""}" data-tx="${t.id}">
     <span class="tx-emoji">${swatch}</span>
     <span class="tx-main"><div class="tx-name">${c.name}${night ? ` <span class="night-badge" title="הוצאת לילה">🌙</span>` : ""}${t.note ? ` · <span class="mut">${esc(t.note)}</span>` : ""}</div>
     <div class="tx-time">${when}</div></span>
@@ -2805,18 +2838,18 @@ function postHubSummary() {
 
 /* מאזין לפקודות מהמרכז (כפתור "לדיווח מהיר") */
 window.addEventListener("message", (e) => {
-  if (e.data && e.data.type === "go-report") {
-    const btn = document.querySelector('#tabbar [data-s="report"]');
-    if (btn) btn.click();
-    window.scrollTo(0, 0);
-  }
+  if (e.data && e.data.type === "go-report") goToScreen(0);
 });
 syncBucketButtons();
 updateRepeatButton();
 applyShakamRule(); // route כוורת / חלביה / מכונות אוטומטיות to the שק״ם category
 save(); // persist any one-time data migrations (e.g. retired "other" bucket) so backups stay clean
 render();
-requestAnimationFrame(positionTabInd); // place the sliding tab indicator once layout is ready
+// פתיחה במסך הדיווח (חשוב ב-RTL, שבו ההיסט ההתחלתי אינו בהכרח 0) + מיקום המחוון
+requestAnimationFrame(() => {
+  screenEls[0].scrollIntoView({ inline: "start", block: "nearest" });
+  positionTabInd();
+});
 
 // fire reminders on open and whenever the app returns to the foreground
 setTimeout(checkReminders, 1200);
