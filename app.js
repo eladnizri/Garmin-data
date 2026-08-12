@@ -1560,7 +1560,10 @@ function goTo(idx) {
   haptic(10);
   // מעבר לעמוד מתחיל תמיד מראש העמוד המבוקש
   pages[idx].scrollTop = 0;
-  pages[idx].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+  // קפיצה לעמוד לא-סמוך (מרחק >1) נעשית מיידית — גלילה חלקה דרך עמודי
+  // הגרפים הכבדים באמצע נראית קופצנית; מעבר לעמוד סמוך נשאר חלק ומחובר.
+  const far = state.page < 0 || Math.abs(idx - state.page) > 1;
+  pages[idx].scrollIntoView({ behavior: far ? 'auto' : 'smooth', inline: 'start', block: 'nearest' });
   setActive(idx);
 }
 /* איזה עמוד קרוב ביותר לתחילת המכל — עובד גם ב-RTL וגם ב-LTR */
