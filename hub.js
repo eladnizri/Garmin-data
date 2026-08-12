@@ -121,7 +121,7 @@
     let verdict = '', lvl = '';
     if (score != null) { try { verdict = verdictOf(score); lvl = 'lvl-' + verdictLevel(score); } catch (_) {} }
 
-    const hrv = lastVal('hrv'), rhr = lastVal('rhr'), steps = lastVal('steps'), sleep = lastVal('sleep_hours');
+    const steps = lastVal('steps'), sleep = lastVal('sleep_hours');
     let sg = 10000, slg = 8;
     try { sg = goalSteps() || 10000; } catch (_) {}
     try { slg = goalSleep() || 8; } catch (_) {}
@@ -130,8 +130,6 @@
     body.innerHTML = `
       ${verdict ? `<div class="verdict-mini ${lvl}">${verdict}</div>` : ''}
       <div class="rings">
-        <div class="ring">${ring(['#4fc294', '#7fdcb4'], hrv == null ? '—' : Math.round(hrv), 'ms', null)}<span class="r-name">${svg(IC.pulse)}HRV</span></div>
-        <div class="ring">${ring(['#f2a08a', '#f7c2ac'], rhr == null ? '—' : Math.round(rhr), 'bpm', null)}<span class="r-name">${svg(IC.heart)}דופק</span></div>
         <div class="ring">${ring(['#efc169', '#f6d894'], stepsTxt, 'צעדים', steps == null ? 0 : steps / sg * 100)}<span class="r-name">${svg(IC.walk)}צעדים</span></div>
         <div class="ring">${ring(['#63c3c6', '#93d9db'], sleep == null ? '—' : (+sleep).toFixed(1), 'ש׳', sleep == null ? 0 : sleep / slg * 100)}<span class="r-name">${svg(IC.moon)}שינה</span></div>
       </div>`;
@@ -143,28 +141,11 @@
   /* ---------- כסף ---------- */
   function renderMoney(s) {
     const body = document.getElementById('hub-money-body');
-    const budget = s.weekendBudget || 0, spent = s.weekendSpent || 0, left = s.weekendLeft;
-    const frac = budget > 0 ? spent / budget * 100 : 0;
-    const grad = left < 0 ? ['#e0634e', '#f0958a']
-      : (budget > 0 && left / budget < 0.2) ? ['#cf8a1f', '#e6b24e']
-        : ['#7d6fe0', '#aa9cf2'];
-    const cTxt = budget > 0 ? (left >= 0 ? '₪' + fmt(left) : 'חריגה') : '—';
-    const cSub = budget > 0 ? (left >= 0 ? 'נשאר' : '₪' + fmt(-left)) : 'ללא יעד';
-    const note = budget > 0
-      ? (left >= 0
-        ? `מתוך ₪${fmt(budget)} השבוע, <span class="bud-left">נשאר ₪${fmt(left)}</span> עד מוצ״ש.`
-        : `חרגת ב-<span class="bud-left">₪${fmt(-left)}</span> מתקציב סופ״ש.`)
-      : 'לא הוגדר תקציב סופ״ש בהגדרות.';
     body.innerHTML = `
       <div class="money-top">
         <div class="m-tile"><small>הכנסות</small><b>₪${fmt(s.income)}</b></div>
         <div class="m-tile"><small>הוצאות</small><b>₪${fmt(s.expenses)}</b></div>
-      </div>
-      <div class="budget">
-        ${ring(grad, cTxt, cSub, budget > 0 ? Math.min(100, frac) : 0, true)}
-        <div class="bud-info"><h3>תקציב סופ״ש</h3><p>${note}</p></div>
       </div>`;
-    animRings();
   }
   window.addEventListener('message', e => {
     if (e.data && e.data.type === 'kesef-summary') renderMoney(e.data);
