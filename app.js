@@ -1534,6 +1534,9 @@ function renderAll() {
     avgCal && recCard(icon('flame', 22), fmt(avgCal), 'קק״ל ליום בממוצע'),
     totalFloors > 0 && recCard(icon('floors', 22), fmt(totalFloors), 'קומות בתקופה'),
   ]);
+
+  // מודיע למסך-המרכז (hub.js) שהנתונים מוכנים/התעדכנו
+  document.dispatchEvent(new CustomEvent('health-ready'));
 }
 
 /* =========================================================================
