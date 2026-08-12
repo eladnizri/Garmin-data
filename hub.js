@@ -11,6 +11,8 @@
   // גישה בטוחה ל-state (const לקסיקלי מ-app.js — לא נחשף על window)
   const getState = () => { try { return state; } catch (_) { return null; } };
 
+  const worldsEl = document.getElementById('worlds');
+
   function switchWorld(name, viaTap) {
     const ai = WORLDS.indexOf(name);
     if (ai < 0) return;
@@ -18,6 +20,11 @@
       const el = document.getElementById('w-' + w);
       if (el) el.style.transform = `translateX(${(i - ai) * 100}%)`;
     });
+    // רשת ביטחון: אם דפדפן ישן בכל זאת גלגל את מכל העולמות (overflow:clip לא
+    // נתמך → hidden, שניתן לגלילה בקוד), מחזירים אותו למקומו במקום להיתקע.
+    if (worldsEl && (worldsEl.scrollLeft || worldsEl.scrollTop)) {
+      worldsEl.scrollLeft = 0; worldsEl.scrollTop = 0;
+    }
     document.querySelectorAll('.ws-btn').forEach(b => b.classList.toggle('active', b.dataset.world === name));
     if (viaTap && navigator.vibrate) { try { navigator.vibrate(8); } catch (_) {} }
   }

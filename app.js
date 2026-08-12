@@ -1556,6 +1556,22 @@ function setActive(idx) {
   // בורר הטווח רלוונטי רק לעמודים עם גרפים
   $('range-filter').classList.toggle('hidden', idx === 0);
 }
+/* גלילה אל עמוד — scrollBy על הפייג'ר בלבד, לפי הפרש המלבנים.
+ * במכוון *לא* scrollIntoView: הוא מגלגל כל מכל-גלילה בשרשרת ההורים ולכן עלול
+ * להזיז את #worlds של מסך-המרכז ולהוציא את העולם מהמסך. scrollBy נוגע רק
+ * בפייג'ר, וההפרש נמדד בפיקסלים על המסך ולכן נכון גם ב-RTL וגם ב-LTR. */
+function snapToPage(idx, smooth) {
+  const delta = pages[idx].getBoundingClientRect().left - pager.getBoundingClientRect().left;
+  if (!delta) return;
+  if (smooth) { pager.scrollBy({ left: delta, behavior: 'smooth' }); return; }
+  // קפיצה מיידית: scroll-snap-stop:always מחייב עצירה בכל עמוד בדרך ולכן
+  // בולם גלילה תכנותית של יותר מעמוד אחד — משביתים את ההצמדה לרגע, קופצים
+  // במדויק, ומחזירים אותה (הנחיתה ממילא בדיוק על נקודת הצמדה).
+  const prev = pager.style.scrollSnapType;
+  pager.style.scrollSnapType = 'none';
+  pager.scrollBy({ left: delta, behavior: 'instant' });
+  pager.style.scrollSnapType = prev;
+}
 function goTo(idx) {
   haptic(10);
   // מעבר לעמוד מתחיל תמיד מראש העמוד המבוקש
@@ -1563,7 +1579,7 @@ function goTo(idx) {
   // קפיצה לעמוד לא-סמוך (מרחק >1) נעשית מיידית — גלילה חלקה דרך עמודי
   // הגרפים הכבדים באמצע נראית קופצנית; מעבר לעמוד סמוך נשאר חלק ומחובר.
   const far = state.page < 0 || Math.abs(idx - state.page) > 1;
-  pages[idx].scrollIntoView({ behavior: far ? 'auto' : 'smooth', inline: 'start', block: 'nearest' });
+  snapToPage(idx, !far);
   setActive(idx);
 }
 /* איזה עמוד קרוב ביותר לתחילת המכל — עובד גם ב-RTL וגם ב-LTR */
@@ -1600,7 +1616,7 @@ function onScrollEnd() {
   const off = pages[idx].getBoundingClientRect().left - pager.getBoundingClientRect().left;
   if (Math.abs(off) > 6) {
     // תיקון עדין: העמוד לא התיישב במלואו — מחליקים אליו במדויק
-    pages[idx].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+    snapToPage(idx, true);
   } else if (idx === 0) {
     renderDashboard(); // כניסה מחדש לבית → הטבעות מתמלאות מחדש
   }
@@ -1752,7 +1768,7 @@ async function init() {
   setActive(0);
   renderAll();
   // התחלה בעמוד הבית (חשוב ב-RTL, שבו ההיסט ההתחלתי אינו בהכרח 0)
-  requestAnimationFrame(() => pages[0].scrollIntoView({ inline: 'start', block: 'nearest' }));
+  requestAnimationFrame(() => snapToPage(0, false));
 }
 
 if ('serviceWorker' in navigator) {
