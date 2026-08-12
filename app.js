@@ -21,7 +21,7 @@ if (typeof Chart !== 'undefined') {
       c.save();
       c.beginPath(); c.moveTo(x, top); c.lineTo(x, bottom);
       c.lineWidth = 1; c.setLineDash([3, 3]);
-      c.strokeStyle = 'rgba(240,244,250,.28)';
+      c.strokeStyle = 'rgba(43,58,51,.22)';
       c.stroke(); c.restore();
     },
   });
@@ -623,8 +623,8 @@ function TT(labelFn) {
   const cb = { title: i => longDate(i[0].raw.iso) };
   if (labelFn) cb.label = labelFn;
   return {
-    rtl: true, textDirection: 'rtl', backgroundColor: '#1c2537', titleColor: C.ink,
-    bodyColor: C.ink2, borderColor: 'rgba(148,163,184,.2)', borderWidth: 1, padding: 10,
+    rtl: true, textDirection: 'rtl', backgroundColor: '#2f3d35', titleColor: '#ffffff',
+    bodyColor: 'rgba(255,255,255,.82)', borderColor: 'transparent', borderWidth: 0, padding: 10,
     cornerRadius: 10, boxPadding: 4, titleFont: { weight: '700' },
     filter: i => !['ממוצע 7 ימים', 'יעד', 'טווח מאוזן'].includes(i.dataset.label),
     callbacks: cb,
