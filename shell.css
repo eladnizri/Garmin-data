@@ -1,0 +1,117 @@
+/* =========================================================================
+ * shell.css — מעטפת שני העולמות: מתג עליון + פייג'ר אופקי (בריאות/מרכז/כסף)
+ * נטען אחרי style.css. משתמש בטוקנים הקיימים + טוקני הכסף (אינדיגו).
+ * ========================================================================= */
+:root {
+  --fin: #6d5fd0;
+  --fin-strong: #5646c0;
+  --fin-soft: #efedfb;
+}
+
+#shell {
+  display: flex; flex-direction: column;
+  height: 100vh; height: 100dvh;
+  max-width: 620px; margin: 0 auto; position: relative;
+}
+
+/* ===== מתג עליון ===== */
+.world-switch {
+  flex: none; z-index: 30; position: relative;
+  display: flex; gap: 4px;
+  margin: calc(env(safe-area-inset-top) + 10px) 12px 6px; padding: 4px;
+  border-radius: 16px; background: rgba(255, 255, 255, .72);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: saturate(160%) blur(12px); -webkit-backdrop-filter: saturate(160%) blur(12px);
+}
+.ws-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 4px; border: none; border-radius: 12px; background: none;
+  font-family: inherit; font-size: .85rem; font-weight: 700; color: var(--ink-2); transition: .18s;
+}
+.ws-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.ws-btn:active { transform: scale(.96); }
+.ws-btn.active { background: var(--surface); box-shadow: var(--shadow-sm); color: var(--primary-500); }
+.ws-btn.active[data-world="money"] { color: var(--fin-strong); }
+
+/* ===== פייג'ר אופקי של העולמות =====
+ * כל עולם ממוקם אבסולוטית וממלא את #worlds; מחליף במחווה/מתג ע"י translateX
+ * (0 = פעיל, ±100% = מחוץ למסך). כך כל עולם שומר על גודל מלא גם כשהוא בחוץ —
+ * חשוב כדי שקנבסים של Chart.js בעולם הבריאות יימדדו נכון. */
+/* direction:ltr על ה-container מבטל דו-משמעות של מיקום אבסולוטי ב-RTL
+ * (left:0 → x=0 באופן ודאי); התוכן בכל עולם חוזר ל-RTL. */
+#worlds { flex: 1; min-height: 0; position: relative; overflow: hidden; direction: ltr; }
+.world {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; direction: rtl;
+  transition: transform .34s cubic-bezier(.4, .15, .2, 1); will-change: transform;
+}
+/* מצב התחלתי: מרכז פעיל */
+#w-health { transform: translateX(-100%); }
+#w-hub { transform: translateX(0); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#w-money { transform: translateX(100%); }
+#w-health .app { height: 100%; max-width: none; }
+#money-frame { width: 100%; height: 100%; border: 0; display: block; background: var(--surface); }
+
+@media (prefers-reduced-motion: reduce) { .world { transition: none; } }
+
+/* =========================================================================
+ * מסך המרכז (hub) — כל הסגנונות תחומים תחת #hub כדי לא להתנגש ב-style.css
+ * ========================================================================= */
+#hub { padding: 10px 16px 32px; display: flex; flex-direction: column; gap: 16px; }
+#hub .hub-greet { text-align: center; font-size: .74rem; font-weight: 600; letter-spacing: .05em; color: var(--muted); margin-top: 4px; }
+#hub .hub-empty { color: var(--muted); font-size: .85rem; text-align: center; padding: 10px 0; }
+
+#hub .hub-card {
+  background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 20px;
+  animation: hubRise .5s cubic-bezier(.22, 1, .36, 1) backwards;
+}
+#hub .hub-card:nth-child(3) { animation-delay: .06s; }
+@keyframes hubRise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+#hub .world-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+#hub .world-badge { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: none; }
+#hub .world-badge svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+#hub .world-head.health .world-badge { background: #dcf0e6; color: var(--primary-500); }
+#hub .world-head.fin .world-badge { background: var(--fin-soft); color: var(--fin-strong); }
+#hub .world-head h2 { font-size: 1.16rem; font-weight: 800; flex: 1; }
+#hub .world-link { font-size: .8rem; font-weight: 700; background: none; border: none; font-family: inherit; }
+#hub .world-head.health .world-link { color: var(--primary-500); }
+#hub .world-head.fin .world-link { color: var(--fin); }
+#hub .verdict-mini { font-size: .98rem; font-weight: 700; color: var(--primary-500); text-align: center; margin-bottom: 14px; }
+#hub .verdict-mini.lvl-good { color: var(--ok); }
+#hub .verdict-mini.lvl-mid { color: var(--watch); }
+#hub .verdict-mini.lvl-low { color: var(--alert); }
+
+/* טבעות */
+#hub .rings { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+#hub .ring { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+#hub .r-wrap { position: relative; width: 78px; height: 78px; }
+#hub .r-wrap svg { width: 78px; height: 78px; transform: rotate(-90deg); }
+#hub .r-track { fill: none; stroke: #eaf0ea; stroke-width: 8; }
+#hub .r-val { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 1s cubic-bezier(.22, 1, .36, 1); }
+#hub .r-txt { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+#hub .r-txt b { font-size: 1.1rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+#hub .r-txt small { font-size: .54rem; color: var(--muted); margin-top: 2px; font-weight: 600; }
+#hub .r-name { display: flex; align-items: center; gap: 5px; font-size: .76rem; font-weight: 600; color: var(--ink-2); }
+#hub .r-name svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* כסף — אריחי סיכום + טבעת תקציב */
+#hub .money-top { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+#hub .m-tile { background: var(--surface-2); border-radius: var(--r-md); padding: 14px 15px; }
+#hub .m-tile small { font-size: .74rem; color: var(--ink-2); font-weight: 500; }
+#hub .m-tile b { display: block; font-size: 1.42rem; font-weight: 800; margin-top: 3px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+#hub .budget { display: flex; align-items: center; gap: 18px; padding: 4px 2px; }
+#hub .r-wrap.big { width: 92px; height: 92px; }
+#hub .r-wrap.big svg { width: 92px; height: 92px; }
+#hub .r-wrap.big .r-txt b { font-size: 1.24rem; }
+#hub .bud-info h3 { font-size: .96rem; font-weight: 800; margin-bottom: 4px; }
+#hub .bud-info p { font-size: .83rem; color: var(--ink-2); line-height: 1.5; }
+#hub .bud-info .bud-left { color: var(--fin-strong); font-weight: 800; }
+
+/* כפתור דיווח מהיר */
+#hub .quick-report {
+  width: 100%; margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 9px;
+  padding: 15px; border: none; border-radius: 16px; font-family: inherit; font-size: 1.02rem; font-weight: 800; color: #fff;
+  background: linear-gradient(135deg, #6d5fd0, #8b7be6); box-shadow: 0 14px 26px -12px rgba(109, 95, 208, .62); transition: transform .12s;
+}
+#hub .quick-report:active { transform: scale(.97); }
+#hub .quick-report svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
