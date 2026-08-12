@@ -80,36 +80,61 @@
 #hub .world-link { font-size: .8rem; font-weight: 700; background: none; border: none; font-family: inherit; }
 #hub .world-head.health .world-link { color: var(--primary-500); }
 #hub .world-head.fin .world-link { color: var(--fin); }
-#hub .verdict-mini { font-size: .98rem; font-weight: 700; color: var(--primary-500); text-align: center; margin-bottom: 14px; }
-#hub .verdict-mini.lvl-good { color: var(--ok); }
-#hub .verdict-mini.lvl-mid { color: var(--watch); }
-#hub .verdict-mini.lvl-low { color: var(--alert); }
+/* ===== בריאות — אריחי צעדים/ציון + כרטיס השינה ===== */
+#hub .h-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#hub .h-tile { background: var(--surface-2); border-radius: var(--r-md); padding: 14px 15px; }
+#hub .h-tile-top { display: flex; align-items: center; gap: 7px; font-size: .78rem; font-weight: 600; color: var(--ink-2); }
+#hub .h-tile-top svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+#hub .h-tile b {
+  display: block; margin-top: 6px; font-size: 1.62rem; font-weight: 800; line-height: 1.1;
+  font-variant-numeric: tabular-nums; letter-spacing: -.03em;
+}
+#hub .h-tile b.lvl-good { color: var(--ok); }
+#hub .h-tile b.lvl-mid { color: var(--watch); }
+#hub .h-tile b.lvl-low { color: var(--alert); }
 
-/* טבעות */
-#hub .rings { display: flex; justify-content: center; gap: 32px; }
-#hub .ring { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-#hub .r-wrap { position: relative; width: 78px; height: 78px; }
-#hub .r-wrap svg { width: 78px; height: 78px; transform: rotate(-90deg); }
-#hub .r-track { fill: none; stroke: #eaf0ea; stroke-width: 8; }
-#hub .r-val { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 1s cubic-bezier(.22, 1, .36, 1); }
-#hub .r-txt { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-#hub .r-txt b { font-size: 1.1rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-#hub .r-txt small { font-size: .54rem; color: var(--muted); margin-top: 2px; font-weight: 600; }
-#hub .r-name { display: flex; align-items: center; gap: 5px; font-size: .76rem; font-weight: 600; color: var(--ink-2); }
-#hub .r-name svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#hub .sleep-card { margin-top: 10px; background: var(--surface-2); border-radius: var(--r-md); padding: 15px 15px 13px; }
+#hub .sc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#hub .sc-title { display: flex; align-items: center; gap: 7px; font-size: .78rem; font-weight: 600; color: var(--ink-2); }
+#hub .sc-title svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+#hub .sc-dur { display: flex; align-items: baseline; gap: 3px; direction: ltr; }
+#hub .sc-dur b { font-size: 1.62rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+#hub .sc-dur small { font-size: .68rem; font-weight: 600; color: var(--muted); margin-inline-end: 5px; }
 
-/* כסף — אריחי סיכום + טבעת תקציב */
-#hub .money-top { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+/* הגל: הצורה דקורטיבית, רוחב כל אזור-צבע = חלקו האמיתי של השלב */
+#hub .sc-wave {
+  display: block; width: 100%; height: 62px; margin: 12px 0 2px;
+  border-radius: 10px; overflow: hidden;
+  animation: scWave .55s cubic-bezier(.22, 1, .36, 1) backwards;
+}
+@keyframes scWave { from { opacity: 0; transform: scaleY(.55); transform-origin: bottom; } to { opacity: 1; transform: none; } }
+
+#hub .sc-legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; direction: ltr; }
+#hub .sc-item { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+#hub .sc-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
+#hub .sc-row i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+#hub .sc-row em { font-style: normal; font-size: .74rem; font-weight: 600; color: var(--ink-2); }
+#hub .sc-row b { font-size: .8rem; font-weight: 800; font-variant-numeric: tabular-nums; margin-inline-start: auto; }
+#hub .sc-item small { font-size: .68rem; color: var(--muted); font-variant-numeric: tabular-nums; padding-inline-start: 14px; }
+
+/* מסכים צרים — מכווצים את המקרא כדי ששלוש העמודות יישארו בשורה אחת */
+@media (max-width: 360px) {
+  #hub .sleep-card { padding: 13px 11px 12px; }
+  #hub .sc-legend { gap: 5px; }
+  #hub .sc-row { gap: 4px; }
+  #hub .sc-row i { width: 7px; height: 7px; border-radius: 2px; }
+  #hub .sc-row em { font-size: .66rem; }
+  #hub .sc-row b { font-size: .72rem; }
+  #hub .sc-item small { font-size: .64rem; padding-inline-start: 11px; }
+}
+
+@media (prefers-reduced-motion: reduce) { #hub .sc-wave { animation: none; } }
+
+/* כסף — אריחי סיכום */
+#hub .money-top { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 #hub .m-tile { background: var(--surface-2); border-radius: var(--r-md); padding: 14px 15px; }
 #hub .m-tile small { font-size: .74rem; color: var(--ink-2); font-weight: 500; }
 #hub .m-tile b { display: block; font-size: 1.42rem; font-weight: 800; margin-top: 3px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-#hub .budget { display: flex; align-items: center; gap: 18px; padding: 4px 2px; }
-#hub .r-wrap.big { width: 92px; height: 92px; }
-#hub .r-wrap.big svg { width: 92px; height: 92px; }
-#hub .r-wrap.big .r-txt b { font-size: 1.24rem; }
-#hub .bud-info h3 { font-size: .96rem; font-weight: 800; margin-bottom: 4px; }
-#hub .bud-info p { font-size: .83rem; color: var(--ink-2); line-height: 1.5; }
-#hub .bud-info .bud-left { color: var(--fin-strong); font-weight: 800; }
 
 /* כפתור דיווח מהיר */
 #hub .quick-report {
