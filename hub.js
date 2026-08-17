@@ -38,6 +38,7 @@
     walk: '<path d="M14 4a2 2 0 1 0 0 .01M9 21l1.2-6.2 2.3 1.9V21M7 11l3.6-1 2 3.1 3.2.8"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
     bed: '<path d="M3 18V7M3 12h18a2 2 0 0 1 2 2v4M7.5 12V9.5h5V12"/>',
+    dumbbell: '<path d="M6.5 6.5v11M17.5 6.5v11M4 9v6M20 9v6M6.5 12h11"/>',
     wallet: '<rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M7 15h4"/>',
     bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
   };
@@ -73,12 +74,19 @@
         <button class="world-link" data-go="health">לכל הנתונים ‹</button>
       </div>
       <div id="hub-health-body"><p class="hub-empty">טוען נתונים…</p></div>
+      <button class="quick-train" id="hub-train">${svg(IC.dumbbell)}<span>התחל אימון</span></button>
     </section>`;
 
   hub.addEventListener('click', e => {
     if (e.target.closest('#hub-quick')) {
       switchWorld('money', true);
       try { moneyFrame.contentWindow.postMessage({ type: 'go-report' }, '*'); } catch (_) {}
+      return;
+    }
+    if (e.target.closest('#hub-train')) {
+      // מצב אימון הוא שכבה מעל כל המעטפת — אין צורך להחליף עולם
+      try { startWorkout(); } catch (_) {}
+      if (navigator.vibrate) { try { navigator.vibrate(8); } catch (_) {} }
       return;
     }
     const go = e.target.closest('[data-go]');

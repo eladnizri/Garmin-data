@@ -147,6 +147,9 @@
         <!-- אימוני כוח — לוח V שבועי -->
         <div id="strength-card"></div>
 
+        <!-- ניתוח אימון — תוכנית, מצב אימון ומעקב progressive overload -->
+        <div id="train-card"></div>
+
         <!-- פעילות מומלצת לשבוע לפי המוכנות -->
         <div id="activity-rec"></div>
 
@@ -295,6 +298,62 @@
           <button class="icon-btn" data-close aria-label="סגור">✕</button>
         </div>
         <div id="info-body"></div>
+      </div>
+    </div>
+
+    <!-- ===== עורך תוכנית האימונים ===== -->
+    <div id="program-modal" class="modal hidden">
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-sheet tall" role="dialog" aria-label="תוכנית אימונים">
+        <div class="modal-head">
+          <h2 id="pg-title">תוכנית חדשה</h2>
+          <button class="icon-btn" data-close aria-label="סגור">✕</button>
+        </div>
+        <p class="modal-note">🔒 נשמר רק במכשיר שלך. מזינים פעם אחת — ומכאן כל אימון מתועד בלחיצות.</p>
+        <label class="field">שם התוכנית<input id="pg-name" data-act="pgname" placeholder="למשל: פול באדי A"></label>
+        <div id="pg-ex"></div>
+        <button class="pg-add wide" id="pg-newex">+ תרגיל</button>
+        <div id="pg-list"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-ghost" id="pg-delete">מחיקה</button>
+          <button type="button" class="btn-primary" id="pg-save">שמירה</button>
+        </div>
+        <button class="pg-newprog" id="pg-newprog">+ תוכנית נוספת</button>
+      </div>
+    </div>
+
+    <!-- ===== מצב אימון ===== -->
+    <div id="train-mode" class="train-mode hidden" role="dialog" aria-label="מצב אימון">
+      <header class="tm-head">
+        <button class="icon-btn" id="tm-close" aria-label="מזעור">✕</button>
+        <div class="tm-h-mid">
+          <h2 id="tm-title"></h2>
+          <span class="tm-bar" id="tm-prog"><i></i></span>
+        </div>
+        <span class="tm-count" id="tm-count"></span>
+      </header>
+      <div class="tm-body" id="tm-body"></div>
+      <footer class="tm-foot">
+        <input id="tm-note" placeholder="הערה לאימון (אופציונלי)" aria-label="הערה לאימון">
+        <div class="tm-actions">
+          <button class="btn-ghost" id="tm-discard">ביטול</button>
+          <button class="btn-primary" id="tm-finish">סיום אימון</button>
+        </div>
+      </footer>
+    </div>
+
+    <!-- ===== סיכום בסוף האימון ===== -->
+    <div id="train-summary" class="modal hidden">
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-sheet" role="dialog" aria-label="סיכום האימון">
+        <div class="modal-head">
+          <h2>האימון נשמר</h2>
+          <button class="icon-btn" data-close aria-label="סגור">✕</button>
+        </div>
+        <div id="ts-body"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-primary" data-close>סגירה</button>
+        </div>
       </div>
     </div>
 </body>
