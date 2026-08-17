@@ -1380,28 +1380,43 @@ function nextOpenIdx(from) {
   }
   return -1;
 }
-function goToExercise(i) { active.idx = i; tmEdit = null; saveActive(); renderWorkout(true); }
-/* נקרא אחרי סימון סט: אם התרגיל הושלם — מתקדם אוטומטית לתרגיל הבא */
+function goToExercise(i) {
+  active.idx = i; tmEdit = null; saveActive();
+  snapToCard(i, true);
+  renderDots();
+}
+/* נקרא אחרי סימון סט: אם התרגיל הושלם — מחליק אוטומטית לתרגיל הבא */
 function advanceIfDone() {
   const cur = active.entries[active.idx];
   if (!cur || !entryDone(cur)) return false;
   const next = nextOpenIdx(active.idx);
   if (next < 0) return false;
-  setTimeout(() => { if (active) { active.idx = next; saveActive(); renderWorkout(true); } }, 520);
+  setTimeout(() => { if (active) goToExercise(next); }, 520);
   return true;
 }
-function skipExercise() {
-  const cur = active.entries[active.idx];
+/* רק הנקודות — כדי לא לבנות מחדש את הכרטיסים באמצע גלילה */
+function renderDots() {
+  if (!active) return;
+  $('tm-dots').innerHTML = active.entries.map((e, i) => {
+    const cls = i === active.idx ? 'cur' : e.skipped ? 'skip' : entryDone(e) ? 'ok' : '';
+    return `<button class="tm-dot ${cls}" data-go="${i}" aria-label="${e.name}"></button>`;
+  }).join('');
+}
+/* כל הכרטיסים נמצאים ב-DOM (כדי שההחלקה תהיה גלילה טבעית), ולכן פעולות
+ * הכלים חייבות לפעול על הכרטיס שנלחץ — לא על active.idx. */
+function skipExercise(ei) {
+  const cur = active.entries[ei];
   if (!cur) return;
   cur.skipped = true;
   cur.sets.forEach(s => { s.done = false; });
-  const next = nextOpenIdx(active.idx);
+  const next = nextOpenIdx(ei);
   saveActive();
-  if (next < 0) { renderWorkout(); toast('כל התרגילים טופלו'); } else goToExercise(next);
+  renderWorkout();
+  if (next < 0) toast('כל התרגילים טופלו'); else goToExercise(next);
 }
 /* תרגיל חלופי שעובד על אותם שרירים — נספר לקבוצת השריר, לא ל-overload */
-function substituteExercise() {
-  const cur = active.entries[active.idx];
+function substituteExercise(ei) {
+  const cur = active.entries[ei];
   if (!cur) return;
   const name = prompt('איזה תרגיל אתה מבצע במקום?', cur.sub || '');
   if (name === null) return;
@@ -1456,6 +1471,8 @@ function finishWorkout() {
 /* מצב עריכה של תא משקל בתוך מצב אימון: {ei, si} או null */
 let tmEdit = null;
 
+/* מרנדר את כל התרגילים כפייג'ר אופקי — כך שההחלקה היא גלילה טבעית של
+ * הדפדפן, באותה מוסכמת scroll-snap שבה עובד הפייג'ר הראשי של האפליקציה. */
 function renderWorkout(animate) {
   if (!active) return;
   const es = active.entries;
@@ -1466,68 +1483,111 @@ function renderWorkout(animate) {
   $('tm-prog').innerHTML = `<i style="width:${pct}%"></i>`;
   $('tm-count').textContent = `${doneSets}/${total} סטים`;
 
-  // נקודות ההתקדמות — תרגיל שהושלם, שדולג, הנוכחי, ושעוד לפניך
   $('tm-dots').innerHTML = es.map((e, i) => {
     const cls = i === active.idx ? 'cur' : e.skipped ? 'skip' : entryDone(e) ? 'ok' : '';
     return `<button class="tm-dot ${cls}" data-go="${i}" aria-label="${e.name}"></button>`;
   }).join('');
 
-  const ei = active.idx, e = es[ei];
-  if (!e) { $('tm-body').innerHTML = '<p class="tm-none">אין תרגילים בתוכנית.</p>'; return; }
+  if (!es.length) { $('tm-body').innerHTML = '<p class="tm-none">אין תרגילים בתוכנית.</p>'; return; }
 
-  const prev = prevEntry(e.name);
-  const prevTxt = prev
-    ? `בפעם הקודמת · ${shortDate(prev.date)} · ${prev.entry.sets.filter(s => s.done)
-      .map(s => `${fmt(s.kg, s.kg % 1 ? 1 : 0)}×${s.reps}`).join(' · ')}`
-    : 'אימון ראשון בתרגיל הזה';
-  const sug = overloadSuggestion(e.name);
-  const groups = [e.primary, ...(e.secondary || []).filter(g => g !== e.primary)]
-    .filter(g => MUSCLES[g])
-    .map((g, i) => `<span class="tm-mg ${i ? 'sec' : ''}">${MUSCLES[g]}</span>`).join('');
+  $('tm-body').innerHTML = es.map((e, ei) => {
+    const prev = prevEntry(e.name);
+    const prevTxt = prev
+      ? `${shortDate(prev.date)} · ${prev.entry.sets.filter(s => s.done)
+        .map(s => `${fmt(s.kg, s.kg % 1 ? 1 : 0)}×${s.reps}`).join(' · ')}`
+      : 'אימון ראשון בתרגיל הזה';
+    const sug = overloadSuggestion(e.name);
+    const groups = [e.primary, ...(e.secondary || []).filter(g => g !== e.primary)]
+      .filter(g => MUSCLES[g])
+      .map((g, i) => `<span class="tm-mg ${i ? 'sec' : ''}">${MUSCLES[g]}</span>`).join('');
+    const done = e.sets.filter(s => s.done).length;
 
-  $('tm-body').innerHTML = `
-    <section class="tm-card ${animate ? 'enter' : ''} ${e.skipped ? 'skipped' : ''}">
-      <div class="tm-pos">תרגיל ${ei + 1} מתוך ${es.length}</div>
-      <h3 class="tm-name">${e.sub || e.name}</h3>
-      ${e.sub ? `<p class="tm-subnote">${icon('info', 13)} במקום ${e.name} · נספר לקבוצת השריר בלבד</p>` : ''}
-      <div class="tm-mgs">${groups}</div>
-      <p class="tm-prev">${e.sub ? '' : prevTxt}</p>
-      ${sug && !e.sub ? `<p class="tm-sug">${icon('bolt', 14)} מוכן ל-${fmt(sug.to, sug.to % 1 ? 1 : 0)} ק״ג?</p>` : ''}
-      ${e.skipped ? '<p class="tm-skipped">התרגיל דולג. סמן סט כדי לחזור אליו.</p>' : ''}
+    return `<section class="tm-card ${e.skipped ? 'skipped' : ''} ${entryDone(e) ? 'complete' : ''}" data-card="${ei}">
+      <header class="tm-chead">
+        <div class="tm-pos">תרגיל ${ei + 1} מתוך ${es.length}<b>${done}/${e.sets.length}</b></div>
+        <h3 class="tm-name">${e.sub || e.name}</h3>
+        ${e.sub ? `<p class="tm-subnote">${icon('info', 13)} במקום ${e.name} · נספר לקבוצת השריר בלבד</p>` : ''}
+        <div class="tm-mgs">${groups}</div>
+        <p class="tm-prev">${e.sub ? '' : prevTxt}</p>
+        ${sug && !e.sub ? `<p class="tm-sug">${icon('bolt', 14)} מוכן ל-${fmt(sug.to, sug.to % 1 ? 1 : 0)} ק״ג?</p>` : ''}
+        ${e.skipped ? '<p class="tm-skipped">התרגיל דולג. סמן סט כדי לחזור אליו.</p>' : ''}
+      </header>
+
       <div class="tm-sets">
         ${e.sets.map((s, si) => {
           const editing = tmEdit && tmEdit.ei === ei && tmEdit.si === si;
           const kgTxt = fmt(s.kg, s.kg % 1 ? 1 : 0);
           return `<div class="tm-set ${s.done ? 'done' : ''}" data-ei="${ei}" data-si="${si}">
-            <span class="tm-n">${si + 1}</span>
-            <span class="tm-grp">
-              <button class="tm-pm" data-act="kg-" aria-label="הורדת משקל">−</button>
-              ${editing
-                ? `<input class="tm-kgin" type="number" inputmode="decimal" step="0.5" min="0" value="${s.kg}" aria-label="משקל">`
-                : `<button class="tm-v" data-act="kg=">${kgTxt}</button>`}
-              <button class="tm-pm" data-act="kg+" aria-label="העלאת משקל">+</button>
-            </span>
-            <small class="tm-u">ק״ג</small>
-            <span class="tm-grp">
-              <button class="tm-pm" data-act="rep-" aria-label="פחות חזרות">−</button>
-              <b class="tm-v">${s.reps}</b>
-              <button class="tm-pm" data-act="rep+" aria-label="יותר חזרות">+</button>
-            </span>
-            <small class="tm-u">חז׳</small>
-            <button class="tm-ok" data-act="done" aria-label="בוצע">${icon('check', 18)}</button>
+            <div class="tm-shead">
+              <span class="tm-n">סט ${si + 1}</span>
+              <button class="tm-ok" data-act="done" aria-label="בוצע">${icon('check', 20)}</button>
+            </div>
+            <div class="tm-fields">
+              <div class="tm-field">
+                <button class="tm-pm" data-act="kg-" aria-label="הורדת משקל">−</button>
+                <span class="tm-fv">
+                  ${editing
+                    ? `<input class="tm-kgin" type="number" inputmode="decimal" step="0.5" min="0" value="${s.kg}" aria-label="משקל">`
+                    : `<button class="tm-v" data-act="kg=">${kgTxt}</button>`}
+                  <small>ק״ג</small>
+                </span>
+                <button class="tm-pm" data-act="kg+" aria-label="העלאת משקל">+</button>
+              </div>
+              <div class="tm-field">
+                <button class="tm-pm" data-act="rep-" aria-label="פחות חזרות">−</button>
+                <span class="tm-fv"><b>${s.reps}</b><small>חזרות</small></span>
+                <button class="tm-pm" data-act="rep+" aria-label="יותר חזרות">+</button>
+              </div>
+            </div>
           </div>`;
         }).join('')}
       </div>
+
       <div class="tm-tools">
         <button data-tool="skip">${e.skipped ? 'בטל דילוג' : 'דלג על התרגיל'}</button>
         <button data-tool="switch">החלף תרגיל</button>
         <button data-tool="sub">${e.sub ? 'בטל חלופי' : 'מבצע תרגיל אחר'}</button>
       </div>
     </section>`;
+  }).join('');
 
+  snapToCard(active.idx, false);
   $('tm-note').value = active.note || '';
   const inp = $('tm-body').querySelector('.tm-kgin');
   if (inp) { inp.focus(); inp.select(); }
+}
+
+/* הצמדה לכרטיס — אותה טכניקה כמו snapToPage: מדידת דלתא (אגנוסטי ל-RTL)
+ * והשבתה זמנית של ההצמדה בקפיצה מיידית, ש-scroll-snap-stop לא יבלום אותה. */
+/* חותמת זמן של הצמדה תכנותית — מאזין הגלילה מתעלם בזמן האנימציה, אחרת
+ * מיקום ביניים היה דורס את active.idx וקובע תרגיל שגוי כנוכחי. */
+let tmSnapUntil = 0;
+
+function snapToCard(idx, smooth) {
+  const body = $('tm-body');
+  const card = body.querySelector(`[data-card="${idx}"]`);
+  if (!card) return;
+  const delta = card.getBoundingClientRect().left - body.getBoundingClientRect().left
+    - (body.clientWidth - card.clientWidth) / 2;
+  if (Math.abs(delta) < 1) return;
+  tmSnapUntil = Date.now() + (smooth ? 800 : 120);
+  if (smooth) { body.scrollBy({ left: delta, behavior: 'smooth' }); return; }
+  const prevSnap = body.style.scrollSnapType;
+  body.style.scrollSnapType = 'none';
+  body.scrollBy({ left: delta, behavior: 'instant' });
+  body.style.scrollSnapType = prevSnap;
+}
+/* איזה כרטיס הכי קרוב למרכז — עובד ב-RTL וב-LTR כאחד */
+function nearestCard() {
+  const body = $('tm-body');
+  const mid = body.getBoundingClientRect().left + body.clientWidth / 2;
+  let best = 0, bestD = Infinity;
+  body.querySelectorAll('[data-card]').forEach(c => {
+    const r = c.getBoundingClientRect();
+    const d = Math.abs(r.left + r.width / 2 - mid);
+    if (d < bestD) { bestD = d; best = +c.dataset.card; }
+  });
+  return best;
 }
 
 /* בחירה ידנית של תרגיל מתוך התוכנית — אחריו הניווט חוזר לסדר המקורי */
@@ -1804,14 +1864,16 @@ $('tm-body').addEventListener('click', e => {
   if (!active) return;
   const tool = e.target.closest('[data-tool]');
   if (tool) {
+    const card = tool.closest('[data-card]');
+    const ei = card ? +card.dataset.card : active.idx;
+    const cur = active.entries[ei];
+    if (!cur) return;
     const t = tool.dataset.tool;
     if (t === 'skip') {
-      const cur = active.entries[active.idx];
-      if (cur.skipped) { cur.skipped = false; saveActive(); renderWorkout(); } else skipExercise();
+      if (cur.skipped) { cur.skipped = false; saveActive(); renderWorkout(); } else skipExercise(ei);
     } else if (t === 'switch') openSwitcher();
     else if (t === 'sub') {
-      const cur = active.entries[active.idx];
-      if (cur.sub) { cur.sub = null; saveActive(); renderWorkout(); } else substituteExercise();
+      if (cur.sub) { cur.sub = null; saveActive(); renderWorkout(); } else substituteExercise(ei);
     }
     return;
   }
@@ -1844,6 +1906,19 @@ $('tm-dots').addEventListener('click', e => {
   const d = e.target.closest('[data-go]');
   if (d && active) goToExercise(+d.dataset.go);
 });
+/* החלקה בין תרגילים — הכרטיס שנח במרכז הופך לתרגיל הנוכחי */
+{
+  let t;
+  $('tm-body').addEventListener('scroll', () => {
+    if (!active) return;
+    clearTimeout(t);
+    t = setTimeout(() => {
+      if (!active || Date.now() < tmSnapUntil) return;
+      const i = nearestCard();
+      if (i !== active.idx) { active.idx = i; saveActive(); renderDots(); haptic(6); }
+    }, 90);
+  }, { passive: true });
+}
 $('switch-modal').addEventListener('click', e => {
   if (e.target.closest('[data-close]')) { closeSwitcher(); return; }
   const row = e.target.closest('[data-go]');
