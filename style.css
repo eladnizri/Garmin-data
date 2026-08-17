@@ -777,6 +777,7 @@ button.tm-v:active { color: var(--primary-500); }
 
 /* ===== סיכום האימון ===== */
 .ts-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 13px; }
+.ts-tiles.one { grid-template-columns: 1fr; }
 .ts-tile { background: var(--surface-2); border-radius: var(--r-md); padding: 14px; text-align: center; }
 .ts-tile small { display: block; font-size: .74rem; color: var(--ink-2); font-weight: 600; }
 .ts-tile b { display: block; font-size: 1.5rem; font-weight: 800; margin: 3px 0 1px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }

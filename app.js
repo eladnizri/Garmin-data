@@ -1275,21 +1275,20 @@ function e1rm(kg, reps) { return kg > 0 && reps > 0 ? kg * (1 + reps / 30) : 0; 
 
 /* סיכום תרגיל בתוך אימון. complete = כל הסטים בוצעו במלוא החזרות המתוכננות */
 function entryStats(entry) {
-  let best = 0, volume = 0, done = 0, full = 0;
+  let best = 0, done = 0, full = 0;
   const sets = entry.sets || [];
   for (const s of sets) {
     if (!s.done) continue;
     done++;
     if (s.reps >= (s.pReps ?? s.reps)) full++;
     best = Math.max(best, e1rm(s.kg, s.reps));
-    volume += s.kg * s.reps;
   }
-  return { best, volume, done, planned: sets.length, complete: sets.length > 0 && full === sets.length };
+  return { best, done, planned: sets.length, complete: sets.length > 0 && full === sets.length };
 }
 function sessionStats(s) {
-  let volume = 0, sets = 0;
-  for (const e of (s.entries || [])) { const st = entryStats(e); volume += st.volume; sets += st.done; }
-  return { volume, sets };
+  let sets = 0;
+  for (const e of (s.entries || [])) sets += entryStats(e).done;
+  return { sets };
 }
 
 /* היסטוריית תרגיל ל-progressive overload. תרגיל חלופי (sub) נספר לשריר
@@ -1544,11 +1543,11 @@ function openSwitcher() {
 }
 function closeSwitcher() { $('switch-modal').classList.add('hidden'); }
 
-/* סיכום בסוף האימון — נפח, השוואה לפעם הקודמת, ושיאים אישיים */
+/* סיכום בסוף האימון — סטים, השוואה לפעם הקודמת, ושיאים אישיים */
 function showSummary(rec) {
   const st = sessionStats(rec);
   const prevSame = sessions.filter(s => s.programId === rec.programId && s.id !== rec.id).pop();
-  const pv = prevSame ? sessionStats(prevSame).volume : null;
+  const pv = prevSame ? sessionStats(prevSame).sets : null;
   const prs = [];
   for (const e of rec.entries) {
     const h = exerciseHistory(e.name);
@@ -1557,13 +1556,12 @@ function showSummary(rec) {
     if (cur && before.length && cur.best > Math.max(...before.map(x => x.best))) prs.push(e.name);
   }
   const delta = pv == null ? '' : (() => {
-    const d = st.volume - pv;
-    if (Math.abs(d) < 1) return '<p class="ts-line">אותו נפח כמו בפעם הקודמת.</p>';
-    return `<p class="ts-line">${d > 0 ? 'עלייה' : 'ירידה'} של <b>${fmt(Math.abs(Math.round(d)))} ק״ג</b> בנפח לעומת הפעם הקודמת.</p>`;
+    const d = st.sets - pv;
+    if (!d) return '<p class="ts-line">אותו מספר סטים כמו בפעם הקודמת.</p>';
+    return `<p class="ts-line">${d > 0 ? 'עוד' : 'פחות'} <b>${Math.abs(d)} סטים</b> לעומת הפעם הקודמת.</p>`;
   })();
   $('ts-body').innerHTML = `
-    <div class="ts-tiles">
-      <div class="ts-tile"><small>נפח כולל</small><b>${fmt(Math.round(st.volume))}</b><i>ק״ג</i></div>
+    <div class="ts-tiles one">
       <div class="ts-tile"><small>סטים</small><b>${st.sets}</b><i>הושלמו</i></div>
     </div>${delta}
     ${prs.length ? `<p class="ts-pr">${icon('trophy', 16)} שיא אישי חדש: <b>${prs.join(' · ')}</b></p>` : ''}`;
@@ -1608,7 +1606,7 @@ function renderTrain() {
   const lastTxt = last ? (() => {
     const st = sessionStats(last);
     return `<div class="tr-last"><span>${longDate(last.date)} · ${last.programName}</span>
-      <b>${fmt(Math.round(st.volume))} ק״ג · ${st.sets} סטים</b></div>`;
+      <b>${st.sets} סטים</b></div>`;
   })() : '<p class="tr-empty">עוד לא תועד אימון. לחץ "התחל אימון" כדי להתחיל.</p>';
 
   el.innerHTML = `<article class="card">
@@ -1634,7 +1632,7 @@ function renderTrain() {
         return `<button class="tr-row" data-sid="${s.id}">
           <span class="tr-d">${shortDate(s.date)}</span>
           <span class="tr-nm">${s.programName}</span>
-          <span class="tr-v">${fmt(Math.round(st.volume))} ק״ג</span>
+          <span class="tr-v">${st.sets} סטים</span>
           <span class="tr-go">›</span></button>`;
       }).join('')}</div></div>` : ''}
   </article>`;
@@ -1668,38 +1666,19 @@ function renderTrainChart() {
       : `1RM משוער ${pct > 0 ? 'עלה' : 'ירד'} ב-<b>${fmt(Math.abs(pct), 1)}%</b>
          מאז ${shortDate(h[0].date)} — מ-${fmt(first, 1)} ל-${fmt(lastB, 1)} ק״ג.`;
   }
-  legend('legend-train', [[C.violet, '1RM משוער'], [C.teal, 'נפח']]);
-  const labels = h.map(x => shortDate(x.date));
+  legend('legend-train', [[C.violet, '1RM משוער']]);
   make('chart-train', {
-    type: 'bar',
+    type: 'line',
     data: {
-      labels,
-      datasets: [
-        { label: 'נפח', data: h.map(x => ({ x: shortDate(x.date), y: Math.round(x.volume), iso: x.date })),
-          backgroundColor: C.teal + '55', borderRadius: 5, borderSkipped: false, maxBarThickness: 22, yAxisID: 'y1', order: 2 },
-        { label: '1RM משוער', type: 'line', data: h.map(x => ({ x: shortDate(x.date), y: +x.best.toFixed(1), iso: x.date })),
-          borderColor: C.violet, borderWidth: 2.4, pointRadius: 3, pointBackgroundColor: C.violet,
-          tension: .3, fill: false, yAxisID: 'y', order: 1 },
-      ],
+      labels: h.map(x => shortDate(x.date)),
+      datasets: [{
+        label: '1RM משוער',
+        data: h.map(x => ({ x: shortDate(x.date), y: +x.best.toFixed(1), iso: x.date })),
+        borderColor: C.violet, borderWidth: 2.4, pointRadius: 3, pointBackgroundColor: C.violet,
+        tension: .3, fill: true, backgroundColor: gradFill(C.violet),
+      }],
     },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      animation: chartAnim ? undefined : false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: TT(i => `${i.dataset.label}: ${fmt(i.raw.y, i.dataset.label === 'נפח' ? 0 : 1)} ק״ג`) },
-      scales: {
-        x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
-        y: { position: 'left', grid: { color: C.grid }, border: { display: false } },
-        // ציר הנפח מוצג במפורש — בלעדיו העמודות נקראות בטעות על סקאלת ה-1RM
-        y1: {
-          position: 'right', beginAtZero: true, grid: { display: false }, border: { display: false },
-          ticks: {
-            maxTicksLimit: 4, color: C.teal, font: { size: 10 },
-            callback: v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v,
-          },
-        },
-      },
-    },
+    options: opts({}, i => `${fmt(i.raw.y, 1)} ק״ג`),
   });
 }
 
@@ -1792,7 +1771,7 @@ function openPastSession(sid) {
   const lines = s.entries.map(e => `${e.name}: ${e.sets.map(x =>
     `${fmt(x.kg, x.kg % 1 ? 1 : 0)}×${x.reps}`).join(', ')}`).join('\n');
   const choice = prompt(
-    `${longDate(s.date)} · ${s.programName}\nנפח ${fmt(Math.round(st.volume))} ק״ג · ${st.sets} סטים\n\n`
+    `${longDate(s.date)} · ${s.programName}\n${st.sets} סטים\n\n`
     + `${lines}\n\n${s.note ? `הערה: ${s.note}\n\n` : ''}`
     + 'להמשך עריכה הקלד:\n"מחק" — למחיקת האימון\n"הערה" — לעריכת ההערה',
     '');
