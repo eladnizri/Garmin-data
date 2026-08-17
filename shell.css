@@ -143,4 +143,13 @@
   background: linear-gradient(135deg, #6d5fd0, #8b7be6); box-shadow: 0 14px 26px -12px rgba(109, 95, 208, .62); transition: transform .12s;
 }
 #hub .quick-report:active { transform: scale(.97); }
+
+/* כפתור התחלת אימון — מקבילה ירוקה לדיווח המהיר */
+#hub .quick-train {
+  width: 100%; margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 9px;
+  padding: 15px; border: none; border-radius: 16px; font-family: inherit; font-size: 1.02rem; font-weight: 800; color: #fff;
+  background: linear-gradient(135deg, #2f8a62, #4bb083); box-shadow: 0 14px 26px -12px rgba(47, 138, 98, .6); transition: transform .12s;
+}
+#hub .quick-train:active { transform: scale(.97); }
+#hub .quick-train svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #hub .quick-report svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

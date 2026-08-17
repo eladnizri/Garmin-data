@@ -1202,6 +1202,530 @@ function renderStrength() {
 }
 
 /* =========================================================================
+ * ניתוח אימון — תוכניות, מצב אימון, ומעקב progressive overload.
+ * הכול מקומי (localStorage): התוכניות, יומן האימונים, והאימון הפעיל.
+ * המפתח לניתוח הוא *שם* התרגיל ולא המזהה, כדי שההיסטוריה תשרוד עריכת תוכנית.
+ * ========================================================================= */
+const PROGRAMS_KEY = 'strength_programs_v1';
+const SESSIONS_KEY = 'strength_sessions_v1';
+const ACTIVE_KEY = 'strength_active_v1';
+const STEP_KG = 2.5;        // קפיצת המשקל בכפתורי ±
+const OVERLOAD_N = 2;       // אימונים מושלמים ברצף לפני הצעת העלאה
+
+let programs = [], sessions = [], active = null;
+
+const uid = () => Math.random().toString(36).slice(2, 9);
+function jsonGet(key, fallback) {
+  try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; } catch { return fallback; }
+}
+function jsonSet(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch {} }
+
+function loadTraining() {
+  programs = jsonGet(PROGRAMS_KEY, []);
+  sessions = jsonGet(SESSIONS_KEY, []);
+  active = jsonGet(ACTIVE_KEY, null);
+  if (!Array.isArray(programs)) programs = [];
+  if (!Array.isArray(sessions)) sessions = [];
+  sessions.sort((a, b) => a.date.localeCompare(b.date));
+}
+const savePrograms = () => jsonSet(PROGRAMS_KEY, programs);
+const saveSessions = () => jsonSet(SESSIONS_KEY, sessions);
+function saveActive() {
+  try {
+    if (active) localStorage.setItem(ACTIVE_KEY, JSON.stringify(active));
+    else localStorage.removeItem(ACTIVE_KEY);
+  } catch {}
+}
+
+/* 1RM משוער (Epley) — מאחד משקל וחזרות למספר אחד בר-השוואה בין אימונים */
+function e1rm(kg, reps) { return kg > 0 && reps > 0 ? kg * (1 + reps / 30) : 0; }
+
+/* סיכום תרגיל בתוך אימון. complete = כל הסטים בוצעו במלוא החזרות המתוכננות */
+function entryStats(entry) {
+  let best = 0, volume = 0, done = 0, full = 0;
+  const sets = entry.sets || [];
+  for (const s of sets) {
+    if (!s.done) continue;
+    done++;
+    if (s.reps >= (s.pReps ?? s.reps)) full++;
+    best = Math.max(best, e1rm(s.kg, s.reps));
+    volume += s.kg * s.reps;
+  }
+  return { best, volume, done, planned: sets.length, complete: sets.length > 0 && full === sets.length };
+}
+function sessionStats(s) {
+  let volume = 0, sets = 0;
+  for (const e of (s.entries || [])) { const st = entryStats(e); volume += st.volume; sets += st.done; }
+  return { volume, sets };
+}
+
+function exerciseHistory(name) {
+  const out = [];
+  for (const s of sessions) {
+    const e = (s.entries || []).find(x => x.name === name);
+    if (!e) continue;
+    const st = entryStats(e);
+    if (st.done) out.push({ date: s.date, entry: e, ...st });
+  }
+  return out;
+}
+function allExerciseNames() {
+  const set = new Set();
+  for (const p of programs) for (const e of (p.exercises || [])) set.add(e.name);
+  for (const s of sessions) for (const e of (s.entries || [])) set.add(e.name);
+  return [...set];
+}
+/* מה עשית בתרגיל הזה בפעם הקודמת — מוצג במצב אימון */
+function prevEntry(name) {
+  const h = exerciseHistory(name);
+  return h.length ? h[h.length - 1] : null;
+}
+
+/* הצעת העלאה: אותו משקל מרבי בשני האימונים האחרונים, ובשניהם כל הסטים
+ * הושלמו במלוא החזרות. אז — ורק אז — הגוף מוכן לקפיצה הבאה. */
+function overloadSuggestion(name) {
+  const h = exerciseHistory(name);
+  if (h.length < OVERLOAD_N) return null;
+  const recent = h.slice(-OVERLOAD_N);
+  if (!recent.every(x => x.complete)) return null;
+  const tops = recent.map(x => Math.max(...x.entry.sets.filter(s => s.done).map(s => s.kg)));
+  if (new Set(tops).size !== 1 || !tops[0]) return null;
+  return { name, from: tops[0], to: tops[0] + STEP_KG };
+}
+function allSuggestions() {
+  return allExerciseNames().map(overloadSuggestion).filter(Boolean);
+}
+
+/* ---------- מצב אימון ---------- */
+function startWorkout(programId) {
+  if (!programs.length) { openProgram(); return; }
+  if (active && !confirm('יש אימון פתוח. להתחיל אימון חדש במקומו?')) { openWorkout(); return; }
+  const p = programs.find(x => x.id === programId) || programs[0];
+  active = {
+    id: uid(), date: todayISO(), started: Date.now(),
+    programId: p.id, programName: p.name, note: '',
+    entries: (p.exercises || []).map(ex => ({
+      exId: ex.id, name: ex.name,
+      sets: (ex.sets || []).map(s => ({ pReps: s.reps, reps: s.reps, kg: s.kg, done: false })),
+    })),
+  };
+  saveActive();
+  openWorkout();
+}
+function openWorkout() {
+  if (!active) return;
+  $('train-mode').classList.remove('hidden');
+  document.body.classList.add('tm-open');
+  renderWorkout();
+}
+function closeWorkout() {
+  $('train-mode').classList.add('hidden');
+  document.body.classList.remove('tm-open');
+  tmEdit = null;
+}
+function discardWorkout() {
+  if (!confirm('לבטל את האימון? מה שסימנת לא יישמר.')) return;
+  active = null; saveActive(); closeWorkout(); renderTrain();
+}
+function finishWorkout() {
+  if (!active) return;
+  const st = sessionStats(active);
+  if (!st.sets) {
+    if (!confirm('לא סומן אף סט. לסיים בלי לשמור?')) return;
+    active = null; saveActive(); closeWorkout(); renderTrain(); return;
+  }
+  // שומרים רק את מה שבוצע בפועל — סט שלא סומן לא קרה
+  const rec = {
+    ...active,
+    entries: active.entries
+      .map(e => ({ ...e, sets: e.sets.filter(s => s.done) }))
+      .filter(e => e.sets.length),
+  };
+  delete rec.started;
+  sessions.push(rec);
+  sessions.sort((a, b) => a.date.localeCompare(b.date));
+  saveSessions();
+  // אימון כוח שבוצע מסמן גם את לוח ה-V השבועי
+  strengthChecks[active.date] = true; saveStrength();
+  active = null; saveActive();
+  closeWorkout();
+  renderStrength(); renderTrain();
+  showSummary(rec);
+}
+
+/* מצב עריכה של תא משקל בתוך מצב אימון: {ei, si} או null */
+let tmEdit = null;
+
+function renderWorkout() {
+  if (!active) return;
+  const total = active.entries.reduce((a, e) => a + e.sets.length, 0);
+  const done = active.entries.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
+  const pct = total ? Math.round(done / total * 100) : 0;
+  $('tm-title').textContent = active.programName;
+  $('tm-prog').innerHTML = `<i style="width:${pct}%"></i>`;
+  $('tm-count').textContent = `${done}/${total} סטים`;
+
+  $('tm-body').innerHTML = active.entries.map((e, ei) => {
+    const prev = prevEntry(e.name);
+    const prevTxt = prev
+      ? `בפעם הקודמת · ${shortDate(prev.date)} · ${prev.entry.sets.filter(s => s.done)
+        .map(s => `${fmt(s.kg, s.kg % 1 ? 1 : 0)}×${s.reps}`).join(' · ')}`
+      : 'אימון ראשון בתרגיל הזה';
+    const sug = overloadSuggestion(e.name);
+    const allDone = e.sets.every(s => s.done);
+    return `<section class="tm-ex ${allDone ? 'all-done' : ''}">
+      <h3>${e.name}${allDone ? icon('check', 16, 'tm-exok') : ''}</h3>
+      <p class="tm-prev">${prevTxt}</p>
+      ${sug ? `<p class="tm-sug">${icon('bolt', 14)} מוכן ל-${fmt(sug.to, sug.to % 1 ? 1 : 0)} ק״ג?</p>` : ''}
+      ${e.sets.map((s, si) => {
+        const editing = tmEdit && tmEdit.ei === ei && tmEdit.si === si;
+        const kgTxt = fmt(s.kg, s.kg % 1 ? 1 : 0);
+        return `<div class="tm-set ${s.done ? 'done' : ''}" data-ei="${ei}" data-si="${si}">
+          <span class="tm-n">${si + 1}</span>
+          <span class="tm-grp">
+            <button class="tm-pm" data-act="kg-" aria-label="הורדת משקל">−</button>
+            ${editing
+              ? `<input class="tm-kgin" type="number" inputmode="decimal" step="0.5" min="0" value="${s.kg}" aria-label="משקל">`
+              : `<button class="tm-v" data-act="kg=">${kgTxt}</button>`}
+            <button class="tm-pm" data-act="kg+" aria-label="העלאת משקל">+</button>
+          </span>
+          <small class="tm-u">ק״ג</small>
+          <span class="tm-grp">
+            <button class="tm-pm" data-act="rep-" aria-label="פחות חזרות">−</button>
+            <b class="tm-v">${s.reps}</b>
+            <button class="tm-pm" data-act="rep+" aria-label="יותר חזרות">+</button>
+          </span>
+          <small class="tm-u">חז׳</small>
+          <button class="tm-ok" data-act="done" aria-label="בוצע">${icon('check', 18)}</button>
+        </div>`;
+      }).join('')}
+    </section>`;
+  }).join('') || '<p class="hub-empty">אין תרגילים בתוכנית.</p>';
+
+  $('tm-note').value = active.note || '';
+  const inp = $('tm-body').querySelector('.tm-kgin');
+  if (inp) { inp.focus(); inp.select(); }
+}
+
+/* סיכום בסוף האימון — נפח, השוואה לפעם הקודמת, ושיאים אישיים */
+function showSummary(rec) {
+  const st = sessionStats(rec);
+  const prevSame = sessions.filter(s => s.programId === rec.programId && s.id !== rec.id).pop();
+  const pv = prevSame ? sessionStats(prevSame).volume : null;
+  const prs = [];
+  for (const e of rec.entries) {
+    const h = exerciseHistory(e.name);
+    const cur = h[h.length - 1];
+    const before = h.slice(0, -1);
+    if (cur && before.length && cur.best > Math.max(...before.map(x => x.best))) prs.push(e.name);
+  }
+  const delta = pv == null ? '' : (() => {
+    const d = st.volume - pv;
+    if (Math.abs(d) < 1) return '<p class="ts-line">אותו נפח כמו בפעם הקודמת.</p>';
+    return `<p class="ts-line">${d > 0 ? 'עלייה' : 'ירידה'} של <b>${fmt(Math.abs(Math.round(d)))} ק״ג</b> בנפח לעומת הפעם הקודמת.</p>`;
+  })();
+  $('ts-body').innerHTML = `
+    <div class="ts-tiles">
+      <div class="ts-tile"><small>נפח כולל</small><b>${fmt(Math.round(st.volume))}</b><i>ק״ג</i></div>
+      <div class="ts-tile"><small>סטים</small><b>${st.sets}</b><i>הושלמו</i></div>
+    </div>${delta}
+    ${prs.length ? `<p class="ts-pr">${icon('trophy', 16)} שיא אישי חדש: <b>${prs.join(' · ')}</b></p>` : ''}`;
+  $('train-summary').classList.remove('hidden');
+}
+
+/* ---------- כרטיס הניתוח בעמוד הפעילות ---------- */
+function renderTrain() {
+  const el = $('train-card');
+  if (!programs.length && !sessions.length) {
+    el.innerHTML = `<article class="card train-empty">
+      <div class="body-head"><h2>ניתוח אימון</h2></div>
+      <p class="tr-empty">הזן את תוכנית האימונים פעם אחת, ומכאן והלאה כל אימון יתועד בלחיצות
+        — עם מעקב אחר העלאת המשקלים (progressive overload) וגרף השתפרות לכל תרגיל.</p>
+      <button class="btn-primary tr-wide" id="tr-new">יצירת תוכנית אימונים</button>
+    </article>`;
+    return;
+  }
+  const sug = allSuggestions();
+  const last = sessions[sessions.length - 1];
+  const names = allExerciseNames();
+  if (!names.includes(state.trainEx)) state.trainEx = names[0] || '';
+
+  const lastTxt = last ? (() => {
+    const st = sessionStats(last);
+    return `<div class="tr-last"><span>${longDate(last.date)} · ${last.programName}</span>
+      <b>${fmt(Math.round(st.volume))} ק״ג · ${st.sets} סטים</b></div>`;
+  })() : '<p class="tr-empty">עוד לא תועד אימון. לחץ "התחל אימון" כדי להתחיל.</p>';
+
+  el.innerHTML = `<article class="card">
+    <div class="body-head"><h2>ניתוח אימון</h2>
+      <button class="world-link tr-manage" id="tr-manage">תוכניות ‹</button></div>
+    ${lastTxt}
+    <button class="btn-primary tr-wide" id="tr-start">${active ? 'המשך אימון' : 'התחל אימון'}</button>
+    ${sug.length ? `<div class="tr-sugs"><h3>${icon('bolt', 15)} מוכן להעלות משקל</h3>
+      <div class="tr-chips">${sug.map(s => `<span class="tr-chip">${s.name}
+        <b>${fmt(s.from, s.from % 1 ? 1 : 0)}→${fmt(s.to, s.to % 1 ? 1 : 0)}</b></span>`).join('')}</div></div>` : ''}
+    ${names.length ? `<div class="tr-sec">
+      <div class="tr-sec-head"><h3>גרף השתפרות</h3>
+        <select id="tr-ex" class="tr-sel">${names.map(n =>
+          `<option value="${n}" ${n === state.trainEx ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <div class="legend" id="legend-train"></div>
+      <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-train"></canvas></div>
+      <p class="tr-note" id="tr-exnote"></p>
+    </div>` : ''}
+    ${sessions.length ? `<div class="tr-sec"><h3>היסטוריה</h3>
+      <div class="tr-hist">${sessions.slice(-8).reverse().map(s => {
+        const st = sessionStats(s);
+        return `<button class="tr-row" data-sid="${s.id}">
+          <span class="tr-d">${shortDate(s.date)}</span>
+          <span class="tr-nm">${s.programName}</span>
+          <span class="tr-v">${fmt(Math.round(st.volume))} ק״ג</span>
+          <span class="tr-go">›</span></button>`;
+      }).join('')}</div></div>` : ''}
+  </article>`;
+  renderTrainChart();
+}
+
+function renderTrainChart() {
+  const name = state.trainEx;
+  const h = name ? exerciseHistory(name) : [];
+  const note = $('tr-exnote');
+  if (!$('chart-train')) return;
+  if (h.length < 2) {
+    charts['chart-train']?.destroy(); delete charts['chart-train'];
+    if (note) note.textContent = h.length === 1
+      ? 'אימון אחד תועד בתרגיל הזה — הגרף יופיע אחרי השני.'
+      : 'עוד לא תועדו אימונים בתרגיל הזה.';
+    return;
+  }
+  const first = h[0].best, lastB = h[h.length - 1].best;
+  const pct = first > 0 ? (lastB - first) / first * 100 : 0;
+  if (note) {
+    note.innerHTML = Math.abs(pct) < 1
+      ? `1RM משוער יציב סביב ${fmt(lastB, 1)} ק״ג.`
+      : `1RM משוער ${pct > 0 ? 'עלה' : 'ירד'} ב-<b>${fmt(Math.abs(pct), 1)}%</b>
+         מאז ${shortDate(h[0].date)} — מ-${fmt(first, 1)} ל-${fmt(lastB, 1)} ק״ג.`;
+  }
+  legend('legend-train', [[C.violet, '1RM משוער'], [C.teal, 'נפח']]);
+  const labels = h.map(x => shortDate(x.date));
+  make('chart-train', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'נפח', data: h.map(x => ({ x: shortDate(x.date), y: Math.round(x.volume), iso: x.date })),
+          backgroundColor: C.teal + '55', borderRadius: 5, borderSkipped: false, maxBarThickness: 22, yAxisID: 'y1', order: 2 },
+        { label: '1RM משוער', type: 'line', data: h.map(x => ({ x: shortDate(x.date), y: +x.best.toFixed(1), iso: x.date })),
+          borderColor: C.violet, borderWidth: 2.4, pointRadius: 3, pointBackgroundColor: C.violet,
+          tension: .3, fill: false, yAxisID: 'y', order: 1 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: chartAnim ? undefined : false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: TT(i => `${i.dataset.label}: ${fmt(i.raw.y, i.dataset.label === 'נפח' ? 0 : 1)} ק״ג`) },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
+        y: { position: 'left', grid: { color: C.grid }, border: { display: false } },
+        // ציר הנפח מוצג במפורש — בלעדיו העמודות נקראות בטעות על סקאלת ה-1RM
+        y1: {
+          position: 'right', beginAtZero: true, grid: { display: false }, border: { display: false },
+          ticks: {
+            maxTicksLimit: 4, color: C.teal, font: { size: 10 },
+            callback: v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v,
+          },
+        },
+      },
+    },
+  });
+}
+
+/* ---------- עורך התוכניות ---------- */
+let pgDraft = null;   // התוכנית שבעריכה (עותק — נשמר רק ב"שמירה")
+
+function openProgram(id) {
+  const src = programs.find(p => p.id === id);
+  pgDraft = src
+    ? JSON.parse(JSON.stringify(src))
+    : { id: uid(), name: '', exercises: [{ id: uid(), name: '', sets: [{ reps: 10, kg: 20 }] }] };
+  renderProgram();
+  $('program-modal').classList.remove('hidden');
+}
+function closeProgram() { $('program-modal').classList.add('hidden'); pgDraft = null; }
+
+function renderProgram() {
+  if (!pgDraft) return;
+  $('pg-title').textContent = programs.some(p => p.id === pgDraft.id) ? 'עריכת תוכנית' : 'תוכנית חדשה';
+  $('pg-name').value = pgDraft.name || '';
+  $('pg-ex').innerHTML = pgDraft.exercises.map((ex, ei) => `
+    <div class="pg-card" data-ei="${ei}">
+      <div class="pg-exhead">
+        <input class="pg-exname" data-act="exname" value="${(ex.name || '').replace(/"/g, '&quot;')}"
+          placeholder="שם התרגיל (למשל סקוואט)" aria-label="שם התרגיל">
+        <button class="pg-del" data-act="exdel" aria-label="מחיקת תרגיל">✕</button>
+      </div>
+      <div class="pg-sets">
+        <div class="pg-shead"><span>סט</span><span>חזרות</span><span>ק״ג</span><span></span></div>
+        ${ex.sets.map((s, si) => `<div class="pg-set" data-si="${si}">
+          <span class="pg-n">${si + 1}</span>
+          <input type="number" data-act="reps" min="1" max="100" inputmode="numeric" value="${s.reps}" aria-label="חזרות">
+          <input type="number" data-act="kg" min="0" max="500" step="0.5" inputmode="decimal" value="${s.kg}" aria-label="משקל">
+          <button class="pg-del" data-act="setdel" aria-label="מחיקת סט">✕</button>
+        </div>`).join('')}
+      </div>
+      <button class="pg-add" data-act="setadd">+ סט</button>
+    </div>`).join('');
+  const other = programs.filter(p => p.id !== pgDraft.id);
+  $('pg-list').innerHTML = other.length
+    ? `<div class="pg-others"><small>תוכניות קיימות</small>${other.map(p =>
+      `<button class="pg-other" data-pid="${p.id}">${p.name || 'ללא שם'}
+        <em>${(p.exercises || []).length} תרגילים</em></button>`).join('')}</div>`
+    : '';
+}
+
+function saveProgram() {
+  if (!pgDraft) return;
+  pgDraft.name = ($('pg-name').value || '').trim();
+  if (!pgDraft.name) { toast('צריך שם לתוכנית'); return; }
+  pgDraft.exercises = pgDraft.exercises
+    .map(ex => ({ ...ex, name: (ex.name || '').trim(), sets: ex.sets.filter(s => s.reps > 0) }))
+    .filter(ex => ex.name && ex.sets.length);
+  if (!pgDraft.exercises.length) { toast('צריך לפחות תרגיל אחד עם סט'); return; }
+  const i = programs.findIndex(p => p.id === pgDraft.id);
+  if (i >= 0) programs[i] = pgDraft; else programs.push(pgDraft);
+  savePrograms();
+  closeProgram();
+  renderTrain();
+  toast('התוכנית נשמרה');
+}
+function deleteProgram() {
+  if (!pgDraft || !programs.some(p => p.id === pgDraft.id)) { closeProgram(); return; }
+  if (!confirm('למחוק את התוכנית? האימונים שכבר תועדו יישארו.')) return;
+  programs = programs.filter(p => p.id !== pgDraft.id);
+  savePrograms(); closeProgram(); renderTrain();
+}
+
+/* ---------- עריכת אימון שנשמר ---------- */
+function openPastSession(sid) {
+  const s = sessions.find(x => x.id === sid);
+  if (!s) return;
+  const st = sessionStats(s);
+  const lines = s.entries.map(e => `${e.name}: ${e.sets.map(x =>
+    `${fmt(x.kg, x.kg % 1 ? 1 : 0)}×${x.reps}`).join(', ')}`).join('\n');
+  const choice = prompt(
+    `${longDate(s.date)} · ${s.programName}\nנפח ${fmt(Math.round(st.volume))} ק״ג · ${st.sets} סטים\n\n`
+    + `${lines}\n\n${s.note ? `הערה: ${s.note}\n\n` : ''}`
+    + 'להמשך עריכה הקלד:\n"מחק" — למחיקת האימון\n"הערה" — לעריכת ההערה',
+    '');
+  if (choice === null) return;
+  const c = choice.trim();
+  if (c === 'מחק') {
+    if (!confirm('למחוק את האימון הזה מההיסטוריה?')) return;
+    sessions = sessions.filter(x => x.id !== sid);
+    saveSessions(); renderTrain(); toast('האימון נמחק');
+  } else if (c === 'הערה') {
+    const n = prompt('הערה לאימון:', s.note || '');
+    if (n === null) return;
+    s.note = n.trim(); saveSessions(); toast('ההערה עודכנה');
+  }
+}
+
+/* ---------- חיווט אירועים ---------- */
+$('train-card').addEventListener('click', e => {
+  if (e.target.closest('#tr-new') || e.target.closest('#tr-manage')) { openProgram(programs[0]?.id); return; }
+  if (e.target.closest('#tr-start')) { active ? openWorkout() : startWorkout(programs[0]?.id); return; }
+  const row = e.target.closest('.tr-row');
+  if (row) openPastSession(row.dataset.sid);
+});
+$('train-card').addEventListener('change', e => {
+  if (e.target.id === 'tr-ex') { state.trainEx = e.target.value; renderTrainChart(); }
+});
+
+/* מצב אימון — כל הלחיצות דרך מאזין אחד על הרשימה */
+$('tm-body').addEventListener('click', e => {
+  const btn = e.target.closest('[data-act]');
+  if (!btn || !active) return;
+  const row = btn.closest('.tm-set');
+  if (!row) return;
+  const ei = +row.dataset.ei, si = +row.dataset.si;
+  const s = active.entries[ei]?.sets[si];
+  if (!s) return;
+  const act = btn.dataset.act;
+  if (act === 'kg-') s.kg = Math.max(0, +(s.kg - STEP_KG).toFixed(2));
+  else if (act === 'kg+') s.kg = +(s.kg + STEP_KG).toFixed(2);
+  else if (act === 'kg=') { tmEdit = { ei, si }; renderWorkout(); return; }
+  else if (act === 'rep-') s.reps = Math.max(1, s.reps - 1);
+  else if (act === 'rep+') s.reps = s.reps + 1;
+  else if (act === 'done') { s.done = !s.done; haptic(s.done ? 12 : 6); }
+  tmEdit = null;
+  saveActive();
+  renderWorkout();
+});
+/* קליטת משקל מדויק מהשדה הפתוח */
+$('tm-body').addEventListener('change', e => {
+  if (!e.target.classList.contains('tm-kgin') || !active || !tmEdit) return;
+  const s = active.entries[tmEdit.ei]?.sets[tmEdit.si];
+  const v = parseFloat(e.target.value);
+  if (s && !Number.isNaN(v) && v >= 0) s.kg = v;
+  tmEdit = null; saveActive(); renderWorkout();
+});
+$('tm-body').addEventListener('keydown', e => {
+  if (e.target.classList.contains('tm-kgin') && e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+});
+$('tm-note').addEventListener('input', e => { if (active) { active.note = e.target.value; saveActive(); } });
+$('tm-finish').addEventListener('click', finishWorkout);
+$('tm-close').addEventListener('click', closeWorkout);
+$('tm-discard').addEventListener('click', discardWorkout);
+$('train-summary').addEventListener('click', e => {
+  if (e.target.closest('[data-close]')) $('train-summary').classList.add('hidden');
+});
+
+/* עורך התוכנית */
+$('program-modal').addEventListener('click', e => {
+  if (e.target.closest('[data-close]')) { closeProgram(); return; }
+  if (e.target.closest('#pg-save')) { saveProgram(); return; }
+  if (e.target.closest('#pg-delete')) { deleteProgram(); return; }
+  if (e.target.closest('#pg-newex')) {
+    pgDraft.exercises.push({ id: uid(), name: '', sets: [{ reps: 10, kg: 20 }] });
+    renderProgram(); return;
+  }
+  if (e.target.closest('#pg-newprog')) { openProgram(); return; }
+  const other = e.target.closest('.pg-other');
+  if (other) { openProgram(other.dataset.pid); return; }
+  const act = e.target.closest('[data-act]');
+  if (!act || !pgDraft) return;
+  const card = act.closest('.pg-card');
+  const ei = card ? +card.dataset.ei : -1;
+  const ex = pgDraft.exercises[ei];
+  if (!ex) return;
+  if (act.dataset.act === 'exdel') {
+    if (pgDraft.exercises.length === 1) { toast('צריך לפחות תרגיל אחד'); return; }
+    pgDraft.exercises.splice(ei, 1); renderProgram();
+  } else if (act.dataset.act === 'setadd') {
+    const lastSet = ex.sets[ex.sets.length - 1] || { reps: 10, kg: 20 };
+    ex.sets.push({ ...lastSet }); renderProgram();
+  } else if (act.dataset.act === 'setdel') {
+    if (ex.sets.length === 1) { toast('צריך לפחות סט אחד'); return; }
+    ex.sets.splice(+act.closest('.pg-set').dataset.si, 1); renderProgram();
+  }
+});
+/* שינויי טקסט בעורך נשמרים לטיוטה בלי רינדור מחדש (כדי לא לאבד פוקוס) */
+$('program-modal').addEventListener('input', e => {
+  const act = e.target.dataset.act;
+  if (!act || !pgDraft) return;
+  if (act === 'pgname') { pgDraft.name = e.target.value; return; }
+  const card = e.target.closest('.pg-card');
+  const ex = card && pgDraft.exercises[+card.dataset.ei];
+  if (act === 'exname' && ex) ex.name = e.target.value;
+  else if (ex) {
+    const set = ex.sets[+e.target.closest('.pg-set').dataset.si];
+    if (!set) return;
+    if (act === 'reps') set.reps = Math.max(1, parseInt(e.target.value, 10) || 0);
+    else if (act === 'kg') set.kg = Math.max(0, parseFloat(e.target.value) || 0);
+  }
+});
+
+/* =========================================================================
  * סיכום שבועי — השבוע מול השבוע הקודם
  * ========================================================================= */
 function weekRows(startOffset) {
@@ -1447,6 +1971,7 @@ function exportBackup() {
   const backup = {
     version: 1, exportedAt: new Date().toISOString(),
     profile, weight_log_v1: weights, strength_checks_v1: strengthChecks,
+    strength_programs_v1: programs, strength_sessions_v1: sessions,
   };
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -1465,6 +1990,8 @@ function importBackup(file) {
       if (b.profile) saveProfileObj(b.profile);
       if (Array.isArray(b.weight_log_v1)) { weights = b.weight_log_v1; saveWeights(); }
       if (b.strength_checks_v1 && typeof b.strength_checks_v1 === 'object') { strengthChecks = b.strength_checks_v1; saveStrength(); }
+      if (Array.isArray(b.strength_programs_v1)) { programs = b.strength_programs_v1; savePrograms(); }
+      if (Array.isArray(b.strength_sessions_v1)) { sessions = b.strength_sessions_v1; saveSessions(); }
       loadProfile();
       closeProfile();
       renderAll();
@@ -1503,6 +2030,7 @@ function renderAll() {
   statHero('heart-hero', 'hrv', hrvExtra());
   statHero('steps-hero', 'steps');
   renderStrength();
+  renderTrain();
   renderActivityRec();
   renderCharts();
   renderBreathing();
@@ -1756,6 +2284,7 @@ async function init() {
   loadProfile();
   loadWeights();
   loadStrength();
+  loadTraining();
   const { data, isDemo } = await loadHealthData();
   state.data = data;
   state.isDemo = isDemo;
