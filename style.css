@@ -706,62 +706,110 @@ body.tm-open { overflow: hidden; }
 .tm-dot.skip { background: var(--muted); opacity: .5; }
 .tm-dot.cur { width: 22px; background: var(--primary-400); }
 
-.tm-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 16px 4px; }
-.tm-none { color: var(--muted); font-size: .85rem; text-align: center; padding: 24px 0; }
+/* פייג'ר הכרטיסים — החלקה טבעית באותה מוסכמת scroll-snap כמו הפייג'ר הראשי */
+.tm-body {
+  flex: 1; min-height: 0;
+  display: flex; align-items: stretch; gap: 12px;
+  overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 0 14px; scrollbar-width: none;
+}
+.tm-body::-webkit-scrollbar { display: none; }
+.tm-none { color: var(--muted); font-size: .85rem; text-align: center; padding: 24px 0; margin: auto; }
 
-/* כרטיס התרגיל הבודד — מסך אחד, תרגיל אחד */
-.tm-card { background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 20px 17px 14px; }
-.tm-card.enter { animation: tmIn .34s cubic-bezier(.22, 1, .36, 1) backwards; }
-@keyframes tmIn { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
-.tm-card.skipped { opacity: .66; }
-.tm-pos { font-size: .7rem; font-weight: 700; letter-spacing: .05em; color: var(--muted); }
-.tm-name { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; margin-top: 3px; line-height: 1.2; }
-.tm-subnote { display: flex; align-items: center; gap: 5px; font-size: .74rem; color: var(--watch); font-weight: 600; margin-top: 5px; }
-.tm-mgs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
-.tm-mg { font-size: .7rem; font-weight: 700; color: var(--primary-500); background: var(--primary-soft); border-radius: 999px; padding: 4px 10px; }
+/* כרטיס תרגיל — ממלא את הגובה, עם הצצה לכרטיס הסמוך משני הצדדים */
+.tm-card {
+  flex: 0 0 86%; scroll-snap-align: center; scroll-snap-stop: always;
+  display: flex; flex-direction: column; min-width: 0;
+  background: var(--surface); border-radius: 28px; box-shadow: var(--shadow);
+  padding: 20px 18px 12px;
+}
+.tm-card:first-child { margin-inline-start: 7%; }
+.tm-card:last-child { margin-inline-end: 7%; }
+.tm-card.skipped { opacity: .6; }
+.tm-card.complete { box-shadow: var(--shadow), inset 0 0 0 2px var(--primary-soft); }
+
+.tm-chead { flex: none; }
+.tm-pos {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-size: .72rem; font-weight: 700; letter-spacing: .04em; color: var(--muted);
+}
+.tm-pos b { font-size: .8rem; font-weight: 800; color: var(--primary-500); font-variant-numeric: tabular-nums; }
+.tm-name { font-size: 1.9rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.15; margin-top: 6px; }
+.tm-subnote { display: flex; align-items: center; gap: 5px; font-size: .74rem; color: var(--watch); font-weight: 600; margin-top: 6px; }
+.tm-mgs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.tm-mg { font-size: .72rem; font-weight: 700; color: var(--primary-500); background: var(--primary-soft); border-radius: 999px; padding: 5px 11px; }
 .tm-mg.sec { color: var(--ink-2); background: var(--surface-2); font-weight: 600; }
-.tm-skipped { font-size: .78rem; color: var(--muted); margin-top: 9px; }
-.tm-sets { margin-top: 12px; }
+.tm-prev { font-size: .75rem; color: var(--muted); margin-top: 9px; line-height: 1.5; }
+.tm-sug { display: flex; align-items: center; gap: 5px; font-size: .78rem; font-weight: 700; color: var(--primary-500); margin-top: 7px; }
+.tm-skipped { font-size: .78rem; color: var(--muted); margin-top: 8px; }
 
-/* שורת הכלים — דלג · החלף · תרגיל אחר */
-.tm-tools { display: flex; gap: 6px; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--line); }
-.tm-tools button {
-  flex: 1; background: none; border: none; font-family: inherit;
-  font-size: .76rem; font-weight: 700; color: var(--ink-2); padding: 7px 2px; border-radius: 9px;
+/* אזור הסטים — גדל וגולל בפנים כשיש הרבה סטים */
+.tm-sets {
+  flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column; justify-content: center; gap: 10px;
+  margin-top: 16px; padding: 2px 0; scrollbar-width: none;
 }
-.tm-tools button:active { background: var(--surface-2); color: var(--primary-500); }
+.tm-sets::-webkit-scrollbar { display: none; }
 
+/* כל סט הוא בלוק בן שתי שורות — כותרת עם כפתור בוצע, ומתחתיה הפקדים */
 .tm-set {
-  display: flex; align-items: center; gap: 5px; padding: 8px 0;
-  border-bottom: 1px solid var(--line);
+  flex: none; display: flex; flex-direction: column; gap: 9px;
+  background: var(--surface-2); border-radius: 20px; padding: 12px 13px 14px;
+  transition: background .18s;
 }
-.tm-set:last-child { border-bottom: none; }
-.tm-set.done { opacity: .5; }
-.tm-n { flex: none; width: 17px; font-size: .78rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
-.tm-grp { display: flex; align-items: center; gap: 1px; }
+.tm-set.done { background: var(--primary-soft); }
+.tm-shead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tm-n { font-size: .74rem; font-weight: 700; color: var(--ink-2); letter-spacing: .02em; }
+.tm-ok {
+  flex: none; width: 46px; height: 40px; border: none; border-radius: 13px;
+  background: var(--surface); color: var(--muted); display: grid; place-items: center;
+  box-shadow: var(--shadow-sm); transition: transform .12s, background .18s, color .18s;
+}
+.tm-set.done .tm-ok { background: var(--primary); color: #fff; box-shadow: 0 10px 20px -10px rgba(47, 138, 98, .7); }
+.tm-ok:active { transform: scale(.92); }
+
+.tm-fields { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tm-field { display: flex; align-items: center; gap: 3px; }
 .tm-pm {
-  flex: none; width: 30px; height: 34px; border: none; border-radius: 9px;
-  background: var(--surface-2); color: var(--ink-2); font-family: inherit; font-size: 1.05rem; font-weight: 700;
+  flex: none; width: 34px; height: 40px; border: none; border-radius: 12px;
+  background: var(--surface); color: var(--ink-2); font-family: inherit; font-size: 1.2rem; font-weight: 700;
+  box-shadow: var(--shadow-sm);
 }
-.tm-pm:active { background: var(--primary-soft); color: var(--primary-500); }
-.tm-v {
-  min-width: 38px; padding: 0 3px; border: none; background: none; text-align: center;
-  font-family: inherit; font-size: .98rem; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums;
+.tm-pm:active { background: var(--primary); color: #fff; }
+.tm-fv { display: flex; flex-direction: column; align-items: center; min-width: 54px; }
+.tm-fv b, .tm-v {
+  font-family: inherit; font-size: 1.34rem; font-weight: 800; color: var(--ink); line-height: 1.1;
+  font-variant-numeric: tabular-nums; letter-spacing: -.02em; background: none; border: none; padding: 0;
 }
+.tm-fv small { font-size: .61rem; color: var(--muted); font-weight: 600; margin-top: 2px; white-space: nowrap; }
 button.tm-v:active { color: var(--primary-500); }
 .tm-kgin {
-  width: 52px; padding: 6px 2px; text-align: center; font: inherit; font-size: .95rem; font-weight: 800;
-  border: 1px solid var(--primary); border-radius: 9px; background: var(--surface);
+  width: 58px; padding: 2px; text-align: center; font: inherit; font-size: 1.28rem; font-weight: 800;
+  border: none; border-bottom: 2px solid var(--primary); background: none;
   -webkit-appearance: none; appearance: none; font-variant-numeric: tabular-nums;
 }
 .tm-kgin:focus { outline: none; }
-.tm-u { flex: none; font-size: .66rem; color: var(--muted); font-weight: 600; }
-.tm-ok {
-  flex: none; margin-inline-start: auto; width: 44px; height: 38px; border: none; border-radius: 11px;
-  background: var(--surface-2); color: var(--muted); display: grid; place-items: center;
+
+/* שורת הכלים — דלג · החלף · תרגיל אחר */
+.tm-tools { flex: none; display: flex; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.tm-tools button {
+  flex: 1; background: none; border: none; font-family: inherit;
+  font-size: .75rem; font-weight: 700; color: var(--ink-2); padding: 8px 2px; border-radius: 10px;
 }
-.tm-set.done .tm-ok { background: var(--primary); color: #fff; }
-.tm-ok:active { transform: scale(.94); }
+.tm-tools button:active { background: var(--surface-2); color: var(--primary-500); }
+
+@media (max-width: 360px) {
+  .tm-card { flex-basis: 88%; padding: 16px 14px 10px; }
+  .tm-card:first-child { margin-inline-start: 6%; }
+  .tm-card:last-child { margin-inline-end: 6%; }
+  .tm-name { font-size: 1.62rem; }
+  .tm-set { padding: 11px 11px 12px; }
+  .tm-pm { width: 30px; height: 38px; }
+  .tm-fv { min-width: 46px; }
+  .tm-fv b, .tm-v { font-size: 1.2rem; }
+}
 
 .tm-foot {
   flex: none; padding: 10px 16px calc(env(safe-area-inset-bottom) + 12px);
