@@ -1211,6 +1211,36 @@ const SESSIONS_KEY = 'strength_sessions_v1';
 const ACTIVE_KEY = 'strength_active_v1';
 const STEP_KG = 2.5;        // קפיצת המשקל בכפתורי ±
 const OVERLOAD_N = 2;       // אימונים מושלמים ברצף לפני הצעת העלאה
+const COVER_DAYS = 7;       // חלון מתגלגל לבדיקת כיסוי קבוצות השרירים
+
+/* קבוצות השרירים — ברזולוציה שמתאימה לאימון פול-באדי */
+const MUSCLES = {
+  chest: 'חזה', back: 'גב', legs: 'רגליים',
+  shoulders: 'כתפיים', arms: 'ידיים', core: 'ליבה',
+};
+const MUSCLE_KEYS = Object.keys(MUSCLES);
+
+/* ניחוש קבוצת השריר משם התרגיל — רק כברירת מחדל, תמיד ניתן לעריכה.
+ * הסדר משמעותי: כלל ספציפי חייב להיבדק לפני כלל כללי שעלול לבלוע אותו. */
+const MUSCLE_GUESS = [
+  { re: /פלאנק|plank|בטן|crunch|קראנצ|ליבה|core|רוסי|russian|לג ?רייז|leg ?raise/i, p: 'core', s: [] },
+  { re: /חזה|bench|פרפר|fly|שכיבות סמיכה|push[\s-]?up|מקבילים|dip/i, p: 'chest', s: ['arms', 'shoulders'] },
+  { re: /כתף|כתפיים|shoulder|הרמות צד|lateral|מיליטרי|military|ארנולד|arnold/i, p: 'shoulders', s: ['arms'] },
+  { re: /דדליפט|deadlift|מתים/i, p: 'back', s: ['legs', 'core'] },
+  { re: /מתח|pull[\s-]?up|chin[\s-]?up|חתיר|row|פולי|lat|משיכ|גב/i, p: 'back', s: ['arms'] },
+  { re: /סקוואט|squat|רגל|לאנג|lunge|מכרע|ירך|ישבן|glute|תאומים|שוק|calf|hip ?thrust/i, p: 'legs', s: ['core'] },
+  { re: /ביספס|בייספס|bicep|טרייספס|טריצפס|tricep|מרפק|curl|hammer|יד קדמית|יד אחורית|ידיים/i, p: 'arms', s: [] },
+];
+function guessMuscles(name) {
+  for (const g of MUSCLE_GUESS) if (g.re.test(name || '')) return { primary: g.p, secondary: g.s.slice() };
+  return { primary: '', secondary: [] };
+}
+/* תרגילים שנשמרו לפני שהיו קבוצות שרירים — משלימים בניחוש בטעינה */
+function fillMuscles(ex) {
+  if (!ex.primary && !(ex.secondary || []).length) Object.assign(ex, guessMuscles(ex.name));
+  if (!Array.isArray(ex.secondary)) ex.secondary = [];
+  return ex;
+}
 
 let programs = [], sessions = [], active = null;
 
@@ -1226,6 +1256,9 @@ function loadTraining() {
   active = jsonGet(ACTIVE_KEY, null);
   if (!Array.isArray(programs)) programs = [];
   if (!Array.isArray(sessions)) sessions = [];
+  for (const p of programs) for (const ex of (p.exercises || [])) fillMuscles(ex);
+  for (const s of sessions) for (const e of (s.entries || [])) fillMuscles(e);
+  if (active) for (const e of (active.entries || [])) fillMuscles(e);
   sessions.sort((a, b) => a.date.localeCompare(b.date));
 }
 const savePrograms = () => jsonSet(PROGRAMS_KEY, programs);
@@ -1259,10 +1292,12 @@ function sessionStats(s) {
   return { volume, sets };
 }
 
+/* היסטוריית תרגיל ל-progressive overload. תרגיל חלופי (sub) נספר לשריר
+ * אבל לא כאן — משקלים של תנועה אחרת היו מזהמים את מגמת התרגיל המתוכנן. */
 function exerciseHistory(name) {
   const out = [];
   for (const s of sessions) {
-    const e = (s.entries || []).find(x => x.name === name);
+    const e = (s.entries || []).find(x => x.name === name && !x.sub);
     if (!e) continue;
     const st = entryStats(e);
     if (st.done) out.push({ date: s.date, entry: e, ...st });
@@ -1272,8 +1307,28 @@ function exerciseHistory(name) {
 function allExerciseNames() {
   const set = new Set();
   for (const p of programs) for (const e of (p.exercises || [])) set.add(e.name);
-  for (const s of sessions) for (const e of (s.entries || [])) set.add(e.name);
+  for (const s of sessions) for (const e of (s.entries || [])) if (!e.sub) set.add(e.name);
   return [...set];
+}
+
+/* כיסוי קבוצות השרירים בחלון מתגלגל. עבודה משנית נספרת ככיסוי (כפי שנקבע),
+ * אבל נשמרת בנפרד כדי שאפשר יהיה להראות מה קיבל עבודה ישירה ומה לא. */
+function muscleCoverage(days = COVER_DAYS) {
+  const from = new Date(todayISO());
+  from.setDate(from.getDate() - (days - 1));
+  const fromISO = from.toISOString().slice(0, 10);
+  const out = {};
+  for (const k of MUSCLE_KEYS) out[k] = { primary: 0, secondary: 0, sets: 0 };
+  for (const s of sessions) {
+    if (s.date < fromISO) continue;
+    for (const e of (s.entries || [])) {
+      const st = entryStats(e);
+      if (!st.done) continue;
+      if (out[e.primary]) { out[e.primary].primary++; out[e.primary].sets += st.done; }
+      for (const g of (e.secondary || [])) if (out[g] && g !== e.primary) { out[g].secondary++; out[g].sets += st.done; }
+    }
+  }
+  return out;
 }
 /* מה עשית בתרגיל הזה בפעם הקודמת — מוצג במצב אימון */
 function prevEntry(name) {
@@ -1303,14 +1358,59 @@ function startWorkout(programId) {
   const p = programs.find(x => x.id === programId) || programs[0];
   active = {
     id: uid(), date: todayISO(), started: Date.now(),
-    programId: p.id, programName: p.name, note: '',
+    programId: p.id, programName: p.name, note: '', idx: 0,
     entries: (p.exercises || []).map(ex => ({
-      exId: ex.id, name: ex.name,
+      exId: ex.id, name: ex.name, primary: ex.primary || '', secondary: (ex.secondary || []).slice(),
+      sub: null, skipped: false,
       sets: (ex.sets || []).map(s => ({ pReps: s.reps, reps: s.reps, kg: s.kg, done: false })),
     })),
   };
   saveActive();
   openWorkout();
+}
+
+/* ---------- ניווט בין התרגילים ---------- */
+const entryDone = e => e.sets.length > 0 && e.sets.every(s => s.done);
+const entryOpen = e => !e.skipped && !entryDone(e);
+/* התרגיל הפתוח הבא, במחזוריות — כך ש"החלף תרגיל" חוזר אחר כך לסדר המקורי */
+function nextOpenIdx(from) {
+  const n = active.entries.length;
+  for (let i = 1; i <= n; i++) {
+    const j = (from + i) % n;
+    if (entryOpen(active.entries[j])) return j;
+  }
+  return -1;
+}
+function goToExercise(i) { active.idx = i; tmEdit = null; saveActive(); renderWorkout(true); }
+/* נקרא אחרי סימון סט: אם התרגיל הושלם — מתקדם אוטומטית לתרגיל הבא */
+function advanceIfDone() {
+  const cur = active.entries[active.idx];
+  if (!cur || !entryDone(cur)) return false;
+  const next = nextOpenIdx(active.idx);
+  if (next < 0) return false;
+  setTimeout(() => { if (active) { active.idx = next; saveActive(); renderWorkout(true); } }, 520);
+  return true;
+}
+function skipExercise() {
+  const cur = active.entries[active.idx];
+  if (!cur) return;
+  cur.skipped = true;
+  cur.sets.forEach(s => { s.done = false; });
+  const next = nextOpenIdx(active.idx);
+  saveActive();
+  if (next < 0) { renderWorkout(); toast('כל התרגילים טופלו'); } else goToExercise(next);
+}
+/* תרגיל חלופי שעובד על אותם שרירים — נספר לקבוצת השריר, לא ל-overload */
+function substituteExercise() {
+  const cur = active.entries[active.idx];
+  if (!cur) return;
+  const name = prompt('איזה תרגיל אתה מבצע במקום?', cur.sub || '');
+  if (name === null) return;
+  const t = name.trim();
+  cur.sub = t || null;
+  saveActive();
+  renderWorkout();
+  if (t) toast(`נרשם: ${t} — נספר ל${MUSCLES[cur.primary] || 'קבוצת השריר'}`);
 }
 function openWorkout() {
   if (!active) return;
@@ -1341,7 +1441,8 @@ function finishWorkout() {
       .map(e => ({ ...e, sets: e.sets.filter(s => s.done) }))
       .filter(e => e.sets.length),
   };
-  delete rec.started;
+  delete rec.started; delete rec.idx;
+  rec.entries.forEach(e => { delete e.skipped; });
   sessions.push(rec);
   sessions.sort((a, b) => a.date.localeCompare(b.date));
   saveSessions();
@@ -1356,56 +1457,92 @@ function finishWorkout() {
 /* מצב עריכה של תא משקל בתוך מצב אימון: {ei, si} או null */
 let tmEdit = null;
 
-function renderWorkout() {
+function renderWorkout(animate) {
   if (!active) return;
-  const total = active.entries.reduce((a, e) => a + e.sets.length, 0);
-  const done = active.entries.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
-  const pct = total ? Math.round(done / total * 100) : 0;
+  const es = active.entries;
+  const total = es.reduce((a, e) => a + e.sets.length, 0);
+  const doneSets = es.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
+  const pct = total ? Math.round(doneSets / total * 100) : 0;
   $('tm-title').textContent = active.programName;
   $('tm-prog').innerHTML = `<i style="width:${pct}%"></i>`;
-  $('tm-count').textContent = `${done}/${total} סטים`;
+  $('tm-count').textContent = `${doneSets}/${total} סטים`;
 
-  $('tm-body').innerHTML = active.entries.map((e, ei) => {
-    const prev = prevEntry(e.name);
-    const prevTxt = prev
-      ? `בפעם הקודמת · ${shortDate(prev.date)} · ${prev.entry.sets.filter(s => s.done)
-        .map(s => `${fmt(s.kg, s.kg % 1 ? 1 : 0)}×${s.reps}`).join(' · ')}`
-      : 'אימון ראשון בתרגיל הזה';
-    const sug = overloadSuggestion(e.name);
-    const allDone = e.sets.every(s => s.done);
-    return `<section class="tm-ex ${allDone ? 'all-done' : ''}">
-      <h3>${e.name}${allDone ? icon('check', 16, 'tm-exok') : ''}</h3>
-      <p class="tm-prev">${prevTxt}</p>
-      ${sug ? `<p class="tm-sug">${icon('bolt', 14)} מוכן ל-${fmt(sug.to, sug.to % 1 ? 1 : 0)} ק״ג?</p>` : ''}
-      ${e.sets.map((s, si) => {
-        const editing = tmEdit && tmEdit.ei === ei && tmEdit.si === si;
-        const kgTxt = fmt(s.kg, s.kg % 1 ? 1 : 0);
-        return `<div class="tm-set ${s.done ? 'done' : ''}" data-ei="${ei}" data-si="${si}">
-          <span class="tm-n">${si + 1}</span>
-          <span class="tm-grp">
-            <button class="tm-pm" data-act="kg-" aria-label="הורדת משקל">−</button>
-            ${editing
-              ? `<input class="tm-kgin" type="number" inputmode="decimal" step="0.5" min="0" value="${s.kg}" aria-label="משקל">`
-              : `<button class="tm-v" data-act="kg=">${kgTxt}</button>`}
-            <button class="tm-pm" data-act="kg+" aria-label="העלאת משקל">+</button>
-          </span>
-          <small class="tm-u">ק״ג</small>
-          <span class="tm-grp">
-            <button class="tm-pm" data-act="rep-" aria-label="פחות חזרות">−</button>
-            <b class="tm-v">${s.reps}</b>
-            <button class="tm-pm" data-act="rep+" aria-label="יותר חזרות">+</button>
-          </span>
-          <small class="tm-u">חז׳</small>
-          <button class="tm-ok" data-act="done" aria-label="בוצע">${icon('check', 18)}</button>
-        </div>`;
-      }).join('')}
+  // נקודות ההתקדמות — תרגיל שהושלם, שדולג, הנוכחי, ושעוד לפניך
+  $('tm-dots').innerHTML = es.map((e, i) => {
+    const cls = i === active.idx ? 'cur' : e.skipped ? 'skip' : entryDone(e) ? 'ok' : '';
+    return `<button class="tm-dot ${cls}" data-go="${i}" aria-label="${e.name}"></button>`;
+  }).join('');
+
+  const ei = active.idx, e = es[ei];
+  if (!e) { $('tm-body').innerHTML = '<p class="tm-none">אין תרגילים בתוכנית.</p>'; return; }
+
+  const prev = prevEntry(e.name);
+  const prevTxt = prev
+    ? `בפעם הקודמת · ${shortDate(prev.date)} · ${prev.entry.sets.filter(s => s.done)
+      .map(s => `${fmt(s.kg, s.kg % 1 ? 1 : 0)}×${s.reps}`).join(' · ')}`
+    : 'אימון ראשון בתרגיל הזה';
+  const sug = overloadSuggestion(e.name);
+  const groups = [e.primary, ...(e.secondary || []).filter(g => g !== e.primary)]
+    .filter(g => MUSCLES[g])
+    .map((g, i) => `<span class="tm-mg ${i ? 'sec' : ''}">${MUSCLES[g]}</span>`).join('');
+
+  $('tm-body').innerHTML = `
+    <section class="tm-card ${animate ? 'enter' : ''} ${e.skipped ? 'skipped' : ''}">
+      <div class="tm-pos">תרגיל ${ei + 1} מתוך ${es.length}</div>
+      <h3 class="tm-name">${e.sub || e.name}</h3>
+      ${e.sub ? `<p class="tm-subnote">${icon('info', 13)} במקום ${e.name} · נספר לקבוצת השריר בלבד</p>` : ''}
+      <div class="tm-mgs">${groups}</div>
+      <p class="tm-prev">${e.sub ? '' : prevTxt}</p>
+      ${sug && !e.sub ? `<p class="tm-sug">${icon('bolt', 14)} מוכן ל-${fmt(sug.to, sug.to % 1 ? 1 : 0)} ק״ג?</p>` : ''}
+      ${e.skipped ? '<p class="tm-skipped">התרגיל דולג. סמן סט כדי לחזור אליו.</p>' : ''}
+      <div class="tm-sets">
+        ${e.sets.map((s, si) => {
+          const editing = tmEdit && tmEdit.ei === ei && tmEdit.si === si;
+          const kgTxt = fmt(s.kg, s.kg % 1 ? 1 : 0);
+          return `<div class="tm-set ${s.done ? 'done' : ''}" data-ei="${ei}" data-si="${si}">
+            <span class="tm-n">${si + 1}</span>
+            <span class="tm-grp">
+              <button class="tm-pm" data-act="kg-" aria-label="הורדת משקל">−</button>
+              ${editing
+                ? `<input class="tm-kgin" type="number" inputmode="decimal" step="0.5" min="0" value="${s.kg}" aria-label="משקל">`
+                : `<button class="tm-v" data-act="kg=">${kgTxt}</button>`}
+              <button class="tm-pm" data-act="kg+" aria-label="העלאת משקל">+</button>
+            </span>
+            <small class="tm-u">ק״ג</small>
+            <span class="tm-grp">
+              <button class="tm-pm" data-act="rep-" aria-label="פחות חזרות">−</button>
+              <b class="tm-v">${s.reps}</b>
+              <button class="tm-pm" data-act="rep+" aria-label="יותר חזרות">+</button>
+            </span>
+            <small class="tm-u">חז׳</small>
+            <button class="tm-ok" data-act="done" aria-label="בוצע">${icon('check', 18)}</button>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="tm-tools">
+        <button data-tool="skip">${e.skipped ? 'בטל דילוג' : 'דלג על התרגיל'}</button>
+        <button data-tool="switch">החלף תרגיל</button>
+        <button data-tool="sub">${e.sub ? 'בטל חלופי' : 'מבצע תרגיל אחר'}</button>
+      </div>
     </section>`;
-  }).join('') || '<p class="hub-empty">אין תרגילים בתוכנית.</p>';
 
   $('tm-note').value = active.note || '';
   const inp = $('tm-body').querySelector('.tm-kgin');
   if (inp) { inp.focus(); inp.select(); }
 }
+
+/* בחירה ידנית של תרגיל מתוך התוכנית — אחריו הניווט חוזר לסדר המקורי */
+function openSwitcher() {
+  if (!active) return;
+  $('sw-list').innerHTML = active.entries.map((e, i) => {
+    const state = e.skipped ? 'דולג' : entryDone(e) ? 'הושלם' : `${e.sets.filter(s => s.done).length}/${e.sets.length} סטים`;
+    return `<button class="sw-row ${i === active.idx ? 'cur' : ''}" data-go="${i}">
+      <span class="sw-nm">${e.sub || e.name}</span>
+      <span class="sw-st">${state}</span></button>`;
+  }).join('');
+  $('switch-modal').classList.remove('hidden');
+}
+function closeSwitcher() { $('switch-modal').classList.add('hidden'); }
 
 /* סיכום בסוף האימון — נפח, השוואה לפעם הקודמת, ושיאים אישיים */
 function showSummary(rec) {
@@ -1431,6 +1568,24 @@ function showSummary(rec) {
     </div>${delta}
     ${prs.length ? `<p class="ts-pr">${icon('trophy', 16)} שיא אישי חדש: <b>${prs.join(' · ')}</b></p>` : ''}`;
   $('train-summary').classList.remove('hidden');
+}
+
+/* כיסוי הגוף ב-7 הימים — הנקודה של תוכנית פול-באדי היא לא לפספס קבוצה */
+function coverageMarkup() {
+  const cov = muscleCoverage();
+  const missing = MUSCLE_KEYS.filter(k => !cov[k].primary && !cov[k].secondary);
+  const line = !sessions.length ? ''
+    : missing.length === 0
+      ? `<p class="tr-note">כל קבוצות השרירים קיבלו עבודה ב-${COVER_DAYS} הימים האחרונים.</p>`
+      : `<p class="tr-note">לא קיבלו עבודה: <b>${missing.map(k => MUSCLES[k]).join(' · ')}</b>.</p>`;
+  return `<div class="tr-sec">
+    <h3>${icon('dumbbell', 15)} כיסוי הגוף · ${COVER_DAYS} ימים</h3>
+    <div class="cov-grid">${MUSCLE_KEYS.map(k => {
+      const c = cov[k];
+      const cls = c.primary ? 'full' : c.secondary ? 'part' : 'none';
+      const sub = c.primary ? `${c.sets} סטים` : c.secondary ? 'עקיף בלבד' : 'לא נעבד';
+      return `<div class="cov ${cls}"><b>${MUSCLES[k]}</b><small>${sub}</small></div>`;
+    }).join('')}</div>${line}</div>`;
 }
 
 /* ---------- כרטיס הניתוח בעמוד הפעילות ---------- */
@@ -1461,6 +1616,7 @@ function renderTrain() {
       <button class="world-link tr-manage" id="tr-manage">תוכניות ‹</button></div>
     ${lastTxt}
     <button class="btn-primary tr-wide" id="tr-start">${active ? 'המשך אימון' : 'התחל אימון'}</button>
+    ${coverageMarkup()}
     ${sug.length ? `<div class="tr-sugs"><h3>${icon('bolt', 15)} מוכן להעלות משקל</h3>
       <div class="tr-chips">${sug.map(s => `<span class="tr-chip">${s.name}
         <b>${fmt(s.from, s.from % 1 ? 1 : 0)}→${fmt(s.to, s.to % 1 ? 1 : 0)}</b></span>`).join('')}</div></div>` : ''}
@@ -1490,13 +1646,20 @@ function renderTrainChart() {
   const h = name ? exerciseHistory(name) : [];
   const note = $('tr-exnote');
   if (!$('chart-train')) return;
+  const wrap = $('chart-train').closest('.chart-wrap');
+  const leg = $('legend-train');
   if (h.length < 2) {
     charts['chart-train']?.destroy(); delete charts['chart-train'];
+    // מקפלים את אזור הגרף — אחרת נשאר חלל ריק גדול בכרטיס
+    if (wrap) wrap.style.display = 'none';
+    if (leg) leg.style.display = 'none';
     if (note) note.textContent = h.length === 1
       ? 'אימון אחד תועד בתרגיל הזה — הגרף יופיע אחרי השני.'
       : 'עוד לא תועדו אימונים בתרגיל הזה.';
     return;
   }
+  if (wrap) wrap.style.display = '';
+  if (leg) leg.style.display = '';
   const first = h[0].best, lastB = h[h.length - 1].best;
   const pct = first > 0 ? (lastB - first) / first * 100 : 0;
   if (note) {
@@ -1553,6 +1716,21 @@ function openProgram(id) {
 }
 function closeProgram() { $('program-modal').classList.add('hidden'); pgDraft = null; }
 
+/* בורר קבוצות השריר של תרגיל — מופרד כדי שאפשר יהיה לרענן רק אותו
+ * כשהניחוש מתעדכן תוך כדי הקלדת שם התרגיל, בלי לאבד את הפוקוס בשדה. */
+function mgMarkup(ex) {
+  return `<label class="pg-mglab">שריר ראשי
+      <select data-act="primary">
+        <option value="">—</option>
+        ${MUSCLE_KEYS.map(k => `<option value="${k}" ${ex.primary === k ? 'selected' : ''}>${MUSCLES[k]}</option>`).join('')}
+      </select></label>
+    <div class="pg-mgsec"><small>משניים</small><div class="pg-mgchips">
+      ${MUSCLE_KEYS.filter(k => k !== ex.primary).map(k =>
+        `<button class="pg-mgchip ${(ex.secondary || []).includes(k) ? 'on' : ''}"
+          data-act="secondary" data-mg="${k}">${MUSCLES[k]}</button>`).join('')}
+    </div></div>`;
+}
+
 function renderProgram() {
   if (!pgDraft) return;
   $('pg-title').textContent = programs.some(p => p.id === pgDraft.id) ? 'עריכת תוכנית' : 'תוכנית חדשה';
@@ -1564,6 +1742,7 @@ function renderProgram() {
           placeholder="שם התרגיל (למשל סקוואט)" aria-label="שם התרגיל">
         <button class="pg-del" data-act="exdel" aria-label="מחיקת תרגיל">✕</button>
       </div>
+      <div class="pg-mg">${mgMarkup(ex)}</div>
       <div class="pg-sets">
         <div class="pg-shead"><span>סט</span><span>חזרות</span><span>ק״ג</span><span></span></div>
         ${ex.sets.map((s, si) => `<div class="pg-set" data-si="${si}">
@@ -1641,14 +1820,29 @@ $('train-card').addEventListener('change', e => {
   if (e.target.id === 'tr-ex') { state.trainEx = e.target.value; renderTrainChart(); }
 });
 
-/* מצב אימון — כל הלחיצות דרך מאזין אחד על הרשימה */
+/* מצב אימון — כל הלחיצות דרך מאזין אחד על הכרטיס */
 $('tm-body').addEventListener('click', e => {
+  if (!active) return;
+  const tool = e.target.closest('[data-tool]');
+  if (tool) {
+    const t = tool.dataset.tool;
+    if (t === 'skip') {
+      const cur = active.entries[active.idx];
+      if (cur.skipped) { cur.skipped = false; saveActive(); renderWorkout(); } else skipExercise();
+    } else if (t === 'switch') openSwitcher();
+    else if (t === 'sub') {
+      const cur = active.entries[active.idx];
+      if (cur.sub) { cur.sub = null; saveActive(); renderWorkout(); } else substituteExercise();
+    }
+    return;
+  }
   const btn = e.target.closest('[data-act]');
-  if (!btn || !active) return;
+  if (!btn) return;
   const row = btn.closest('.tm-set');
   if (!row) return;
   const ei = +row.dataset.ei, si = +row.dataset.si;
-  const s = active.entries[ei]?.sets[si];
+  const entry = active.entries[ei];
+  const s = entry?.sets[si];
   if (!s) return;
   const act = btn.dataset.act;
   if (act === 'kg-') s.kg = Math.max(0, +(s.kg - STEP_KG).toFixed(2));
@@ -1656,10 +1850,25 @@ $('tm-body').addEventListener('click', e => {
   else if (act === 'kg=') { tmEdit = { ei, si }; renderWorkout(); return; }
   else if (act === 'rep-') s.reps = Math.max(1, s.reps - 1);
   else if (act === 'rep+') s.reps = s.reps + 1;
-  else if (act === 'done') { s.done = !s.done; haptic(s.done ? 12 : 6); }
+  else if (act === 'done') {
+    s.done = !s.done;
+    if (s.done) entry.skipped = false;   // סימון סט מחזיר תרגיל שדולג
+    haptic(s.done ? 12 : 6);
+  }
   tmEdit = null;
   saveActive();
   renderWorkout();
+  if (act === 'done' && s.done) advanceIfDone();
+});
+/* נקודות ההתקדמות בכותרת — קפיצה ישירה לתרגיל */
+$('tm-dots').addEventListener('click', e => {
+  const d = e.target.closest('[data-go]');
+  if (d && active) goToExercise(+d.dataset.go);
+});
+$('switch-modal').addEventListener('click', e => {
+  if (e.target.closest('[data-close]')) { closeSwitcher(); return; }
+  const row = e.target.closest('[data-go]');
+  if (row && active) { closeSwitcher(); goToExercise(+row.dataset.go); }
 });
 /* קליטת משקל מדויק מהשדה הפתוח */
 $('tm-body').addEventListener('change', e => {
@@ -1698,7 +1907,13 @@ $('program-modal').addEventListener('click', e => {
   const ei = card ? +card.dataset.ei : -1;
   const ex = pgDraft.exercises[ei];
   if (!ex) return;
-  if (act.dataset.act === 'exdel') {
+  if (act.dataset.act === 'secondary') {
+    const g = act.dataset.mg;
+    ex.secondary = (ex.secondary || []).includes(g)
+      ? ex.secondary.filter(x => x !== g) : [...(ex.secondary || []), g];
+    ex.touchedMg = true;
+    card.querySelector('.pg-mg').innerHTML = mgMarkup(ex);
+  } else if (act.dataset.act === 'exdel') {
     if (pgDraft.exercises.length === 1) { toast('צריך לפחות תרגיל אחד'); return; }
     pgDraft.exercises.splice(ei, 1); renderProgram();
   } else if (act.dataset.act === 'setadd') {
@@ -1716,7 +1931,22 @@ $('program-modal').addEventListener('input', e => {
   if (act === 'pgname') { pgDraft.name = e.target.value; return; }
   const card = e.target.closest('.pg-card');
   const ex = card && pgDraft.exercises[+card.dataset.ei];
-  if (act === 'exname' && ex) ex.name = e.target.value;
+  if (act === 'primary' && ex) {
+    ex.primary = e.target.value;
+    ex.secondary = (ex.secondary || []).filter(g => g !== ex.primary);
+    ex.touchedMg = true;
+    card.querySelector('.pg-mg').innerHTML = mgMarkup(ex);
+    return;
+  }
+  if (act === 'exname' && ex) {
+    ex.name = e.target.value;
+    // ניחוש אוטומטי כל עוד המשתמש לא בחר קבוצה בעצמו
+    if (!ex.touchedMg) {
+      Object.assign(ex, guessMuscles(ex.name));
+      card.querySelector('.pg-mg').innerHTML = mgMarkup(ex);
+    }
+    return;
+  }
   else if (ex) {
     const set = ex.sets[+e.target.closest('.pg-set').dataset.si];
     if (!set) return;
