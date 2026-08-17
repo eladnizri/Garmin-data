@@ -374,6 +374,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .rows li:last-child { border-bottom: none; }
 .rows .r-ic { width: 26px; text-align: center; font-size: 1.05rem; flex: none; }
 .rows .r-name { font-size: .85rem; color: var(--ink-2); }
+.rows .r-tag {
+  font-size: .6rem; font-weight: 700; color: var(--primary-500);
+  background: var(--primary-soft); border-radius: 999px; padding: 1px 7px; margin-inline-start: 6px;
+  vertical-align: middle;
+}
 .rows .r-sub { font-size: .68rem; color: var(--muted); }
 .rows .r-val { margin-inline-start: auto; font-weight: 700; font-size: .9rem; text-align: end; font-variant-numeric: tabular-nums; }
 .rows .r-val small { font-weight: 500; color: var(--muted); font-size: .66rem; }

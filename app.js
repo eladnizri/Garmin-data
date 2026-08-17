@@ -991,12 +991,27 @@ const TRAINING_STATUS = {
 function renderWorkouts() {
   const el = $('workouts-card');
   const rows = visibleRows();
+  // רצפת התאריך של הכרטיס: ב"הכל" אין רצפה, אחרת התאריך המוקדם ביותר שמוצג
+  const fromISO = state.range === 'all' ? '0000-00-00' : (rows.length ? rows[0].date : '0000-00-00');
   const all = [];
-  for (const r of rows) for (const w of (r.workouts || [])) all.push({ ...w, date: r.date });
+  for (const r of rows) for (const w of (r.workouts || [])) all.push({ ...w, date: r.date, src: 'garmin' });
+  // אימוני הכוח שדווחו ידנית — באותו טווח תאריכים שמסונן בכרטיס
+  for (const s of (sessions || [])) {
+    if (s.date < fromISO) continue;
+    all.push({ src: 'manual', date: s.date, type: s.programName || 'אימון כוח',
+      exCount: (s.entries || []).length, setCount: sessionStats(s).sets });
+  }
   if (!all.length) { el.innerHTML = ''; return; }
+  all.sort((a, b) => a.date.localeCompare(b.date));
   const recent = all.slice(-8).reverse();
   const totalMin = all.reduce((a, w) => a + (w.minutes || 0), 0);
   const items = recent.map(w => {
+    if (w.src === 'manual') {
+      return `<li><span class="r-ic">${icon('dumbbell', 18)}</span>
+        <span><span class="r-name">${w.type}<span class="r-tag">ידני</span></span><br>
+        <span class="r-sub">${shortDate(w.date)} · ${w.exCount} תרגילים</span></span>
+        <span class="r-val">${w.setCount}<small>סטים</small></span></li>`;
+    }
     const bits = [];
     if (w.km) bits.push(`${fmt(w.km, 2)} ק״מ`);
     if (w.avg_hr) bits.push(`דופק ${w.avg_hr}`);
@@ -1464,7 +1479,7 @@ function finishWorkout() {
   strengthChecks[active.date] = true; saveStrength();
   active = null; saveActive();
   closeWorkout();
-  renderStrength(); renderTrain();
+  renderStrength(); renderTrain(); renderWorkouts();
   showSummary(rec);
 }
 
@@ -1840,7 +1855,7 @@ function openPastSession(sid) {
   if (c === 'מחק') {
     if (!confirm('למחוק את האימון הזה מההיסטוריה?')) return;
     sessions = sessions.filter(x => x.id !== sid);
-    saveSessions(); renderTrain(); toast('האימון נמחק');
+    saveSessions(); renderTrain(); renderWorkouts(); toast('האימון נמחק');
   } else if (c === 'הערה') {
     const n = prompt('הערה לאימון:', s.note || '');
     if (n === null) return;
