@@ -1041,6 +1041,51 @@ function saveRunTags() { try { localStorage.setItem(RUN_TAGS_KEY, JSON.stringify
 /* מזהה יציב לריצה — אין activityId בנתונים, אז תאריך + סדר ביום */
 const runId = (date, i) => `${date}#${i}`;
 
+/* --- ריצות היסטוריות מייצוא הבריאות של האייפון ---
+ * הן חיות מחוץ ל-health.json בכוונה: הן מכסות רק ימי ריצה מפוזרים, ואם היו
+ * נכנסות כשורות רגילות כל גרפי השינה והלב היו נמתחים על שנים עם ימים ריקים.
+ * שני מקורות — data/runs_history.json שנשמר בריפו (זמין בכל מכשיר), ו-
+ * localStorage מייבוא שנעשה בטלפון עצמו. */
+const RUN_HIST_KEY = 'runs_history_v1';
+const RUN_HIST_URL = 'data/runs_history.json';
+let runHistLocal = [], runHistRepo = [];
+
+function loadRunHistory() {
+  try { runHistLocal = JSON.parse(localStorage.getItem(RUN_HIST_KEY)) || []; } catch { runHistLocal = []; }
+  if (!Array.isArray(runHistLocal)) runHistLocal = [];
+}
+function saveRunHistory() { try { localStorage.setItem(RUN_HIST_KEY, JSON.stringify(runHistLocal)); } catch {} }
+
+async function fetchRunHistory() {
+  try {
+    const res = await fetch(`${RUN_HIST_URL}?t=${Date.now()}`);
+    if (!res.ok) return;                       // הקובץ אופציונלי — אין ייבוא, אין בעיה
+    const rows = await res.json();
+    if (Array.isArray(rows)) runHistRepo = rows.filter(r => r && r.date && r.km && r.minutes);
+  } catch { /* ריצה מקומית בלי הקובץ, או אין רשת */ }
+}
+
+/* איחוד שני המקורות, בלי כפילויות, בסכמה של אימון רגיל */
+function historyRuns() {
+  const seen = new Set(), out = [];
+  for (const r of [...runHistRepo, ...runHistLocal]) {
+    if (!r?.date || !r.km || !r.minutes) continue;
+    const key = `${r.date}|${Math.round(r.km * 10)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...r, type: 'ריצה', type_key: 'running' });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/* ימים שכבר יש בהם ריצה מהגרמין — הגרמין תמיד מנצח, הוא מפורט יותר */
+function garminRunDates() {
+  const s = new Set();
+  for (const row of state.data)
+    for (const w of (row.workouts || [])) if (w.type_key === 'running') s.add(row.date);
+  return s;
+}
+
 const RUN_TYPES = {
   intervals: { label: 'אינטרוולים', color: C.red },
   tempo:     { label: 'טמפו',       color: C.orange },
@@ -1084,19 +1129,38 @@ function runPace(r) {
 }
 const paceTxt = s => s == null ? '—' : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 
+/* תאריך ריצה — שאר האפליקציה מציגה חודשיים אחורה ולכן d.m מספיק לה, אבל
+ * היסטוריית הריצות נמתחת על שנתיים ובלי השנה "4.9" הוא דו־משמעי */
+function runDate(iso) {
+  const y = iso.slice(0, 4);
+  return y === todayISO().slice(0, 4) ? shortDate(iso) : `${shortDate(iso)}.${y.slice(2)}`;
+}
+const runLongDate = iso => `יום ${DAY_NAMES[new Date(`${iso}T12:00:00`).getDay()]}, ${runDate(iso)}`;
+
 /* כל הריצות בטווח המוצג, הישן→חדש, עם סיווג ומדדים גזורים */
 function runsInRange() {
+  const rows = visibleRows();
   const out = [];
-  for (const row of visibleRows()) {
+  for (const row of rows) {
     (row.workouts || []).forEach((w, i) => {
       if (w.type_key !== 'running') return;
-      const r = { ...w, date: row.date, id: runId(row.date, i) };
-      r.pace = runPace(r); r.eff = runEff(r); r.kind = classifyRun(r);
-      out.push(r);
+      out.push({ ...w, date: row.date, id: runId(row.date, i) });
     });
   }
+  // הריצות המיובאות קודמות לחלון של הגרמין, ולכן נכנסות רק כשמציגים את הכל
+  const from = state.range === 'all' ? '0000-00-00' : (rows[0]?.date || '9999-99-99');
+  const taken = garminRunDates();
+  historyRuns().forEach(h => {
+    if (h.date < from || taken.has(h.date)) return;
+    out.push({ ...h, id: `apple#${h.date}#${Math.round(h.km * 10)}` });
+  });
+  out.sort((a, b) => a.date.localeCompare(b.date));
+  for (const r of out) { r.pace = runPace(r); r.eff = runEff(r); r.kind = classifyRun(r); }
   return out;
 }
+
+const RUN_HIST_SHOWN = 15;   // כמה ריצות נפרשות לפני "הצגת נוספות"
+let runHistOpen = false;
 
 function goalRunKm() { return profile.runGoalKm ? Number(profile.runGoalKm) : null; }
 function goalRunPace() { return profile.runGoalPace ? Number(profile.runGoalPace) : null; }
@@ -1105,6 +1169,8 @@ function goalRunPace() { return profile.runGoalPace ? Number(profile.runGoalPace
 function totalRunCount() {
   let n = 0;
   for (const row of state.data) for (const w of (row.workouts || [])) if (w.type_key === 'running') n++;
+  const taken = garminRunDates();
+  for (const h of historyRuns()) if (!taken.has(h.date)) n++;
   return n;
 }
 
@@ -1119,7 +1185,8 @@ function renderRuns() {
       <p class="tr-empty">${total
         ? `אין ריצות בטווח הזמן שנבחר. יש <b>${total}</b> ריצות מוקדמות יותר —
            החלף ל"הכל" בסרגל העליון כדי לראות אותן.`
-        : 'ריצות שתתעד בגרמין יופיעו כאן — מסווגות לפי אזור מאמץ, עם השוואה בין ריצות וגרף השתפרות.'}</p>
+        : `ריצות שתתעד בגרמין יופיעו כאן — מסווגות לפי אזור מאמץ, עם השוואה בין ריצות וגרף השתפרות.
+           אפשר גם לייבא ריצות עבר מייצוא הבריאות של האייפון, דרך כרטיס הפרופיל.`}</p>
       ${total ? '<button class="btn-primary tr-wide" id="runs-see-all">הצג את כל התקופה</button>' : ''}
     </article>`;
     return;
@@ -1148,7 +1215,7 @@ function renderRuns() {
       const d = last.avg_hr - prevSame.avg_hr;
       if (Math.abs(d) >= 2) bits.push(`דופק ${d < 0 ? 'נמוך' : 'גבוה'} ב-${Math.abs(d)}`);
     }
-    if (bits.length) cmp = `<p class="run-cmp">מול ה${t.label} הקודמת (${shortDate(prevSame.date)}): ${bits.join(' · ')}.</p>`;
+    if (bits.length) cmp = `<p class="run-cmp">מול ה${t.label} הקודמת (${runDate(prevSame.date)}): ${bits.join(' · ')}.</p>`;
   }
 
   // יעדים
@@ -1167,6 +1234,11 @@ function renderRuns() {
       ? 'בדיוק על היעד' : `${paceTxt(Math.abs(d))} ${d < 0 ? 'מתחת ליעד' : 'מעל היעד'}`}.</p>`;
   }
 
+  // הייבוא מהאייפון מביא שנתיים של ריצות — רשימה מלאה תהפוך את הכרטיס לאינסופי
+  const ordered = runs.slice().reverse();
+  const shown = runHistOpen ? ordered : ordered.slice(0, RUN_HIST_SHOWN);
+  const hidden = ordered.length - shown.length;
+
   const bits = [];
   if (last.km) bits.push(`${fmt(last.km, 2)} ק״מ`);
   if (last.pace) bits.push(`${paceTxt(last.pace)} דק׳/ק״מ`);
@@ -1180,7 +1252,7 @@ function renderRuns() {
 
     <div class="run-last">
       <div class="rl-top"><span class="run-badge" style="--rc:${t.color}">${t.label}</span>
-        <span class="rl-date">${longDate(last.date)}</span></div>
+        <span class="rl-date">${runLongDate(last.date)}</span></div>
       <div class="rl-bits">${bits.join(' · ')}</div>
     </div>
     ${cmp}${goals}
@@ -1196,15 +1268,16 @@ function renderRuns() {
 
     <div class="tr-sec"><h3>היסטוריית ריצות</h3>
       <p class="run-hint">לחיצה על ריצה מסמנת אותה כאינטרוולים ובחזרה.</p>
-      <div class="tr-hist">${runs.slice().reverse().map(r => {
+      <div class="tr-hist">${shown.map(r => {
         const rt = RUN_TYPES[r.kind];
         return `<button class="tr-row run-row" data-run="${r.id}">
-          <span class="tr-d">${shortDate(r.date)}</span>
+          <span class="tr-d">${runDate(r.date)}</span>
           <span class="run-dot" style="background:${rt.color}"></span>
           <span class="tr-nm">${rt.label}</span>
           <span class="tr-v">${r.km ? fmt(r.km, 2) + ' ק״מ' : ''}${r.pace ? ' · ' + paceTxt(r.pace) : ''}</span>
         </button>`;
       }).join('')}</div>
+      ${hidden > 0 ? `<button class="btn-ghost tr-wide" id="runs-more">הצגת ${hidden} ריצות נוספות</button>` : ''}
     </div>
   </article>`;
   renderRunChart(runs);
@@ -1231,26 +1304,26 @@ function renderRunChart(runs) {
   const dEff = (lastP.eff - first.eff) / first.eff * 100;
   if (note) {
     note.innerHTML = Math.abs(dEff) < 2
-      ? `היעילות האירובית יציבה מאז ${shortDate(first.date)}.`
+      ? `היעילות האירובית יציבה מאז ${runDate(first.date)}.`
       : `היעילות האירובית ${dEff > 0 ? 'עלתה' : 'ירדה'} ב-<b>${fmt(Math.abs(dEff), 1)}%</b>
-         מאז ${shortDate(first.date)} — אותו מאמץ, ${dEff > 0 ? 'יותר' : 'פחות'} קצב.`;
+         מאז ${runDate(first.date)} — אותו מאמץ, ${dEff > 0 ? 'יותר' : 'פחות'} קצב.`;
   }
   legend('legend-runs', [[C.violet, 'יעילות אירובית'], [C.teal, 'קצב']]);
   const gPace = goalRunPace();
   const ds = [
-    { label: 'יעילות אירובית', data: pts.map(r => ({ x: shortDate(r.date), y: +r.eff.toFixed(2), iso: r.date })),
+    { label: 'יעילות אירובית', data: pts.map(r => ({ x: runDate(r.date), y: +r.eff.toFixed(2), iso: r.date })),
       borderColor: C.violet, borderWidth: 2.4, pointRadius: 3, pointBackgroundColor: C.violet,
       tension: .3, fill: false, yAxisID: 'y' },
-    { label: 'קצב', data: pts.map(r => ({ x: shortDate(r.date), y: r.pace, iso: r.date })),
+    { label: 'קצב', data: pts.map(r => ({ x: runDate(r.date), y: r.pace, iso: r.date })),
       borderColor: C.teal, borderWidth: 2, pointRadius: 3, pointBackgroundColor: C.teal,
       borderDash: [5, 4], tension: .3, fill: false, yAxisID: 'y1' },
   ];
-  if (gPace) ds.push({ label: 'יעד', data: pts.map(r => ({ x: shortDate(r.date), y: gPace, iso: r.date })),
+  if (gPace) ds.push({ label: 'יעד', data: pts.map(r => ({ x: runDate(r.date), y: gPace, iso: r.date })),
     borderColor: C.muted || C.ma, borderWidth: 1.5, borderDash: [6, 5], pointRadius: 0, fill: false, yAxisID: 'y1' });
 
   make('chart-runs', {
     type: 'line',
-    data: { labels: pts.map(r => shortDate(r.date)), datasets: ds },
+    data: { labels: pts.map(r => runDate(r.date)), datasets: ds },
     options: {
       responsive: true, maintainAspectRatio: false,
       animation: chartAnim ? undefined : false,
@@ -1274,6 +1347,11 @@ $('runs-card').addEventListener('click', e => {
   if (e.target.closest('#runs-see-all')) {
     state.range = 'all';
     chartAnim = false; renderAll(); chartAnim = true;
+    return;
+  }
+  if (e.target.closest('#runs-more')) {
+    runHistOpen = true;
+    chartAnim = false; renderRuns(); chartAnim = true;
     return;
   }
   const row = e.target.closest('[data-run]');
@@ -2558,6 +2636,7 @@ function exportBackup() {
     version: 1, exportedAt: new Date().toISOString(),
     profile, weight_log_v1: weights, strength_checks_v1: strengthChecks,
     strength_programs_v1: programs, strength_sessions_v1: sessions, run_tags_v1: runTags,
+    runs_history_v1: runHistLocal,
   };
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -2579,6 +2658,7 @@ function importBackup(file) {
       if (Array.isArray(b.strength_programs_v1)) { programs = b.strength_programs_v1; savePrograms(); }
       if (Array.isArray(b.strength_sessions_v1)) { sessions = b.strength_sessions_v1; saveSessions(); }
       if (b.run_tags_v1 && typeof b.run_tags_v1 === 'object') { runTags = b.run_tags_v1; saveRunTags(); }
+      if (Array.isArray(b.runs_history_v1)) { runHistLocal = b.runs_history_v1; saveRunHistory(); }
       loadProfile();
       closeProfile();
       renderAll();
@@ -2590,6 +2670,53 @@ function importBackup(file) {
 $('export-btn').addEventListener('click', exportBackup);
 $('import-btn').addEventListener('click', () => $('import-file').click());
 $('import-file').addEventListener('change', e => { if (e.target.files[0]) importBackup(e.target.files[0]); e.target.value = ''; });
+
+/* --- ייבוא ריצות עבר מייצוא הבריאות של האייפון --- */
+const APPLE_YEARS_BACK = 2;   // ריצות ישנות מכך כבר לא מלמדות על הכושר של היום
+
+function downloadRunHistory() {
+  const blob = new Blob([JSON.stringify(runHistLocal, null, 1) + '\n'], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'runs_history.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function importAppleRuns(file) {
+  const st = $('apple-status');
+  const since = new Date();
+  since.setFullYear(since.getFullYear() - APPLE_YEARS_BACK);
+  const sinceISO = since.toISOString().slice(0, 10);
+
+  st.textContent = 'פותח את הקובץ…';
+  try {
+    const runs = await parseAppleRuns(file, {
+      sinceISO,
+      onProgress: (pct, found) => { st.textContent = `סורק… ${pct}% · ${found} ריצות עד כה`; },
+    });
+    if (!runs.length) {
+      st.textContent = `לא נמצאו ריצות מ-${APPLE_YEARS_BACK} השנים האחרונות בקובץ.
+        ודא שבחרת את export.xml מתוך תיקיית הייצוא.`;
+      return;
+    }
+    runHistLocal = runs;
+    saveRunHistory();
+    renderAll();
+    const taken = garminRunDates();
+    const fresh = runs.filter(r => !taken.has(r.date)).length;
+    st.innerHTML = `נשמרו <b>${runs.length}</b> ריצות מ-${runDate(runs[0].date)} ואילך
+      (${fresh} שאין עליהן נתוני גרמין). עבור לכרטיס הריצות ובחר "הכל" בסרגל הטווח.
+      <button type="button" class="btn-ghost" id="apple-dl">⬇️ הורדת הקובץ לשמירה בריפו</button>`;
+  } catch (err) {
+    console.warn('ייבוא Apple Health נכשל:', err);
+    st.textContent = 'קריאת הקובץ נכשלה. ודא שזה export.xml המקורי (לא ה-ZIP ולא export_cda.xml).';
+  }
+}
+
+$('apple-btn').addEventListener('click', () => $('apple-file').click());
+$('apple-file').addEventListener('change', e => { if (e.target.files[0]) importAppleRuns(e.target.files[0]); e.target.value = ''; });
+$('apple-status').addEventListener('click', e => { if (e.target.closest('#apple-dl')) downloadRunHistory(); });
 
 /* =========================================================================
  * רינדור כולל
@@ -2874,7 +3001,8 @@ async function init() {
   loadStrength();
   loadTraining();
   loadRunTags();
-  const { data, isDemo } = await loadHealthData();
+  loadRunHistory();
+  const [{ data, isDemo }] = await Promise.all([loadHealthData(), fetchRunHistory()]);
   state.data = data;
   state.isDemo = isDemo;
 

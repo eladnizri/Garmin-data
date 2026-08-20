@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="shell.css">
   <script src="vendor/chart.umd.min.js"></script>
   <script src="common.js" defer></script>
+  <script src="apple-health.js" defer></script>
   <script src="app.js" defer></script>
   <script src="hub.js" defer></script>
 </head>
@@ -243,6 +244,12 @@
           <button type="button" class="btn-ghost" id="export-btn">⬇️ ייצוא גיבוי</button>
           <button type="button" class="btn-ghost" id="import-btn">⬆️ ייבוא</button>
           <input type="file" id="import-file" accept="application/json,.json" hidden>
+        </div>
+        <div class="apple-row">
+          <button type="button" class="btn-ghost" id="apple-btn">🏃 ייבוא ריצות עבר מהאייפון</button>
+          <input type="file" id="apple-file" accept=".xml,text/xml,application/xml" hidden>
+          <p class="apple-status" id="apple-status">בריאות ← הפרופיל ← "ייצוא כל הנתונים", ואז בחר כאן את
+            <code>export.xml</code>. נקראות רק ריצות משנתיים האחרונות, והכול נשאר במכשיר.</p>
         </div>
       </div>
     </div>
