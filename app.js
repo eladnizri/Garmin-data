@@ -1315,7 +1315,7 @@ function renderRuns() {
     <div class="card-head"><h2>ריצות</h2>
       <span class="unit">${real.length} ריצות בתקופה</span></div>
 
-    <div class="run-last">
+    <div class="run-last" data-run="${last.id}" role="button" tabindex="0">
       <div class="rl-top"><span class="run-badge" style="--rc:${t.color}">${t.label}</span>
         <span class="rl-date">${runLongDate(last.date)}</span></div>
       <div class="rl-bits">${bits.join(' · ')}</div>
@@ -1335,7 +1335,7 @@ function renderRuns() {
     ${monthlyVolumeSection(real)}
 
     <div class="tr-sec"><h3>היסטוריית ריצות</h3>
-      <p class="run-hint">לחיצה על ריצה מסמנת אותה כאינטרוולים ובחזרה.</p>
+      <p class="run-hint">לחיצה על ריצה פותחת את הפירוט המלא שלה.</p>
       <div class="tr-hist">${shown.map(r => {
         const rt = RUN_TYPES[r.kind];
         return `<button class="tr-row run-row${r.real ? '' : ' run-skipped'}" data-run="${r.id}"
@@ -1354,6 +1354,221 @@ function renderRuns() {
   renderRunChart(real);
   renderRunVolume(real);
 }
+
+/* =========================================================================
+ * גיליון פירוט ריצה
+ * ========================================================================= */
+const durTxt = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+const rowOn = iso => state.data.find(r => r.date === iso) || null;
+const dayAfter = iso => { const d = new Date(`${iso}T12:00:00`); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); };
+const ZONE_NAMES = { 1: 'התאוששות', 2: 'שריפת שומן', 3: 'אירובי', 4: 'אנאירובי', 5: 'מקסימלי' };
+
+/* שורה של מדד מול ערך ייחוס, עם צביעה לפי כיוון השיפור */
+function rsDelta(label, value, ref, opts = {}) {
+  if (value == null || ref == null) return '';
+  const d = value - ref;
+  const txt = opts.fmt ? opts.fmt(Math.abs(d)) : fmt(Math.abs(d), opts.dec ?? 0);
+  const same = Math.abs(d) < (opts.eps ?? 0.0001);
+  // neutral למדדים שאין בהם "טוב" ו"רע" — ריצה קצרה יותר אינה ריצה גרועה יותר
+  const cls = same || opts.neutral ? '' : (opts.lowerIsBetter ? d < 0 : d > 0) ? 'up' : 'down';
+  return `<div class="rs-row"><span>${label}</span>
+    <b class="${cls}">${same ? 'זהה' : `${d > 0 ? '+' : '−'}${txt}`}</b></div>`;
+}
+
+/* זמן ההתאוששות שגרמין קבעה. הסקריפט שינה שם שדה בדרך, ולכן שתי הצורות
+ * קיימות בנתונים — הישנה בדקות, החדשה בשעות. */
+function recoveryRow(d) {
+  const min = d?.recovery_time_min ?? (d?.recovery_hours != null ? d.recovery_hours * 60 : null);
+  if (min == null) return '';
+  return `<div class="rs-row"><span>זמן התאוששות שנקבע</span>
+    <b>${min < 60 ? 'פחות משעה' : minToHm(min)}</b></div>`;
+}
+
+function runSheetHtml(r) {
+  const t = RUN_TYPES[r.kind];
+  const all = allRuns().filter(x => x.real);
+  for (const x of all) { x.eff = runEff(x); x.kind = classifyRun(x); }
+  const same = all.filter(x => x.kind === r.kind && x.pace != null);
+
+  // מדדים משניים — רק מה שבאמת קיים על הריצה הזו
+  const chips = [];
+  if (r.max_hr) chips.push(['דופק מקס׳', r.max_hr]);
+  if (r.cadence) chips.push(['צע׳/דק׳', r.cadence]);
+  if (r.elev_gain) chips.push(['מ׳ עלייה', r.elev_gain]);
+  if (r.calories) chips.push(['קלוריות', r.calories]);
+
+  // יעילות אירובית מול הממוצע האישי
+  let effSec = '';
+  if (r.eff != null) {
+    const others = all.filter(x => x.eff != null && x.id !== r.id).map(x => x.eff);
+    const mean = others.length ? others.reduce((a, v) => a + v, 0) / others.length : null;
+    const pct = mean ? (r.eff - mean) / mean * 100 : null;
+    effSec = `<div class="rs-sec"><h3>יעילות אירובית</h3>
+      <div class="rs-row"><span>בריצה הזו</span><b>${fmt(r.eff, 2)}</b></div>
+      ${mean ? `<div class="rs-row"><span>ממוצע כל הריצות</span><b>${fmt(mean, 2)}</b></div>
+        <p class="rs-line">${Math.abs(pct) < 2
+          ? 'בדיוק על הרמה הרגילה שלך.'
+          : `<b>${fmt(Math.abs(pct), 1)}%</b> ${pct > 0 ? 'מעל' : 'מתחת ל'}ממוצע —
+             ${pct > 0 ? 'יותר' : 'פחות'} קצב לאותו דופק.`}</p>` : ''}
+    </div>`;
+  }
+
+  // דירוג והשוואה לאותו סוג
+  let cmpSec = '';
+  if (r.pace != null) {
+    const faster = all.filter(x => x.pace != null && x.pace < r.pace).length;
+    const meanPace = same.length ? same.reduce((a, x) => a + x.pace, 0) / same.length : null;
+    const meanKm = same.length ? same.reduce((a, x) => a + x.km, 0) / same.length : null;
+    cmpSec = `<div class="rs-sec"><h3>מול הריצות האחרות</h3>
+      <div class="rs-row"><span>דירוג מהירות</span>
+        <b>${faster + 1} מתוך ${all.filter(x => x.pace != null).length}</b></div>
+      ${rsDelta(`קצב מול ממוצע ה${t.label}`, r.pace, meanPace, { lowerIsBetter: true, fmt: paceTxt })}
+      ${rsDelta(`מרחק מול ממוצע ה${t.label}`, r.km, meanKm, { dec: 2, eps: .05, neutral: true })}
+      ${same.length < 2 ? '<p class="rs-line">זו הריצה הראשונה מסוגה — ההשוואה תתמלא עם עוד ריצות.</p>' : ''}
+    </div>`;
+  }
+
+  // מאמץ
+  const pct = runIntensity(r.avg_hr);
+  const z = hrZoneOf(r.avg_hr);
+  const effortRows = [
+    pct !== null ? `<div class="rs-row"><span>עוצמה מרזרבת הדופק</span><b>${Math.round(pct)}%</b></div>` : '',
+    z ? `<div class="rs-row"><span>אזור מאמץ</span><b>${z} · ${ZONE_NAMES[z]}</b></div>` : '',
+    r.aerobic_te ? `<div class="rs-row"><span>אפקט אירובי</span><b>${fmt(r.aerobic_te, 1)}</b></div>` : '',
+    r.anaerobic_te ? `<div class="rs-row"><span>אפקט אנאירובי</span><b>${fmt(r.anaerobic_te, 1)}</b></div>` : '',
+    r.vo2max ? `<div class="rs-row"><span>VO2max שנמדד</span><b>${fmt(r.vo2max, 1)}</b></div>` : '',
+  ].filter(Boolean).join('');
+  const effortSec = effortRows ? `<div class="rs-sec"><h3>מאמץ</h3>${effortRows}</div>` : '';
+
+  // הקשר בריאותי — הנתונים כבר קיימים, וזה מה שגרמין לא מחברת עבורך
+  const d0 = rowOn(r.date), d1 = rowOn(dayAfter(r.date));
+  const ctxRows = [
+    d0?.sleep_hours != null ? `<div class="rs-row"><span>שינה בלילה שלפני</span>
+      <b>${minToHm(Math.round(d0.sleep_hours * 60))}${d0.sleep_score != null ? ` · ${d0.sleep_score}` : ''}</b></div>` : '',
+    d0?.readiness_score != null ? `<div class="rs-row"><span>מוכנות באותו בוקר</span><b>${d0.readiness_score}</b></div>` : '',
+    d0?.hrv != null ? `<div class="rs-row"><span>HRV לפני${d1?.hrv != null ? ' → אחרי' : ''}</span>
+      <b>${d0.hrv}${d1?.hrv != null ? ` → ${d1.hrv}` : ''}</b></div>` : '',
+    d0?.rhr != null ? `<div class="rs-row"><span>דופק מנוחה לפני${d1?.rhr != null ? ' → אחרי' : ''}</span>
+      <b>${d0.rhr}${d1?.rhr != null ? ` → ${d1.rhr}` : ''}</b></div>` : '',
+    recoveryRow(d0),
+  ].filter(Boolean).join('');
+  const ctxSec = `<div class="rs-sec"><h3>הגוף סביב הריצה</h3>${ctxRows || `<p class="rs-empty">
+    אין נתוני גרמין ליום הזה. הסנכרון מכסה רק את התקופה שמאז ההתקנה, ולכן לריצות
+    שיובאו מהאייפון אין הקשר בריאותי.</p>`}</div>`;
+
+  const tagged = runTags[r.id] === 'intervals';
+  const dur = r.pace && r.km ? durTxt(r.km * r.pace) : `${r.minutes}`;
+
+  return `<div class="rs-head">
+      <div class="rs-grab"></div>
+      <div class="rs-top">
+        <span class="run-badge" style="--rc:${t.color}">${t.label}</span>
+        <span class="rs-date">${runLongDate(r.date)}</span>
+        <button class="rs-x" id="rs-close" aria-label="סגירה">✕</button>
+      </div>
+      <div class="rs-hero"><b>${fmt(r.km, 2)}</b><small>ק״מ</small></div>
+      <div class="rs-kpis">
+        <div><small>קצב</small><b>${paceTxt(r.pace)}</b></div>
+        <div><small>זמן</small><b>${dur}</b></div>
+        <div><small>דופק</small><b>${r.avg_hr ?? '—'}</b></div>
+      </div>
+    </div>
+    <div class="rs-scroll">
+      ${chips.length ? `<div class="rs-chips">${chips.map(([l, v]) =>
+        `<span class="rs-chip">${l}<b>${v}</b></span>`).join('')}</div>` : ''}
+      ${effSec}${cmpSec}${effortSec}${ctxSec}
+      <button class="btn-ghost rs-tag${tagged ? ' on' : ''}" id="rs-tag">
+        ${tagged ? '✓ מסומנת כאינטרוולים — ביטול' : 'סימון כאינטרוולים'}</button>
+    </div>`;
+}
+
+/* --- מצבי הגיליון: סגור / הצצה / מלא --- */
+let rsState = 'closed', rsRunId = null;
+
+function setRsState(s) {
+  rsState = s;
+  const p = $('rs-panel'), back = $('run-sheet');
+  p.classList.toggle('peek', s === 'peek');
+  p.classList.toggle('full', s === 'full');
+  back.classList.toggle('shown', s !== 'closed');
+  if (s === 'closed') {
+    rsRunId = null;
+    setTimeout(() => { if (rsState === 'closed') back.classList.add('hidden'); }, 320);
+  }
+}
+/* allRuns אינו מסווג (הספים שם נבחרים בזמן הצגה), ולכן הגזירות מושלמות כאן */
+function runById(id) {
+  const r = runsInRange().find(x => x.id === id) || allRuns().find(x => x.id === id);
+  if (!r) return null;
+  r.pace = runPace(r); r.eff = runEff(r); r.kind = classifyRun(r);
+  return r;
+}
+function openRunSheet(id) {
+  const r = runById(id);
+  if (!r) return;
+  rsRunId = id;
+  $('rs-body').innerHTML = runSheetHtml(r);
+  $('rs-body').scrollTop = 0;
+  $('run-sheet').classList.remove('hidden');
+  // פריים אחד לפני שינוי המצב, אחרת המעבר מ-hidden קופץ בלי אנימציה
+  requestAnimationFrame(() => requestAnimationFrame(() => setRsState('peek')));
+  haptic(8);
+}
+const closeRunSheet = () => setRsState('closed');
+
+$('run-sheet').addEventListener('click', e => {
+  if (e.target.id === 'run-sheet' || e.target.closest('#rs-close')) { closeRunSheet(); return; }
+  if (e.target.closest('.rs-grab')) { setRsState(rsState === 'full' ? 'peek' : 'full'); return; }
+  if (e.target.closest('#rs-tag') && rsRunId) {
+    if (runTags[rsRunId] === 'intervals') delete runTags[rsRunId]; else runTags[rsRunId] = 'intervals';
+    saveRunTags(); haptic(8);
+    const id = rsRunId;
+    renderRuns(); renderActivityRec();
+    const r = runById(id);
+    if (r) $('rs-body').innerHTML = runSheetHtml(r);
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && rsState !== 'closed') closeRunSheet(); });
+
+/* גרירה בין המצבים. הראש תמיד גורר; בגוף הגרירה מתחילה רק כשהוא בראשו,
+ * אחרת מחווה של גלילה בתוכן הייתה מזיזה את כל הגיליון. */
+(function () {
+  const panel = $('rs-panel'), body = $('rs-body');
+  const PEEK = 38;                       // אחוז ההסתרה במצב הצצה, כמו ב-CSS
+  let y0 = 0, base = 0, cur = 0, mode = null;
+  const at = () => rsState === 'full' ? 0 : PEEK;
+
+  panel.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1 || rsState === 'closed') { mode = null; return; }
+    y0 = e.touches[0].clientY; base = cur = at();
+    mode = e.target.closest('.rs-head') ? 'drag' : 'maybe';
+  }, { passive: true });
+
+  panel.addEventListener('touchmove', e => {
+    if (!mode || mode === 'scroll') return;
+    const dy = e.touches[0].clientY - y0;
+    if (mode === 'maybe') {
+      if (Math.abs(dy) < 6) return;
+      // בראש התוכן: משיכה למטה גוררת את הגיליון; במצב הצצה כל כיוון גורר
+      if (body.scrollTop <= 0 && (dy > 0 || rsState === 'peek')) mode = 'drag';
+      else { mode = 'scroll'; return; }
+    }
+    e.preventDefault();
+    panel.style.transition = 'none';
+    cur = Math.max(0, Math.min(100, base + dy / panel.offsetHeight * 100));
+    panel.style.transform = `translateY(${cur}%)`;
+  }, { passive: false });
+
+  const release = () => {
+    if (mode !== 'drag') { mode = null; return; }
+    mode = null;
+    panel.style.transition = ''; panel.style.transform = '';
+    if (rsState === 'peek') setRsState(cur < 20 ? 'full' : cur > 58 ? 'closed' : 'peek');
+    else setRsState(cur > 45 ? 'closed' : cur > 12 ? 'peek' : 'full');
+  };
+  panel.addEventListener('touchend', release, { passive: true });
+  panel.addEventListener('touchcancel', release, { passive: true });
+})();
 
 /* --- נפח חודשי --- */
 const monthKey = iso => iso.slice(0, 7);
@@ -1533,11 +1748,7 @@ $('runs-card').addEventListener('click', e => {
     return;
   }
   const row = e.target.closest('[data-run]');
-  if (!row) return;
-  const id = row.dataset.run;
-  if (runTags[id] === 'intervals') delete runTags[id]; else runTags[id] = 'intervals';
-  saveRunTags(); haptic(8);
-  renderRuns(); renderActivityRec();
+  if (row) openRunSheet(row.dataset.run);
 });
 
 /* =========================================================================
