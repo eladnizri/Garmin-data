@@ -626,7 +626,9 @@ function TT(labelFn) {
     rtl: true, textDirection: 'rtl', backgroundColor: '#2f3d35', titleColor: '#ffffff',
     bodyColor: 'rgba(255,255,255,.82)', borderColor: 'transparent', borderWidth: 0, padding: 10,
     cornerRadius: 10, boxPadding: 4, titleFont: { weight: '700' },
-    filter: i => !['ממוצע 7 ימים', 'יעד', 'טווח מאוזן'].includes(i.dataset.label),
+    // קווים גזורים (ממוצע נע, יעד, טווח) חוזרים על מה שהנקודות כבר אומרות
+    filter: i => !['ממוצע 7 ימים', 'יעד', 'טווח מאוזן'].includes(i.dataset.label)
+      && !/^מגמת /.test(i.dataset.label),
     callbacks: cb,
   };
 }
@@ -1155,12 +1157,21 @@ function runsInRange() {
     out.push({ ...h, id: `apple#${h.date}#${Math.round(h.km * 10)}` });
   });
   out.sort((a, b) => a.date.localeCompare(b.date));
-  for (const r of out) { r.pace = runPace(r); r.eff = runEff(r); r.kind = classifyRun(r); }
+  for (const r of out) {
+    r.pace = runPace(r); r.eff = runEff(r); r.kind = classifyRun(r);
+    r.real = isRealRun(r);
+  }
   return out;
 }
 
+/* חימומים, ריצות שנקטעו והליכות שנרשמו כריצה מעוותות כל ממוצע וכל מגמה.
+ * הן נשארות ברשימת ההיסטוריה, מעומעמות, אבל אינן נכנסות לניתוח. */
+const RUN_MIN_KM = 1, RUN_MAX_PACE = 480;   // 8:00 דק׳/ק״מ
+const isRealRun = r => (r.km || 0) >= RUN_MIN_KM && r.pace != null && r.pace <= RUN_MAX_PACE;
+
 const RUN_HIST_SHOWN = 15;   // כמה ריצות נפרשות לפני "הצגת נוספות"
 let runHistOpen = false;
+let runChartKind = 'all';    // מסנן סוג הריצה בגרף ההשתפרות
 
 function goalRunKm() { return profile.runGoalKm ? Number(profile.runGoalKm) : null; }
 function goalRunPace() { return profile.runGoalPace ? Number(profile.runGoalPace) : null; }
@@ -1192,13 +1203,25 @@ function renderRuns() {
     return;
   }
 
-  const last = runs[runs.length - 1];
-  const prevSame = runs.slice(0, -1).reverse().find(r => r.kind === last.kind);
+  // הניתוח כולו נשען רק על ריצות אמיתיות; החריגות נשארות ברשימה בלבד
+  const real = runs.filter(r => r.real);
+  const skipped = runs.length - real.length;
+  if (!real.length) {
+    el.innerHTML = `<article class="card">
+      <div class="card-head"><h2>ריצות</h2></div>
+      <p class="tr-empty">${runs.length} רשומות בטווח, אבל כולן קצרות מ-${RUN_MIN_KM} ק״מ
+        או איטיות מ-${paceTxt(RUN_MAX_PACE)} דק׳/ק״מ — ולכן אינן נכנסות לניתוח.</p>
+    </article>`;
+    return;
+  }
+
+  const last = real[real.length - 1];
+  const prevSame = real.slice(0, -1).reverse().find(r => r.kind === last.kind);
   const t = RUN_TYPES[last.kind];
 
   // התפלגות לפי סוג — האיזון שהאימון נשען עליו
   const counts = {};
-  for (const k of RUN_ORDER) counts[k] = runs.filter(r => r.kind === k).length;
+  for (const k of RUN_ORDER) counts[k] = real.filter(r => r.kind === k).length;
   const chips = RUN_ORDER.filter(k => counts[k]).map(k =>
     `<span class="run-chip" style="--rc:${RUN_TYPES[k].color}">${RUN_TYPES[k].label}<b>${counts[k]}</b></span>`).join('');
 
@@ -1220,7 +1243,7 @@ function renderRuns() {
 
   // יעדים
   const gKm = goalRunKm(), gPace = goalRunPace();
-  const weekKm = runs.filter(r => r.date >= weekStartISO(new Date(todayISO()))).reduce((a, r) => a + (r.km || 0), 0);
+  const weekKm = real.filter(r => r.date >= weekStartISO(new Date(todayISO()))).reduce((a, r) => a + (r.km || 0), 0);
   let goals = '';
   if (gKm) {
     const pct = Math.min(100, weekKm / gKm * 100);
@@ -1246,9 +1269,19 @@ function renderRuns() {
   if (last.cadence) bits.push(`${last.cadence} צע׳/דק׳`);
   if (last.elev_gain) bits.push(`${last.elev_gain} מ׳ עלייה`);
 
+  // מסנן הסוג — יעילות של טמפו ושל ריצה קלה אינן בנות־השוואה זו לזו
+  const kindsPresent = RUN_ORDER.filter(k => counts[k] >= 2);
+  // החלפת טווח יכולה להשאיר בחירה שכבר אין לה ריצות — חוזרים ל"הכל"
+  if (runChartKind !== 'all' && !kindsPresent.includes(runChartKind)) runChartKind = 'all';
+  const kindFilter = kindsPresent.length > 1
+    ? `<div class="run-kinds">${['all', ...kindsPresent].map(k =>
+        `<button class="rk-btn${k === runChartKind ? ' active' : ''}" data-kind="${k}"
+          ${k === 'all' ? '' : `style="--rc:${RUN_TYPES[k].color}"`}>${k === 'all' ? 'הכל' : RUN_TYPES[k].label}</button>`).join('')}</div>`
+    : '';
+
   el.innerHTML = `<article class="card">
     <div class="card-head"><h2>ריצות</h2>
-      <span class="unit">${runs.length} ריצות בתקופה</span></div>
+      <span class="unit">${real.length} ריצות בתקופה</span></div>
 
     <div class="run-last">
       <div class="rl-top"><span class="run-badge" style="--rc:${t.color}">${t.label}</span>
@@ -1261,16 +1294,20 @@ function renderRuns() {
 
     <div class="tr-sec">
       <div class="tr-sec-head"><h3>גרף השתפרות</h3></div>
+      ${kindFilter}
       <div class="legend" id="legend-runs"></div>
       <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-runs"></canvas></div>
       <p class="tr-note" id="run-note"></p>
     </div>
 
+    ${monthlyVolumeSection(real)}
+
     <div class="tr-sec"><h3>היסטוריית ריצות</h3>
       <p class="run-hint">לחיצה על ריצה מסמנת אותה כאינטרוולים ובחזרה.</p>
       <div class="tr-hist">${shown.map(r => {
         const rt = RUN_TYPES[r.kind];
-        return `<button class="tr-row run-row" data-run="${r.id}">
+        return `<button class="tr-row run-row${r.real ? '' : ' run-skipped'}" data-run="${r.id}"
+          ${r.real ? '' : 'title="קצרה או איטית מדי — לא נכנסת לניתוח"'}>
           <span class="tr-d">${runDate(r.date)}</span>
           <span class="run-dot" style="background:${rt.color}"></span>
           <span class="tr-nm">${rt.label}</span>
@@ -1278,52 +1315,155 @@ function renderRuns() {
         </button>`;
       }).join('')}</div>
       ${hidden > 0 ? `<button class="btn-ghost tr-wide" id="runs-more">הצגת ${hidden} ריצות נוספות</button>` : ''}
+      ${skipped ? `<p class="run-hint">${skipped} רשומות מעומעמות — קצרות מ-${RUN_MIN_KM} ק״מ
+        או איטיות מ-${paceTxt(RUN_MAX_PACE)}, ולכן מחוץ לניתוח.</p>` : ''}
     </div>
   </article>`;
-  renderRunChart(runs);
+  renderRunChart(real);
+  renderRunVolume(real);
+}
+
+/* --- נפח חודשי --- */
+const monthKey = iso => iso.slice(0, 7);
+const monthLabel = ym => `${+ym.slice(5)}/${ym.slice(2, 4)}`;
+
+/* ק״מ לחודש, כולל חודשים ריקים באמצע — בלעדיהם תקופת הפסקה נראית כרצף */
+function monthlyKm(real) {
+  if (!real.length) return [];
+  const sum = new Map();
+  for (const r of real) sum.set(monthKey(r.date), (sum.get(monthKey(r.date)) || 0) + r.km);
+  const out = [];
+  const [y0, m0] = monthKey(real[0].date).split('-').map(Number);
+  const [y1, m1] = monthKey(real[real.length - 1].date).split('-').map(Number);
+  for (let y = y0, m = m0; y < y1 || (y === y1 && m <= m1); m === 12 ? (m = 1, y++) : m++) {
+    const ym = `${y}-${String(m).padStart(2, '0')}`;
+    out.push({ ym, km: sum.get(ym) || 0 });
+  }
+  return out;
+}
+
+function monthlyVolumeSection(real) {
+  if (monthlyKm(real).length < 2) return '';
+  return `<div class="tr-sec">
+    <div class="tr-sec-head"><h3>נפח חודשי</h3></div>
+    <div class="chart-wrap chart-xs" dir="ltr"><canvas id="chart-run-volume"></canvas></div>
+    <p class="tr-note" id="run-vol-note"></p>
+  </div>`;
+}
+
+function renderRunVolume(real) {
+  if (!$('chart-run-volume')) return;
+  const months = monthlyKm(real).slice(-12);
+  const note = $('run-vol-note');
+  if (note) {
+    const active = months.filter(m => m.km > 0);
+    const mean = active.length ? active.reduce((a, m) => a + m.km, 0) / active.length : 0;
+    const best = months.reduce((a, m) => m.km > a.km ? m : a, months[0]);
+    note.innerHTML = `ממוצע <b>${fmt(mean, 1)}</b> ק״מ בחודש פעיל · השיא
+      ${fmt(best.km, 1)} ק״מ ב-${monthLabel(best.ym)}${months.some(m => !m.km)
+        ? ` · ${months.filter(m => !m.km).length} חודשים ללא ריצה` : ''}.`;
+  }
+  make('chart-run-volume', {
+    type: 'bar',
+    data: {
+      labels: months.map(m => monthLabel(m.ym)),
+      datasets: [{
+        data: months.map(m => +m.km.toFixed(1)),
+        backgroundColor: months.map(m => m.km ? C.blue : 'rgba(0,0,0,.06)'),
+        borderRadius: 4, borderSkipped: false,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: chartAnim ? undefined : false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => `${c.parsed.y} ק״מ` } },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true } },
+        y: { beginAtZero: true, ticks: { font: { size: 10 }, callback: v => `${v}` }, grid: { color: C.grid }, border: { display: false } },
+      },
+    },
+  });
 }
 
 function renderRunChart(runs) {
   const note = $('run-note');
   const wrap = $('chart-runs')?.closest('.chart-wrap');
   const leg = $('legend-runs');
-  const pts = runs.filter(r => r.eff != null && r.pace != null);
+  const kinds = $('runs-card')?.querySelector('.run-kinds');
+  let pts = runs.filter(r => r.eff != null && r.pace != null);
+  if (runChartKind !== 'all') pts = pts.filter(r => r.kind === runChartKind);
   if (pts.length < 2) {
+    if (kinds) kinds.style.display = '';
     charts['chart-runs']?.destroy(); delete charts['chart-runs'];
     if (wrap) wrap.style.display = 'none';
     if (leg) leg.style.display = 'none';
     if (note) note.textContent = pts.length === 1
       ? 'ריצה אחת עם נתוני קצב ודופק — הגרף יופיע אחרי השנייה.'
-      : 'צריך קצב ודופק משתי ריצות לפחות כדי לשרטט מגמה.';
+      : runChartKind === 'all'
+        ? 'צריך קצב ודופק משתי ריצות לפחות כדי לשרטט מגמה.'
+        : `אין מספיק ריצות מסוג ${RUN_TYPES[runChartKind].label} כדי לשרטט מגמה.`;
     return;
   }
   if (wrap) wrap.style.display = '';
   if (leg) leg.style.display = '';
+  if (kinds) kinds.style.display = '';
 
-  const first = pts[0], lastP = pts[pts.length - 1];
-  const dEff = (lastP.eff - first.eff) / first.eff * 100;
+  // ממוצע נע — הקו שמראה את המגמה מעל ענן הריצות הבודדות.
+  // חלון רחב יותר ככל שיש יותר ריצות, אחרת הקו רועש כמעט כמו הנקודות.
+  const win = pts.length >= 40 ? 9 : pts.length >= 24 ? 7 : pts.length >= 12 ? 5 : pts.length >= 6 ? 3 : 1;
+
+  /* השוואה בין קצוות המגמה ולא בין שתי ריצות בודדות — ריצה חריגה אחת
+   * בקצה הפכה את הסימן של אחוז השיפור */
+  const edge = Math.min(5, Math.floor(pts.length / 2));
+  const mean = a => a.reduce((s, r) => s + r.eff, 0) / a.length;
+  const effA = mean(pts.slice(0, edge)), effB = mean(pts.slice(-edge));
+  const dEff = (effB - effA) / effA * 100;
+  const span = `${runDate(pts[0].date)}–${runDate(pts[pts.length - 1].date)}`;
   if (note) {
-    note.innerHTML = Math.abs(dEff) < 2
-      ? `היעילות האירובית יציבה מאז ${runDate(first.date)}.`
-      : `היעילות האירובית ${dEff > 0 ? 'עלתה' : 'ירדה'} ב-<b>${fmt(Math.abs(dEff), 1)}%</b>
-         מאז ${runDate(first.date)} — אותו מאמץ, ${dEff > 0 ? 'יותר' : 'פחות'} קצב.`;
+    const scope = runChartKind === 'all' ? '' : ` בריצות ${RUN_TYPES[runChartKind].label}`;
+    note.innerHTML = (Math.abs(dEff) < 2
+      ? `היעילות האירובית${scope} יציבה לאורך ${span}.`
+      : `היעילות האירובית${scope} ${dEff > 0 ? 'עלתה' : 'ירדה'} ב-<b>${fmt(Math.abs(dEff), 1)}%</b>
+         לאורך ${span} — ${dEff > 0 ? 'יותר' : 'פחות'} קצב לאותו מאמץ.`)
+      + `<small>הושווה ממוצע ${edge} הריצות בכל קצה, לא ריצה בודדת${
+          win > 1 ? `. הקו העבה הוא ממוצע נע של ${win} ריצות` : ''}.</small>`;
   }
   legend('legend-runs', [[C.violet, 'יעילות אירובית'], [C.teal, 'קצב']]);
   const gPace = goalRunPace();
-  const ds = [
-    { label: 'יעילות אירובית', data: pts.map(r => ({ x: runDate(r.date), y: +r.eff.toFixed(2), iso: r.date })),
-      borderColor: C.violet, borderWidth: 2.4, pointRadius: 3, pointBackgroundColor: C.violet,
-      tension: .3, fill: false, yAxisID: 'y' },
-    { label: 'קצב', data: pts.map(r => ({ x: runDate(r.date), y: r.pace, iso: r.date })),
-      borderColor: C.teal, borderWidth: 2, pointRadius: 3, pointBackgroundColor: C.teal,
-      borderDash: [5, 4], tension: .3, fill: false, yAxisID: 'y1' },
-  ];
-  if (gPace) ds.push({ label: 'יעד', data: pts.map(r => ({ x: runDate(r.date), y: gPace, iso: r.date })),
-    borderColor: C.muted || C.ma, borderWidth: 1.5, borderDash: [6, 5], pointRadius: 0, fill: false, yAxisID: 'y1' });
+  const labels = pts.map(r => runDate(r.date));
+  const roll = key => pts.map((_, i) => {
+    const from = Math.max(0, i - win + 1);
+    const slice = pts.slice(from, i + 1);
+    return slice.reduce((s, r) => s + r[key], 0) / slice.length;
+  });
+  const effMa = roll('eff'), paceMa = roll('pace');
+  const faint = win > 1;   // בלי החלקה אין טעם להנמיך את הנקודות עצמן
+
+  const cloud = (label, key, color, axis) => ({
+    label, yAxisID: axis, showLine: !faint,
+    data: pts.map((r, i) => ({ x: labels[i], y: key === 'eff' ? +r.eff.toFixed(2) : r.pace, iso: r.date })),
+    borderColor: faint ? color + '55' : color, borderWidth: faint ? 0 : 2.2,
+    pointRadius: faint ? 2 : 3, pointBackgroundColor: faint ? color + '66' : color,
+    pointBorderWidth: 0, tension: .3, fill: false,
+  });
+  const trend = (label, data, color, axis, dash) => ({
+    label, yAxisID: axis, data: data.map((y, i) => ({ x: labels[i], y: +y.toFixed(2), iso: pts[i].date })),
+    borderColor: color, borderWidth: 2.6, pointRadius: 0, tension: .35, fill: false,
+    borderDash: dash || undefined,
+  });
+
+  const ds = [cloud('יעילות אירובית', 'eff', C.violet, 'y'), cloud('קצב', 'pace', C.teal, 'y1')];
+  if (faint) ds.push(trend('מגמת יעילות', effMa, C.violet, 'y'),
+                     trend('מגמת קצב', paceMa, C.teal, 'y1', [5, 4]));
+  if (gPace) ds.push({ label: 'יעד', data: labels.map((x, i) => ({ x, y: gPace, iso: pts[i].date })),
+    borderColor: C.ma, borderWidth: 1.5, borderDash: [6, 5], pointRadius: 0, fill: false, yAxisID: 'y1' });
 
   make('chart-runs', {
     type: 'line',
-    data: { labels: pts.map(r => runDate(r.date)), datasets: ds },
+    data: { labels, datasets: ds },
     options: {
       responsive: true, maintainAspectRatio: false,
       animation: chartAnim ? undefined : false,
@@ -1334,7 +1474,7 @@ function renderRunChart(runs) {
       scales: {
         x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
         y: { position: 'left', grid: { color: C.grid }, border: { display: false },
-             ticks: { color: C.violet, font: { size: 10 } } },
+             ticks: { color: C.violet, font: { size: 10 }, maxTicksLimit: 5 } },
         // ציר הקצב הפוך — קצב נמוך הוא טוב, וכך שני הקווים עולים כשמשתפרים
         y1: { position: 'right', reverse: true, grid: { display: false }, border: { display: false },
               ticks: { color: C.teal, font: { size: 10 }, maxTicksLimit: 4, callback: v => paceTxt(v) } },
@@ -1352,6 +1492,12 @@ $('runs-card').addEventListener('click', e => {
   if (e.target.closest('#runs-more')) {
     runHistOpen = true;
     chartAnim = false; renderRuns(); chartAnim = true;
+    return;
+  }
+  const kb = e.target.closest('.rk-btn');
+  if (kb) {
+    runChartKind = kb.dataset.kind;
+    haptic(6); renderRuns();
     return;
   }
   const row = e.target.closest('[data-run]');
@@ -2464,7 +2610,7 @@ function pickSession(score, statusKey, strLeft) {
 /* המלצה לריצה הבאה: מודל 80/20 (רוב קל, מיעוט קשה) מוצלב עם מוכנות היום.
  * מוכנות נמוכה גוברת על האיזון — אין טעם באינטרוולים על גוף לא מאושש. */
 function nextRunAdvice(score) {
-  const runs = runsInRange();
+  const runs = runsInRange().filter(r => r.real);
   if (!runs.length) return null;
   const recent = runs.slice(-10);
   const hard = recent.filter(r => r.kind === 'tempo' || r.kind === 'intervals').length;
