@@ -235,6 +235,22 @@
           <div class="field-row">
             <label class="field">דופק מקסימלי אמיתי<input type="number" name="maxHrOverride" min="120" max="220" inputmode="numeric" placeholder="לא חובה — ברירת מחדל 220 פחות גיל"></label>
           </div>
+          <div class="rules-sec">
+            <h3>סיווג ריצות</h3>
+            <p class="rr-note">מה נחשב טמפו משתנה מרץ לרץ. העוצמה נמדדת באחוזים
+              מ<b>רזרבת הדופק</b> — המרחק בין דופק המנוחה לדופק המקסימלי שלך.</p>
+            <div class="field-row">
+              <label class="field">טמפו מעוצמה של (%)<input type="number" name="runTempoPct" min="50" max="98" inputmode="numeric" placeholder="70"></label>
+              <label class="field">נפח ממרחק של (ק״מ)<input type="number" name="runVolumeKm" min="1" max="50" step="0.5" inputmode="decimal" placeholder="3"></label>
+            </div>
+            <div class="field-row">
+              <label class="field">אינטרוולים: פער דופק מקס׳ מהממוצע<input type="number" name="runIntervalSpread" min="5" max="90" inputmode="numeric" placeholder="ריק = תיוג ידני בלבד"></label>
+            </div>
+            <p class="rr-rule">קלה = כל מה שנשאר — מתחת לסף הטמפו וקצרה מסף הנפח.
+              תמיד אפשר לתייג ריצה ידנית כאינטרוולים בלחיצה עליה ברשימה.</p>
+            <p class="rr-preview" id="rr-preview"></p>
+          </div>
+
           <div class="modal-actions">
             <button type="button" class="btn-ghost" id="profile-clear">איפוס</button>
             <button type="submit" class="btn-primary">שמירה</button>

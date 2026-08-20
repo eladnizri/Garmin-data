@@ -446,6 +446,21 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .backup-row { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .backup-row .btn-ghost { flex: 1; font-size: .82rem; padding: 10px; }
 
+/* כוונון ספי סיווג הריצות, עם תצוגה מקדימה חיה */
+.rules-sec { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.rules-sec h3 { font-size: .86rem; font-weight: 700; margin-bottom: 5px; }
+.rr-note, .rr-rule { font-size: .72rem; line-height: 1.6; color: var(--muted); }
+.rr-note { margin-bottom: 10px; }
+.rr-note b { color: var(--ink-2); font-weight: 700; }
+.rr-rule { margin-top: 4px; }
+.rr-preview {
+  margin-top: 10px; padding: 10px 12px; border-radius: var(--r-sm);
+  background: var(--surface-2); font-size: .78rem; line-height: 1.6; color: var(--ink-2);
+}
+/* nowrap כדי שהמספר והתווית לא ייקרעו לשתי שורות */
+.rr-preview b { font-weight: 800; white-space: nowrap; }
+.rr-preview small { display: block; margin-top: 4px; font-size: .7rem; color: var(--muted); }
+
 /* ייבוא ריצות מהאייפון — פעולה נדירה, ולכן הסבר מלא ולא רק כפתור */
 .apple-row { margin-top: 10px; }
 .apple-row .btn-ghost { width: 100%; font-size: .82rem; padding: 10px; }
