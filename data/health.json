@@ -1701,15 +1701,15 @@
  {
   "date": "2026-08-20",
   "rhr": 51,
-  "stress_avg": 24,
+  "stress_avg": 32,
   "body_battery_high": 92,
   "body_battery_low": 15,
   "body_battery_charged": 77,
-  "body_battery_drained": 37,
-  "steps": 3054,
-  "calories": 1363.0,
-  "floors": 1.0,
-  "intensity_min": 2,
+  "body_battery_drained": 62,
+  "steps": 7779,
+  "calories": 2132.0,
+  "floors": 10.0,
+  "intensity_min": 53,
   "sleep_hours": 7.98,
   "deep_min": 60,
   "light_min": 289,
@@ -1732,7 +1732,25 @@
   "readiness_feedback": "EXCELLENT_RECOVERY",
   "recovery_hours": 0,
   "respiration_avg": 14.0,
-  "training_status": "DETRAINING",
-  "training_load": 46
+  "training_status": "RECOVERY_1",
+  "training_load": 125,
+  "vo2max": 52.0,
+  "workouts": [
+   {
+    "type": "ריצה",
+    "type_key": "running",
+    "minutes": 15,
+    "km": 2.4,
+    "avg_hr": 184,
+    "calories": 221,
+    "max_hr": 197,
+    "pace_s": 387,
+    "elev_gain": 13,
+    "cadence": 159,
+    "aerobic_te": 3.2,
+    "anaerobic_te": 0.3,
+    "vo2max": 52.0
+   }
+  ]
  }
 ]
