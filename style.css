@@ -179,6 +179,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .unit { font-size: .7rem; color: var(--muted); white-space: nowrap; }
 .chart-wrap { position: relative; height: 210px; }
 .chart-sm { height: 158px; }
+.chart-xs { height: 124px; }
 
 .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: .7rem; color: var(--ink-2); margin-bottom: 6px; }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
@@ -960,3 +961,18 @@ button.tm-v:active { color: var(--primary-500); }
 .run-row { gap: 8px; }
 .run-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
 .run-row .tr-v { font-size: .76rem; font-variant-numeric: tabular-nums; }
+/* קצרה או איטית מדי לניתוח — נשארת ברשימה כדי שלא תיעלם בלי הסבר */
+.run-skipped { opacity: .42; }
+
+/* מסנן סוג הריצה מעל גרף ההשתפרות */
+.run-kinds { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 10px; }
+.rk-btn {
+  font-size: .72rem; font-weight: 600; color: var(--ink-2);
+  background: var(--surface-2); border-radius: 999px; padding: 5px 11px; transition: .15s;
+}
+.rk-btn.active { background: var(--ink); color: #fff; }
+.rk-btn.active[style*="--rc"] { background: var(--rc); }
+.rk-btn:active { transform: scale(.95); }
+
+/* הערת גרף עם סייג קטן בשורה נפרדת */
+.tr-note small { display: block; margin-top: 3px; font-size: .68rem; color: var(--muted); }
