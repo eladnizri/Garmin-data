@@ -1095,27 +1095,44 @@ const RUN_TYPES = {
   easy:      { label: 'קלה',        color: C.green },
 };
 const RUN_ORDER = ['intervals', 'tempo', 'volume', 'easy'];
-const RUN_LONG_KM = 3;   // מעל זה ריצת זון-2 נחשבת נפח
 
-/* אזור מאמץ (1–5) לפי Karvonen — אותו חישוב שמוצג בכרטיס אזורי הדופק */
-function hrZoneOf(bpm) {
-  const mh = maxHR();
+/* ספי הסיווג — ניתנים לכוונון בהגדרות, כי מה שנחשב "טמפו" משתנה מרץ לרץ.
+ * tempoPct הוא אחוז מרזרבת הדופק (Karvonen), לא מהדופק המקסימלי. */
+const RUN_RULES_DEFAULT = { tempoPct: 70, volumeKm: 3, intervalSpread: 0 };
+const runRules = () => ({
+  tempoPct: profile.runTempoPct || RUN_RULES_DEFAULT.tempoPct,
+  volumeKm: profile.runVolumeKm || RUN_RULES_DEFAULT.volumeKm,
+  intervalSpread: profile.runIntervalSpread || RUN_RULES_DEFAULT.intervalSpread,
+  maxHr: maxHR(),
+});
+
+/* עוצמת המאמץ באחוזים מרזרבת הדופק. נופל לאחוז מהדופק המקסימלי
+ * כשאין דופק מנוחה — פחות מדויק, אבל עדיף על כלום. */
+function runIntensity(bpm, mh = maxHR()) {
   if (!mh || !bpm) return null;
   const rest = Math.round(baselineOf('rhr')?.mean ?? latest('rhr') ?? 0) || null;
-  const pct = rest ? (bpm - rest) / (mh - rest) * 100 : bpm / mh * 100;
+  return rest ? (bpm - rest) / (mh - rest) * 100 : bpm / mh * 100;
+}
+/* אזור מאמץ (1–5) — אותו חישוב שמוצג בכרטיס אזורי הדופק */
+function hrZoneOf(bpm) {
+  const pct = runIntensity(bpm);
+  if (pct === null) return null;
   if (pct < 60) return 1;
   if (pct < 70) return 2;
   if (pct < 80) return 3;
   if (pct < 90) return 4;
   return 5;
 }
-/* זון 3 ומעלה = טמפו; זון 2 ומטה מסווג לפי מרחק */
-function classifyRun(r) {
+
+/* סדר ההכרעה: תיוג ידני ← פער דופק ← עוצמה ← מרחק ← קלה */
+function classifyRun(r, rules = runRules()) {
   if (runTags[r.id] === 'intervals') return 'intervals';
-  const z = hrZoneOf(r.avg_hr);
-  if (z === null) return (r.km || 0) > RUN_LONG_KM ? 'volume' : 'easy';
-  if (z >= 3) return 'tempo';
-  return (r.km || 0) > RUN_LONG_KM ? 'volume' : 'easy';
+  // באינטרוולים הדופק מזנק ונופל, ולכן הפער בין המקסימלי לממוצע גדול
+  if (rules.intervalSpread && r.max_hr && r.avg_hr
+      && r.max_hr - r.avg_hr >= rules.intervalSpread) return 'intervals';
+  const pct = runIntensity(r.avg_hr, rules.maxHr);
+  if (pct !== null && pct >= rules.tempoPct) return 'tempo';
+  return (r.km || 0) >= rules.volumeKm ? 'volume' : 'easy';
 }
 
 /* יעילות אירובית — מטרים לדקה לכל פעימה. עולה = משתפר. */
@@ -1175,6 +1192,21 @@ let runChartKind = 'all';    // מסנן סוג הריצה בגרף ההשתפר
 
 function goalRunKm() { return profile.runGoalKm ? Number(profile.runGoalKm) : null; }
 function goalRunPace() { return profile.runGoalPace ? Number(profile.runGoalPace) : null; }
+
+/* כל הריצות שקיימות, בלי תלות בטווח המוצג — בסיס לתצוגה המקדימה בהגדרות.
+ * בלי kind: הוא נקבע שם מול ספים שהמשתמש עוד מקליד. */
+function allRuns() {
+  const out = [];
+  for (const row of state.data)
+    (row.workouts || []).forEach((w, i) => {
+      if (w.type_key === 'running') out.push({ ...w, date: row.date, id: runId(row.date, i) });
+    });
+  const taken = garminRunDates();
+  for (const h of historyRuns())
+    if (!taken.has(h.date)) out.push({ ...h, id: `apple#${h.date}#${Math.round(h.km * 10)}` });
+  for (const r of out) { r.pace = runPace(r); r.real = isRealRun(r); }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
 
 /* כמה ריצות יש בכלל, בלי קשר לטווח המוצג */
 function totalRunCount() {
@@ -2675,7 +2707,8 @@ function renderActivityRec() {
 /* =========================================================================
  * מודאל פרופיל
  * ========================================================================= */
-const PROFILE_FIELDS = ['age', 'heightCm', 'weightKg', 'sleepGoal', 'stepsGoal', 'strengthGoal', 'weightGoal', 'runGoalKm', 'maxHrOverride'];
+const PROFILE_FIELDS = ['age', 'heightCm', 'weightKg', 'sleepGoal', 'stepsGoal', 'strengthGoal',
+  'weightGoal', 'runGoalKm', 'maxHrOverride', 'runTempoPct', 'runVolumeKm', 'runIntervalSpread'];
 /* קצב היעד נשמר בשניות לק״מ אבל מוקלד כ-"5:30" — המרה בשני הכיוונים */
 function parsePace(txt) {
   const m = String(txt).trim().match(/^(\d{1,2})[:.](\d{1,2})$/);
@@ -2688,6 +2721,39 @@ function fillProfileForm() {
   PROFILE_FIELDS.forEach(k => { if (f[k]) f[k].value = profile[k] ?? ''; });
   if (f.sex) f.sex.value = profile.sex || '';
   if (f.runGoalPace) f.runGoalPace.value = profile.runGoalPace ? paceTxt(profile.runGoalPace) : '';
+  renderRulePreview();
+}
+
+/* תצוגה מקדימה חיה של הסיווג — בלעדיה כוונון הספים הוא ניחוש עיוור:
+ * שומרים, סוגרים, מסתכלים, פותחים שוב. */
+function renderRulePreview() {
+  const el = $('rr-preview');
+  if (!el) return;
+  const f = $('profile-form');
+  const num = (name, dflt) => {
+    const v = Number(f[name]?.value);
+    return Number.isFinite(v) && v > 0 ? v : dflt;
+  };
+  const rules = {
+    tempoPct: num('runTempoPct', RUN_RULES_DEFAULT.tempoPct),
+    volumeKm: num('runVolumeKm', RUN_RULES_DEFAULT.volumeKm),
+    intervalSpread: num('runIntervalSpread', 0),
+    // הדופק שמוקלד ברגע זה, לא זה שנשמר — הוא מזיז את כל האזורים
+    maxHr: num('maxHrOverride', null) || (num('age', null) ? 220 - num('age', 0) : maxHR()),
+  };
+  const runs = allRuns().filter(r => r.real);
+  if (!runs.length) { el.textContent = 'אין עדיין ריצות להצגה מקדימה.'; return; }
+  if (!rules.maxHr) {
+    el.textContent = 'בלי גיל או דופק מקסימלי אי אפשר לחשב עוצמה — הסיווג ייפול למרחק בלבד.';
+    return;
+  }
+  const counts = {};
+  for (const r of runs) { const k = classifyRun(r, rules); counts[k] = (counts[k] || 0) + 1; }
+  const hardPct = Math.round(((counts.tempo || 0) + (counts.intervals || 0)) / runs.length * 100);
+  el.innerHTML = `${runs.length} הריצות שלך מתחלקות כך: `
+    + RUN_ORDER.filter(k => counts[k]).map(k =>
+        `<b style="color:${RUN_TYPES[k].color}">${counts[k]} ${RUN_TYPES[k].label}</b>`).join(' · ')
+    + `<small>${hardPct}% ריצות קשות. אימון מאוזן שואף ל-~20%.</small>`;
 }
 function openProfile() { fillProfileForm(); $('profile-modal').classList.remove('hidden'); }
 function closeProfile() { $('profile-modal').classList.add('hidden'); }
@@ -2705,6 +2771,7 @@ $('profile-form').addEventListener('submit', e => {
   saveProfileObj(p); closeProfile(); renderAll();
 });
 $('profile-clear').addEventListener('click', () => { saveProfileObj({}); fillProfileForm(); closeProfile(); renderAll(); });
+$('profile-form').addEventListener('input', renderRulePreview);
 
 /* --- מודאל שקילה --- */
 function openWeight() {
