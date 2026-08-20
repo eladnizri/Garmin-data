@@ -2774,6 +2774,43 @@ function strengthCountInWeek(rows, auto) {
   for (const r of rows) if (strengthDone(r.date, auto)) set.add(r.date);
   return set.size;
 }
+/* כל האימונים של השבוע — כוח (אוטומטי + ידני) וכל השאר, בלי כפילות */
+function weekWorkouts(rows, auto) {
+  const strength = strengthCountInWeek(rows, auto);
+  const byType = {};
+  let other = 0;
+  for (const r of rows)
+    for (const w of (r.workouts || [])) {
+      if (STRENGTH_TYPES.has(w.type_key)) continue;   // כבר נספר בכוח
+      other++;
+      byType[w.type] = (byType[w.type] || 0) + 1;
+    }
+  const parts = [];
+  if (strength) parts.push(`${strength} כוח`);
+  for (const [t, n] of Object.entries(byType).sort((a, b) => b[1] - a[1]).slice(0, 2)) parts.push(`${n} ${t}`);
+  return { total: strength + other, strength, parts };
+}
+
+/* ק״מ ריצה בשבוע — כולל ריצות מיובאות בימים שאין בהם ריצת גרמין */
+function weekRunKm(rows) {
+  if (!rows.length) return 0;
+  const from = rows[0].date, to = rows[rows.length - 1].date;
+  let km = 0;
+  const taken = new Set();
+  for (const r of rows)
+    for (const w of (r.workouts || []))
+      if (w.type_key === 'running') { km += w.km || 0; taken.add(r.date); }
+  for (const h of historyRuns())
+    if (h.date >= from && h.date <= to && !taken.has(h.date)) km += h.km || 0;
+  return km;
+}
+
+/* יום פעיל = היה בו אימון, או שנעמד בו יעד הצעדים */
+function activeDays(rows) {
+  const goal = goalSteps();
+  return rows.filter(r => (r.workouts || []).length > 0 || (r.steps || 0) >= goal).length;
+}
+
 function renderWeekSummary() {
   const el = $('week-summary');
   const cur = weekRows(0), prev = weekRows(1);
@@ -2782,31 +2819,34 @@ function renderWeekSummary() {
 
   const sleepC = avg(cur, 'sleep_hours'), sleepP = avg(prev, 'sleep_hours');
   const stepsC = avg(cur, 'steps'), stepsP = avg(prev, 'steps');
-  const strC = strengthCountInWeek(cur, auto), strP = strengthCountInWeek(prev, auto);
+  const wC = weekWorkouts(cur, auto), wP = weekWorkouts(prev, auto);
+  const kmC = weekRunKm(cur), kmP = weekRunKm(prev);
+  const actC = activeDays(cur), actP = activeDays(prev);
+  const rhrC = avg(cur, 'rhr'), rhrP = avg(prev, 'rhr');
   const intC = cur.reduce((a, r) => a + (r.intensity_min || 0), 0);
-  const intP = prev.reduce((a, r) => a + (r.intensity_min || 0), 0);
   const intGoal = 150; // המלצת ה-WHO לדקות פעילות אינטנסיבית בשבוע
+  const kmGoal = goalRunKm();
 
   const chips = [];
-  chips.push(`<div class="ws-chip"><small>שינה ממוצעת</small><b>${sleepC !== null ? fmt(sleepC, 1) : '—'}<small> ש׳</small></b>${wsDelta(sleepC, sleepP, 1)}</div>`);
-  chips.push(`<div class="ws-chip"><small>צעדים ליום</small><b>${stepsC !== null ? fmt(Math.round(stepsC)) : '—'}</b>${wsDelta(stepsC, stepsP)}</div>`);
-  chips.push(`<div class="ws-chip"><small>אימוני כוח</small><b>${strC}<small>/${goalStrength()}</small></b>${wsDelta(strC, strP)}</div>`);
-  chips.push(`<div class="ws-chip"><small>דקות אינטנסיביות</small><b>${fmt(intC)}<small>/${intGoal}</small></b>
+  chips.push(`<div class="ws-chip"><small>שינה ממוצעת</small>
+    <b>${sleepC !== null ? fmt(sleepC, 1) : '—'}<small> ש׳</small></b>${wsDelta(sleepC, sleepP, 1)}</div>`);
+  chips.push(`<div class="ws-chip"><small>צעדים ליום</small>
+    <b>${stepsC !== null ? fmt(Math.round(stepsC)) : '—'}</b>${wsDelta(stepsC, stepsP)}</div>`);
+  chips.push(`<div class="ws-chip"><small>אימונים השבוע</small><b>${wC.total}</b>
+    ${wC.parts.length ? `<span class="ws-sub">${wC.parts.join(' · ')}</span>` : ''}
+    ${wsDelta(wC.total, wP.total)}</div>`);
+  chips.push(`<div class="ws-chip"><small>ימים פעילים</small><b>${actC}<small>/${cur.length}</small></b>
+    ${wsDelta(actC, actP)}</div>`);
+  chips.push(`<div class="ws-chip"><small>נפח ריצה</small>
+    <b>${fmt(kmC, 1)}<small> ${kmGoal ? `/ ${fmt(kmGoal, 1)} ` : ''}ק״מ</small></b>
+    ${kmGoal ? `<div class="ws-bar"><i style="width:${clamp(kmC / kmGoal * 100, 0, 100)}%"></i></div>`
+             : wsDelta(kmC, kmP, 1)}</div>`);
+  // דופק מנוחה: ירידה היא שיפור, ולכן ההשוואה הפוכה
+  chips.push(`<div class="ws-chip"><small>דופק מנוחה</small>
+    <b>${rhrC !== null ? Math.round(rhrC) : '—'}</b>${wsDelta(rhrC, rhrP, 0, true)}</div>`);
+  // אריח רחב אחרון — מספר אי-זוגי היה מותיר אריח יתום בטור אחד
+  chips.push(`<div class="ws-chip ws-wide"><small>דקות אינטנסיביות</small><b>${fmt(intC)}<small>/${intGoal}</small></b>
     <div class="ws-bar"><i style="width:${clamp(intC / intGoal * 100, 0, 100)}%"></i></div></div>`);
-  // צ׳יפ דלתא-משקל רק כשיש יומן משקל
-  const wLast = latestWeight(), wPrev = weightAt(7);
-  if (wLast && wPrev) {
-    const diff = wLast.kg - wPrev.kg;
-    let wd;
-    if (Math.abs(diff) < 0.05) wd = `<span class="ws-delta flat">ללא שינוי</span>`;
-    else {
-      const arrow = diff > 0 ? '▲' : '▼';
-      const dir = weightDir(diff, wPrev.kg);   // good/bad/null → ירוק/אדום/נייטרלי
-      const cls = dir === 'good' ? 'up' : dir === 'bad' ? 'down' : 'flat';
-      wd = `<span class="ws-delta ${cls}">${arrow} ${fmt(Math.abs(diff), 1)}</span>`;
-    }
-    chips.push(`<div class="ws-chip"><small>משקל (שבוע)</small><b>${fmt(wLast.kg, 1)}<small> ק״ג</small></b>${wd}</div>`);
-  }
 
   // סיכום כתוב בסגנון מאמן — מספר את הסיפור, לא רק מציג מספרים
   const bits = [];
@@ -2819,8 +2859,10 @@ function renderWeekSummary() {
     const pct = Math.round((hrvC - hrvP) / hrvP * 100);
     if (Math.abs(pct) >= 4) bits.push(`ה-HRV ${pct > 0 ? 'עלה' : 'ירד'} ב-${Math.abs(pct)}%`);
   }
-  if (strC < goalStrength()) bits.push(`חסרים ${goalStrength() - strC} אימוני כוח ליעד`);
-  else if (strC >= goalStrength()) bits.push('עמדת ביעד אימוני הכוח');
+  const gs = goalStrength(), miss = gs - wC.strength;
+  if (miss > 0) bits.push(miss === 1 ? 'חסר אימון כוח אחד ליעד' : `חסרים ${miss} אימוני כוח ליעד`);
+  else bits.push('עמדת ביעד אימוני הכוח');
+  if (kmGoal && kmC < kmGoal) bits.push(`נשארו ${fmt(kmGoal - kmC, 1)} ק״מ ליעד הריצה`);
   const prose = bits.length ? `<p class="ws-prose">${bits.join(', ')}.</p>` : '';
 
   el.innerHTML = `<article class="card"><div class="card-head"><h2>הסיכום השבועי שלך</h2>
