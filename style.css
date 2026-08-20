@@ -741,27 +741,31 @@ body.tm-open { overflow: hidden; }
   font-size: .72rem; font-weight: 700; letter-spacing: .04em; color: var(--muted);
 }
 .tm-pos b { font-size: .8rem; font-weight: 800; color: var(--primary-500); font-variant-numeric: tabular-nums; }
-.tm-name { font-size: 1.9rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.15; margin-top: 6px; }
+.tm-name { font-size: 1.74rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.15; margin-top: 5px; }
 .tm-subnote { display: flex; align-items: center; gap: 5px; font-size: .74rem; color: var(--watch); font-weight: 600; margin-top: 6px; }
-.tm-mgs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.tm-mgs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .tm-mg { font-size: .72rem; font-weight: 700; color: var(--primary-500); background: var(--primary-soft); border-radius: 999px; padding: 5px 11px; }
 .tm-mg.sec { color: var(--ink-2); background: var(--surface-2); font-weight: 600; }
-.tm-prev { font-size: .75rem; color: var(--muted); margin-top: 9px; line-height: 1.5; }
+.tm-prev { font-size: .75rem; color: var(--muted); margin-top: 7px; line-height: 1.45; }
 .tm-sug { display: flex; align-items: center; gap: 5px; font-size: .78rem; font-weight: 700; color: var(--primary-500); margin-top: 7px; }
 .tm-skipped { font-size: .78rem; color: var(--muted); margin-top: 8px; }
 
 /* אזור הסטים — גדל וגולל בפנים כשיש הרבה סטים */
+/* הסטים מתחלקים בגובה שנשאר: 2 סטים מתנפחים לגודל של 3, ואין גלילה עד 4.
+ * בכוונה בלי justify-content:center — במכל גלילה הוא חותך את הקצה העליון
+ * ומגיע מצב שהסט הראשון לא נגיש. */
 .tm-sets {
   flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
-  display: flex; flex-direction: column; justify-content: center; gap: 10px;
-  margin-top: 16px; padding: 2px 0; scrollbar-width: none;
+  display: flex; flex-direction: column; gap: 10px;
+  margin-top: 14px; padding: 2px 0; scrollbar-width: none;
 }
 .tm-sets::-webkit-scrollbar { display: none; }
 
 /* כל סט הוא בלוק בן שתי שורות — כותרת עם כפתור בוצע, ומתחתיה הפקדים */
 .tm-set {
-  flex: none; display: flex; flex-direction: column; gap: 9px;
-  background: var(--surface-2); border-radius: 20px; padding: 12px 13px 14px;
+  flex: 1 1 0; min-height: 92px;
+  display: flex; flex-direction: column; justify-content: center; gap: 10px;
+  background: var(--surface-2); border-radius: 20px; padding: 12px 13px;
   transition: background .18s;
 }
 .tm-set.done { background: var(--primary-soft); }
@@ -797,6 +801,20 @@ button.tm-v:active { color: var(--primary-500); }
 }
 .tm-kgin:focus { outline: none; }
 
+/* מעט סטים = בלוקים גבוהים, ולכן גם הפקדים גדלים — אחרת הבלוק נראה ריק.
+ * נגזר ממספר הסטים ולא מגובה בפועל, כדי לא להישען על container queries. */
+.tm-sets[data-n="1"] .tm-set, .tm-sets[data-n="2"] .tm-set { gap: 16px; padding: 16px 12px; }
+.tm-sets[data-n="1"] .tm-pm, .tm-sets[data-n="2"] .tm-pm { width: 38px; height: 50px; font-size: 1.35rem; border-radius: 14px; }
+.tm-sets[data-n="1"] .tm-ok, .tm-sets[data-n="2"] .tm-ok { width: 58px; height: 50px; border-radius: 16px; }
+.tm-sets[data-n="1"] .tm-fv, .tm-sets[data-n="2"] .tm-fv { min-width: 52px; }
+.tm-sets[data-n="1"] .tm-fv b, .tm-sets[data-n="1"] .tm-v,
+.tm-sets[data-n="2"] .tm-fv b, .tm-sets[data-n="2"] .tm-v { font-size: 1.62rem; }
+.tm-sets[data-n="1"] .tm-fv small, .tm-sets[data-n="2"] .tm-fv small { font-size: .68rem; }
+.tm-sets[data-n="1"] .tm-n, .tm-sets[data-n="2"] .tm-n { font-size: .84rem; }
+.tm-sets[data-n="3"] .tm-set { gap: 12px; padding: 14px 13px; }
+.tm-sets[data-n="3"] .tm-pm { height: 44px; }
+.tm-sets[data-n="3"] .tm-ok { height: 44px; }
+
 /* שורת הכלים — דלג · החלף · תרגיל אחר */
 .tm-tools { flex: none; display: flex; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .tm-tools button {
@@ -809,8 +827,15 @@ button.tm-v:active { color: var(--primary-500); }
   .tm-card { flex-basis: 88%; padding: 16px 14px 10px; }
   .tm-card:first-child { margin-inline-start: 6%; }
   .tm-card:last-child { margin-inline-end: 6%; }
-  .tm-name { font-size: 1.62rem; }
-  .tm-set { padding: 11px 11px 12px; }
+  .tm-name { font-size: 1.5rem; }
+  .tm-set { min-height: 82px; padding: 10px 11px; }
+  .tm-sets[data-n] .tm-set { gap: 11px; padding: 11px 8px; }
+  .tm-sets[data-n] .tm-pm { width: 29px; height: 42px; font-size: 1.15rem; }
+  .tm-sets[data-n] .tm-ok { width: 44px; height: 42px; }
+  .tm-sets[data-n] .tm-fv { min-width: 40px; }
+  .tm-sets[data-n] .tm-fv b, .tm-sets[data-n] .tm-v { font-size: 1.22rem; }
+  .tm-sets[data-n] .tm-fields { gap: 4px; }
+  .tm-sets[data-n] .tm-field { gap: 2px; }
   .tm-pm { width: 30px; height: 38px; }
   .tm-fv { min-width: 46px; }
   .tm-fv b, .tm-v { font-size: 1.2rem; }
@@ -892,3 +917,35 @@ button.tm-v:active { color: var(--primary-500); }
 
 /* מודאל בחירת התרגיל נפתח מתוך מצב האימון — חייב להיות מעליו (train-mode: 90) */
 #switch-modal { z-index: 100; }
+
+/* =========================================================================
+ * ניתוח ריצות
+ * ========================================================================= */
+.run-last { background: var(--surface-2); border-radius: var(--r-md); padding: 13px 14px; }
+.rl-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.rl-date { font-size: .74rem; color: var(--muted); font-weight: 600; }
+.rl-bits { font-size: .84rem; font-weight: 600; color: var(--ink); line-height: 1.6; }
+.run-badge {
+  font-size: .72rem; font-weight: 800; color: #fff; background: var(--rc, var(--primary));
+  border-radius: 999px; padding: 4px 11px; flex: none;
+}
+.run-cmp { font-size: .8rem; color: var(--ink-2); line-height: 1.6; margin-top: 9px; }
+
+.run-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.run-chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: .74rem; font-weight: 600; color: var(--ink-2);
+  background: var(--surface-2); border-radius: 999px; padding: 5px 11px;
+  box-shadow: inset 2px 0 0 var(--rc);
+}
+.run-chip b { font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.run-goal { margin-top: 13px; }
+.rg-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: .78rem; color: var(--ink-2); margin-bottom: 6px; }
+.rg-top b { font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.rg-bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.rg-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary-400), var(--primary)); transition: width .6s cubic-bezier(.22, 1, .36, 1); }
+
+.run-hint { font-size: .72rem; color: var(--muted); margin: -4px 0 8px; }
+.run-row { gap: 8px; }
+.run-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.run-row .tr-v { font-size: .76rem; font-variant-numeric: tabular-nums; }
