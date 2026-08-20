@@ -446,6 +446,69 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .backup-row { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .backup-row .btn-ghost { flex: 1; font-size: .82rem; padding: 10px; }
 
+/* =========================================================================
+ * גיליון פירוט ריצה — שני מצבים: הצצה (peek) ומסך מלא, בגרירה
+ * ========================================================================= */
+.rs-back {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(24, 40, 33, .38);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  opacity: 0; transition: opacity .3s;
+}
+.rs-back.shown { opacity: 1; }
+.rs {
+  position: relative; width: 100%; max-width: 620px;
+  height: 94dvh;
+  background: var(--surface); border-radius: var(--r-lg) var(--r-lg) 0 0;
+  box-shadow: 0 -18px 44px -20px rgba(30, 60, 46, .5);
+  transform: translateY(100%);
+  transition: transform .32s cubic-bezier(.22, 1, .36, 1);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.rs.peek { transform: translateY(38%); }
+.rs.full { transform: translateY(0); }
+.rs-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+/* בהצצה אין גלילה פנימית — הדרך פנימה היא גרירה למעלה, וכך המחווה חד-משמעית */
+.rs.peek .rs-body { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .rs { transition: none; } }
+
+/* ראש הגיליון — אזור הגרירה, ולכן הוא לא גולל עם התוכן */
+.rs-head { padding: 10px 18px 4px; touch-action: none; }
+.rs-grab { width: 40px; height: 4px; border-radius: 999px; background: var(--border); margin: 0 auto 12px; }
+.rs-top { display: flex; align-items: center; gap: 10px; }
+.rs-date { font-size: .78rem; color: var(--muted); flex: 1; }
+.rs-x { width: 30px; height: 30px; border-radius: 50%; background: var(--surface-2); color: var(--ink-2); font-size: .8rem; flex: none; }
+.rs-hero { display: flex; align-items: baseline; justify-content: center; gap: 8px; margin: 14px 0 4px; }
+.rs-hero b { font-size: 3.4rem; font-weight: 800; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+.rs-hero small { font-size: 1rem; font-weight: 600; color: var(--muted); }
+.rs-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0 6px; }
+.rs-kpis div { text-align: center; }
+.rs-kpis small { display: block; font-size: .68rem; color: var(--muted); margin-bottom: 3px; }
+.rs-kpis b { font-size: 1.14rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+.rs-scroll { padding: 4px 18px calc(24px + env(safe-area-inset-bottom)); }
+.rs-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.rs-chip {
+  display: inline-flex; align-items: baseline; gap: 5px; font-size: .74rem; color: var(--ink-2);
+  background: var(--surface-2); border-radius: 999px; padding: 5px 11px;
+}
+.rs-chip b { font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.rs-sec { margin-top: 18px; }
+.rs-sec h3 { font-size: .8rem; font-weight: 700; color: var(--primary-500); margin-bottom: 8px; }
+.rs-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.rs-row:first-of-type { border-top: none; }
+.rs-row span { font-size: .82rem; color: var(--ink-2); }
+.rs-row b { font-size: .9rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rs-row b.up { color: var(--ok); }
+.rs-row b.down { color: var(--alert); }
+.rs-line { font-size: .8rem; line-height: 1.65; color: var(--ink-2); margin-top: 8px; }
+.rs-line b { color: var(--ink); font-weight: 800; }
+.rs-empty { font-size: .78rem; line-height: 1.6; color: var(--muted); }
+.rs-tag { width: 100%; margin-top: 20px; }
+.rs-tag.on { background: var(--primary); color: #fff; }
+
 /* כוונון ספי סיווג הריצות, עם תצוגה מקדימה חיה */
 .rules-sec { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 .rules-sec h3 { font-size: .86rem; font-weight: 700; margin-bottom: 5px; }
@@ -948,7 +1011,8 @@ button.tm-v:active { color: var(--primary-500); }
 /* =========================================================================
  * ניתוח ריצות
  * ========================================================================= */
-.run-last { background: var(--surface-2); border-radius: var(--r-md); padding: 13px 14px; }
+.run-last { background: var(--surface-2); border-radius: var(--r-md); padding: 13px 14px; cursor: pointer; transition: transform .12s; }
+.run-last:active { transform: scale(.985); }
 .rl-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
 .rl-date { font-size: .74rem; color: var(--muted); font-weight: 600; }
 .rl-bits { font-size: .84rem; font-weight: 600; color: var(--ink); line-height: 1.6; }
