@@ -445,6 +445,17 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .backup-row { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .backup-row .btn-ghost { flex: 1; font-size: .82rem; padding: 10px; }
 
+/* ייבוא ריצות מהאייפון — פעולה נדירה, ולכן הסבר מלא ולא רק כפתור */
+.apple-row { margin-top: 10px; }
+.apple-row .btn-ghost { width: 100%; font-size: .82rem; padding: 10px; }
+.apple-status { margin-top: 8px; font-size: .72rem; line-height: 1.6; color: var(--muted); }
+.apple-status b { color: var(--ink); }
+.apple-status code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .68rem;
+  background: var(--surface-2); border-radius: 5px; padding: 1px 5px; direction: ltr; display: inline-block;
+}
+.apple-status .btn-ghost { width: 100%; margin-top: 8px; font-size: .78rem; padding: 9px; }
+
 .weight-top { display: flex; align-items: flex-start; gap: 12px; }
 .weight-val { font-size: 2.2rem; font-weight: 700; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
 .weight-val small { font-size: .75rem; font-weight: 500; color: var(--muted); margin-inline-start: 3px; }

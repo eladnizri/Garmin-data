@@ -1,12 +1,13 @@
 /* Service worker — מאפשר התקנה כאפליקציה ופתיחה מהירה גם ללא רשת.
  * אסטרטגיה: cache-first לקבצי המעטפת, network-first לנתונים (health.json). */
-const CACHE = 'health-app-v32';
+const CACHE = 'health-app-v33';
 const SHELL = [
   './',
   './index.html',
   './style.css',
   './shell.css',
   './common.js',
+  './apple-health.js',
   './app.js',
   './hub.js',
   './vendor/chart.umd.min.js',
@@ -36,7 +37,7 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
 
   // הנתונים: קודם רשת (טרי), נפילה למטמון אם אין קליטה
-  if (request.url.includes('health.json')) {
+  if (request.url.includes('health.json') || request.url.includes('runs_history.json')) {
     event.respondWith(
       fetch(request).then(res => {
         const copy = res.clone();
