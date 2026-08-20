@@ -1,6 +1,6 @@
 /* Service worker — מאפשר התקנה כאפליקציה ופתיחה מהירה גם ללא רשת.
  * אסטרטגיה: cache-first לקבצי המעטפת, network-first לנתונים (health.json). */
-const CACHE = 'health-app-v31';
+const CACHE = 'health-app-v32';
 const SHELL = [
   './',
   './index.html',

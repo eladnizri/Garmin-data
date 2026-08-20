@@ -1101,10 +1101,29 @@ function runsInRange() {
 function goalRunKm() { return profile.runGoalKm ? Number(profile.runGoalKm) : null; }
 function goalRunPace() { return profile.runGoalPace ? Number(profile.runGoalPace) : null; }
 
+/* כמה ריצות יש בכלל, בלי קשר לטווח המוצג */
+function totalRunCount() {
+  let n = 0;
+  for (const row of state.data) for (const w of (row.workouts || [])) if (w.type_key === 'running') n++;
+  return n;
+}
+
 function renderRuns() {
   const el = $('runs-card');
   const runs = runsInRange();
-  if (!runs.length) { el.innerHTML = ''; return; }
+  if (!runs.length) {
+    // הכרטיס לא נעלם כשאין ריצות בטווח — אחרת אי אפשר לדעת שהוא בכלל קיים
+    const total = totalRunCount();
+    el.innerHTML = `<article class="card">
+      <div class="card-head"><h2>ריצות</h2></div>
+      <p class="tr-empty">${total
+        ? `אין ריצות בטווח הזמן שנבחר. יש <b>${total}</b> ריצות מוקדמות יותר —
+           החלף ל"הכל" בסרגל העליון כדי לראות אותן.`
+        : 'ריצות שתתעד בגרמין יופיעו כאן — מסווגות לפי אזור מאמץ, עם השוואה בין ריצות וגרף השתפרות.'}</p>
+      ${total ? '<button class="btn-primary tr-wide" id="runs-see-all">הצג את כל התקופה</button>' : ''}
+    </article>`;
+    return;
+  }
 
   const last = runs[runs.length - 1];
   const prevSame = runs.slice(0, -1).reverse().find(r => r.kind === last.kind);
@@ -1252,6 +1271,11 @@ function renderRunChart(runs) {
 }
 
 $('runs-card').addEventListener('click', e => {
+  if (e.target.closest('#runs-see-all')) {
+    state.range = 'all';
+    chartAnim = false; renderAll(); chartAnim = true;
+    return;
+  }
   const row = e.target.closest('[data-run]');
   if (!row) return;
   const id = row.dataset.run;
