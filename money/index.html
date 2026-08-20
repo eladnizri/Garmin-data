@@ -477,7 +477,8 @@ h2 { font-weight: 800; }
 
 /* modals: refined sheet */
 .modal { box-shadow: 0 -8px 40px -8px rgba(16,24,40,.3); border-radius: 24px 24px 0 0; }
-.modal-back { backdrop-filter: blur(2px); }
+/* הטשטוש היחיד מאחורי הגיליון — הגיליון עצמו אטום */
+.modal-back { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 
 /* toast: crisp pill */
 .toast { border-radius: 16px; box-shadow: 0 8px 30px -6px rgba(16,24,40,.4); }
@@ -693,11 +694,19 @@ body {
     linear-gradient(160deg, #eff2fb, #e9edfa 55%, #ecf1fb) !important;
 }
 
-/* big frosted panels */
-.card, .collapse, .modal, .recap-card {
+/* big frosted panels.
+ * .modal אינו ברשימה בכוונה: כרטיס יושב מעל רקע העמוד, ולכן זכוכית עליו
+ * קריאה. גיליון המודאל יושב מעל תוכן שרירותי שנגלל מאחוריו, ורקע חצי-שקוף
+ * הפך אותו לבלתי קריא — הטשטוש נעשה פעם אחת, על ה-backdrop שמתחתיו. */
+.card, .collapse, .recap-card {
   background: var(--glass);
   -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-brd);
+  box-shadow: 0 10px 34px -10px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.14);
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--glass-brd); border-bottom: none;
   box-shadow: 0 10px 34px -10px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.14);
 }
 .recap-card { background: linear-gradient(140deg, rgba(124,158,255,.20), rgba(52,211,153,.10)), var(--glass); }
@@ -746,13 +755,16 @@ body {
 .meter, .bs-bar, .bar-track { background: rgba(255,255,255,.12); }
 .ring-track, .track { stroke: rgba(255,255,255,.14); }
 
-/* hairline separators inside glass */
-.tx-item { border-top-color: rgba(255,255,255,.09); }
-.set-row { border-top-color: rgba(255,255,255,.09); }
-.cat-total { border-top-color: rgba(255,255,255,.12); }
+/* hairline separators inside glass — כהה בלבד. בערכה הבהירה קו לבן על משטח
+ * לבן פשוט נעלם, ולכן שם נשאר var(--grid) של כלל הבסיס. */
+:root:not([data-theme="light"]) .tx-item,
+:root:not([data-theme="light"]) .set-row { border-top-color: rgba(255,255,255,.09); }
+:root:not([data-theme="light"]) .cat-total { border-top-color: rgba(255,255,255,.12); }
 
+/* .modal לא כאן: הוא כבר אטום ובלי backdrop-filter, והכלל הזה היה מחזיר לו
+ * רקע כהה גם בערכה הבהירה */
 @media (prefers-reduced-transparency: reduce) {
-  .card, .collapse, .modal, .kpi, .budget-strip, .amount-display, .tabbar {
+  .card, .collapse, .kpi, .budget-strip, .amount-display, .tabbar {
     -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(18,24,42,.92); }
 }
 </style>
@@ -1159,17 +1171,31 @@ function snapToScreen(idx, smooth) {
   const prev = pagerEl.style.scrollSnapType;
   pagerEl.style.scrollSnapType = "none";
   pagerEl.scrollBy({ left: delta, behavior: "instant" });
-  pagerEl.style.scrollSnapType = prev;
+  // ההצמדה חוזרת רק אחרי שהדפדפן צייר את המיקום החדש. שחזור באותה פעימה
+  // הותיר לספארי חלון להצמיד מחדש ולנחות מסך אחד מהיעד.
+  requestAnimationFrame(() => {
+    const off = screenEls[idx].getBoundingClientRect().left - pagerEl.getBoundingClientRect().left;
+    if (Math.abs(off) > 1) pagerEl.scrollBy({ left: off, behavior: "instant" });
+    requestAnimationFrame(() => { pagerEl.style.scrollSnapType = prev; });
+  });
 }
+/* היעד שנבחר בסרגל, כל עוד הניווט בדרך. בלעדיו onPagerScrollEnd היה מנחש
+ * את המסך מהמיקום ו"מאשר" את הנחיתה השגויה במקום לתקן אותה. */
+let navTarget = null, navTimer = null;
 function goToScreen(i) {
   const target = Math.max(0, Math.min(SCREENS.length - 1, i));
   screenEls[target].scrollTop = 0;         // מעבר למסך מתחיל תמיד מלמעלה
+  navTarget = target;
+  clearTimeout(navTimer);
+  navTimer = setTimeout(() => { navTarget = null; }, 700);
   // קפיצה למסך לא-סמוך נעשית מיידית; מעבר למסך שכן נשאר חלק ומחובר
   const far = Math.abs(target - curScreen) > 1;
   snapToScreen(target, !far);
   setActiveScreen(target);
   positionTabInd();
 }
+/* מגע על הפייג'ר = המשתמש לוקח פיקוד, והכוונה התכנותית מתבטלת */
+pagerEl.addEventListener("touchstart", () => { navTarget = null; clearTimeout(navTimer); }, { passive: true });
 /* איזה מסך קרוב ביותר לתחילת המכל — עובד גם ב-RTL וגם ב-LTR */
 function currentScreenIndex() {
   const box = pagerEl.getBoundingClientRect();
@@ -1211,7 +1237,8 @@ pagerEl.addEventListener("scroll", () => {
 }, { passive: true });
 
 function onPagerScrollEnd() {
-  const idx = currentScreenIndex();
+  // בחירה מהסרגל גוברת על ניחוש לפי מיקום — אחרת נחיתה שגויה הייתה מתקבעת
+  const idx = navTarget !== null ? navTarget : currentScreenIndex();
   setActiveScreen(idx);
   const off = screenEls[idx].getBoundingClientRect().left - pagerEl.getBoundingClientRect().left;
   if (Math.abs(off) > 6) {
@@ -1219,6 +1246,7 @@ function onPagerScrollEnd() {
     snapToScreen(idx, true);
     return;
   }
+  navTarget = null;
   positionTabInd();
   render();
   if (SCREENS[idx] === "month") animateMonthNumbers();
