@@ -309,6 +309,23 @@ def fetch_activities(garmin: Garmin, start: str, end: str) -> dict:
             entry["avg_hr"] = round(act["averageHR"])
         if act.get("calories"):
             entry["calories"] = round(act["calories"])
+        # שדות לניתוח ריצה — קצב, מאמץ ותנאי השטח
+        if act.get("maxHR"):
+            entry["max_hr"] = round(act["maxHR"])
+        speed = act.get("averageSpeed")  # מ׳/שנייה
+        if speed:
+            entry["pace_s"] = round(1000 / speed)  # שניות לק״מ
+        if act.get("elevationGain"):
+            entry["elev_gain"] = round(act["elevationGain"])
+        cadence = act.get("averageRunningCadenceInStepsPerMinute")
+        if cadence:
+            entry["cadence"] = round(cadence)
+        if act.get("aerobicTrainingEffect"):
+            entry["aerobic_te"] = round(act["aerobicTrainingEffect"], 1)
+        if act.get("anaerobicTrainingEffect"):
+            entry["anaerobic_te"] = round(act["anaerobicTrainingEffect"], 1)
+        if act.get("vO2MaxValue"):
+            entry["vo2max"] = round(act["vO2MaxValue"], 1)
         by_day.setdefault(day, []).append(entry)
     if activities:
         print(f"Fetched {len(activities)} activities across the window.")

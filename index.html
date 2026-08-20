@@ -153,6 +153,9 @@
         <!-- פעילות מומלצת לשבוע לפי המוכנות -->
         <div id="activity-rec"></div>
 
+        <!-- ניתוח ריצות — סיווג לפי אזור מאמץ, השוואה וגרף שיפור -->
+        <div id="runs-card"></div>
+
         <article class="card">
           <div class="card-head"><h2 class="ct" data-info="steps">צעדים<span class="info-i">ⓘ</span></h2><span class="unit" id="u-steps"></span></div>
           <div class="legend" id="legend-steps"></div>
@@ -223,6 +226,10 @@
           <div class="field-row">
             <label class="field">יעד אימוני כוח בשבוע<input type="number" name="strengthGoal" min="1" max="7" inputmode="numeric" placeholder="3"></label>
             <label class="field">יעד משקל (ק״ג)<input type="number" name="weightGoal" min="30" max="250" step="0.1" inputmode="decimal" placeholder="72"></label>
+          </div>
+          <div class="field-row">
+            <label class="field">יעד ריצה שבועי (ק״מ)<input type="number" name="runGoalKm" min="1" max="200" step="0.5" inputmode="decimal" placeholder="לא חובה"></label>
+            <label class="field">קצב יעד (דק׳:שנ׳ לק״מ)<input type="text" name="runGoalPace" inputmode="numeric" placeholder="למשל 5:30"></label>
           </div>
           <div class="field-row">
             <label class="field">דופק מקסימלי אמיתי<input type="number" name="maxHrOverride" min="120" max="220" inputmode="numeric" placeholder="לא חובה — ברירת מחדל 220 פחות גיל"></label>

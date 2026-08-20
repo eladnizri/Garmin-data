@@ -1027,6 +1027,240 @@ function renderWorkouts() {
 }
 
 /* =========================================================================
+ * ניתוח ריצות — סיווג לפי אזור מאמץ, השוואה בין ריצות, וגרף שיפור.
+ * הסיווג נשען על הדופק הממוצע מול אזורי Karvonen האישיים; אינטרוולים
+ * אי-אפשר לגזור מדופק ממוצע (הם ממוצעים כמו טמפו) ולכן מתויגים ידנית.
+ * ========================================================================= */
+const RUN_TAGS_KEY = 'run_tags_v1';
+let runTags = {};
+function loadRunTags() {
+  try { runTags = JSON.parse(localStorage.getItem(RUN_TAGS_KEY)) || {}; } catch { runTags = {}; }
+  if (typeof runTags !== 'object' || !runTags) runTags = {};
+}
+function saveRunTags() { try { localStorage.setItem(RUN_TAGS_KEY, JSON.stringify(runTags)); } catch {} }
+/* מזהה יציב לריצה — אין activityId בנתונים, אז תאריך + סדר ביום */
+const runId = (date, i) => `${date}#${i}`;
+
+const RUN_TYPES = {
+  intervals: { label: 'אינטרוולים', color: C.red },
+  tempo:     { label: 'טמפו',       color: C.orange },
+  volume:    { label: 'נפח',        color: C.blue },
+  easy:      { label: 'קלה',        color: C.green },
+};
+const RUN_ORDER = ['intervals', 'tempo', 'volume', 'easy'];
+const RUN_LONG_KM = 3;   // מעל זה ריצת זון-2 נחשבת נפח
+
+/* אזור מאמץ (1–5) לפי Karvonen — אותו חישוב שמוצג בכרטיס אזורי הדופק */
+function hrZoneOf(bpm) {
+  const mh = maxHR();
+  if (!mh || !bpm) return null;
+  const rest = Math.round(baselineOf('rhr')?.mean ?? latest('rhr') ?? 0) || null;
+  const pct = rest ? (bpm - rest) / (mh - rest) * 100 : bpm / mh * 100;
+  if (pct < 60) return 1;
+  if (pct < 70) return 2;
+  if (pct < 80) return 3;
+  if (pct < 90) return 4;
+  return 5;
+}
+/* זון 3 ומעלה = טמפו; זון 2 ומטה מסווג לפי מרחק */
+function classifyRun(r) {
+  if (runTags[r.id] === 'intervals') return 'intervals';
+  const z = hrZoneOf(r.avg_hr);
+  if (z === null) return (r.km || 0) > RUN_LONG_KM ? 'volume' : 'easy';
+  if (z >= 3) return 'tempo';
+  return (r.km || 0) > RUN_LONG_KM ? 'volume' : 'easy';
+}
+
+/* יעילות אירובית — מטרים לדקה לכל פעימה. עולה = משתפר. */
+function runEff(r) {
+  if (!r.km || !r.minutes || !r.avg_hr) return null;
+  return (r.km * 1000 / r.minutes) / r.avg_hr;
+}
+/* קצב בשניות לק״מ — מהגרמין אם קיים, אחרת מחושב ממרחק וזמן */
+function runPace(r) {
+  if (r.pace_s) return r.pace_s;
+  if (r.km && r.minutes) return Math.round(r.minutes * 60 / r.km);
+  return null;
+}
+const paceTxt = s => s == null ? '—' : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+
+/* כל הריצות בטווח המוצג, הישן→חדש, עם סיווג ומדדים גזורים */
+function runsInRange() {
+  const out = [];
+  for (const row of visibleRows()) {
+    (row.workouts || []).forEach((w, i) => {
+      if (w.type_key !== 'running') return;
+      const r = { ...w, date: row.date, id: runId(row.date, i) };
+      r.pace = runPace(r); r.eff = runEff(r); r.kind = classifyRun(r);
+      out.push(r);
+    });
+  }
+  return out;
+}
+
+function goalRunKm() { return profile.runGoalKm ? Number(profile.runGoalKm) : null; }
+function goalRunPace() { return profile.runGoalPace ? Number(profile.runGoalPace) : null; }
+
+function renderRuns() {
+  const el = $('runs-card');
+  const runs = runsInRange();
+  if (!runs.length) { el.innerHTML = ''; return; }
+
+  const last = runs[runs.length - 1];
+  const prevSame = runs.slice(0, -1).reverse().find(r => r.kind === last.kind);
+  const t = RUN_TYPES[last.kind];
+
+  // התפלגות לפי סוג — האיזון שהאימון נשען עליו
+  const counts = {};
+  for (const k of RUN_ORDER) counts[k] = runs.filter(r => r.kind === k).length;
+  const chips = RUN_ORDER.filter(k => counts[k]).map(k =>
+    `<span class="run-chip" style="--rc:${RUN_TYPES[k].color}">${RUN_TYPES[k].label}<b>${counts[k]}</b></span>`).join('');
+
+  // השוואה לריצה הקודמת מאותו סוג — זו ההשוואה שמלמדת משהו
+  let cmp = '';
+  if (prevSame) {
+    const bits = [];
+    if (last.pace && prevSame.pace) {
+      const d = last.pace - prevSame.pace;
+      bits.push(Math.abs(d) < 3 ? 'קצב זהה'
+        : `קצב ${d < 0 ? 'מהיר' : 'איטי'} ב-${paceTxt(Math.abs(d))} דק׳/ק״מ`);
+    }
+    if (last.avg_hr && prevSame.avg_hr) {
+      const d = last.avg_hr - prevSame.avg_hr;
+      if (Math.abs(d) >= 2) bits.push(`דופק ${d < 0 ? 'נמוך' : 'גבוה'} ב-${Math.abs(d)}`);
+    }
+    if (bits.length) cmp = `<p class="run-cmp">מול ה${t.label} הקודמת (${shortDate(prevSame.date)}): ${bits.join(' · ')}.</p>`;
+  }
+
+  // יעדים
+  const gKm = goalRunKm(), gPace = goalRunPace();
+  const weekKm = runs.filter(r => r.date >= weekStartISO(new Date(todayISO()))).reduce((a, r) => a + (r.km || 0), 0);
+  let goals = '';
+  if (gKm) {
+    const pct = Math.min(100, weekKm / gKm * 100);
+    goals += `<div class="run-goal"><div class="rg-top"><span>נפח השבוע</span>
+      <b>${fmt(weekKm, 1)} / ${fmt(gKm, 1)} ק״מ</b></div>
+      <div class="rg-bar"><i style="width:${pct}%"></i></div></div>`;
+  }
+  if (gPace && last.pace) {
+    const d = last.pace - gPace;
+    goals += `<p class="run-cmp">יעד קצב ${paceTxt(gPace)} — הריצה האחרונה ${Math.abs(d) < 3
+      ? 'בדיוק על היעד' : `${paceTxt(Math.abs(d))} ${d < 0 ? 'מתחת ליעד' : 'מעל היעד'}`}.</p>`;
+  }
+
+  const bits = [];
+  if (last.km) bits.push(`${fmt(last.km, 2)} ק״מ`);
+  if (last.pace) bits.push(`${paceTxt(last.pace)} דק׳/ק״מ`);
+  if (last.avg_hr) bits.push(`דופק ${last.avg_hr}`);
+  if (last.cadence) bits.push(`${last.cadence} צע׳/דק׳`);
+  if (last.elev_gain) bits.push(`${last.elev_gain} מ׳ עלייה`);
+
+  el.innerHTML = `<article class="card">
+    <div class="card-head"><h2>ריצות</h2>
+      <span class="unit">${runs.length} ריצות בתקופה</span></div>
+
+    <div class="run-last">
+      <div class="rl-top"><span class="run-badge" style="--rc:${t.color}">${t.label}</span>
+        <span class="rl-date">${longDate(last.date)}</span></div>
+      <div class="rl-bits">${bits.join(' · ')}</div>
+    </div>
+    ${cmp}${goals}
+
+    <div class="run-chips">${chips}</div>
+
+    <div class="tr-sec">
+      <div class="tr-sec-head"><h3>גרף השתפרות</h3></div>
+      <div class="legend" id="legend-runs"></div>
+      <div class="chart-wrap chart-sm" dir="ltr"><canvas id="chart-runs"></canvas></div>
+      <p class="tr-note" id="run-note"></p>
+    </div>
+
+    <div class="tr-sec"><h3>היסטוריית ריצות</h3>
+      <p class="run-hint">לחיצה על ריצה מסמנת אותה כאינטרוולים ובחזרה.</p>
+      <div class="tr-hist">${runs.slice().reverse().map(r => {
+        const rt = RUN_TYPES[r.kind];
+        return `<button class="tr-row run-row" data-run="${r.id}">
+          <span class="tr-d">${shortDate(r.date)}</span>
+          <span class="run-dot" style="background:${rt.color}"></span>
+          <span class="tr-nm">${rt.label}</span>
+          <span class="tr-v">${r.km ? fmt(r.km, 2) + ' ק״מ' : ''}${r.pace ? ' · ' + paceTxt(r.pace) : ''}</span>
+        </button>`;
+      }).join('')}</div>
+    </div>
+  </article>`;
+  renderRunChart(runs);
+}
+
+function renderRunChart(runs) {
+  const note = $('run-note');
+  const wrap = $('chart-runs')?.closest('.chart-wrap');
+  const leg = $('legend-runs');
+  const pts = runs.filter(r => r.eff != null && r.pace != null);
+  if (pts.length < 2) {
+    charts['chart-runs']?.destroy(); delete charts['chart-runs'];
+    if (wrap) wrap.style.display = 'none';
+    if (leg) leg.style.display = 'none';
+    if (note) note.textContent = pts.length === 1
+      ? 'ריצה אחת עם נתוני קצב ודופק — הגרף יופיע אחרי השנייה.'
+      : 'צריך קצב ודופק משתי ריצות לפחות כדי לשרטט מגמה.';
+    return;
+  }
+  if (wrap) wrap.style.display = '';
+  if (leg) leg.style.display = '';
+
+  const first = pts[0], lastP = pts[pts.length - 1];
+  const dEff = (lastP.eff - first.eff) / first.eff * 100;
+  if (note) {
+    note.innerHTML = Math.abs(dEff) < 2
+      ? `היעילות האירובית יציבה מאז ${shortDate(first.date)}.`
+      : `היעילות האירובית ${dEff > 0 ? 'עלתה' : 'ירדה'} ב-<b>${fmt(Math.abs(dEff), 1)}%</b>
+         מאז ${shortDate(first.date)} — אותו מאמץ, ${dEff > 0 ? 'יותר' : 'פחות'} קצב.`;
+  }
+  legend('legend-runs', [[C.violet, 'יעילות אירובית'], [C.teal, 'קצב']]);
+  const gPace = goalRunPace();
+  const ds = [
+    { label: 'יעילות אירובית', data: pts.map(r => ({ x: shortDate(r.date), y: +r.eff.toFixed(2), iso: r.date })),
+      borderColor: C.violet, borderWidth: 2.4, pointRadius: 3, pointBackgroundColor: C.violet,
+      tension: .3, fill: false, yAxisID: 'y' },
+    { label: 'קצב', data: pts.map(r => ({ x: shortDate(r.date), y: r.pace, iso: r.date })),
+      borderColor: C.teal, borderWidth: 2, pointRadius: 3, pointBackgroundColor: C.teal,
+      borderDash: [5, 4], tension: .3, fill: false, yAxisID: 'y1' },
+  ];
+  if (gPace) ds.push({ label: 'יעד', data: pts.map(r => ({ x: shortDate(r.date), y: gPace, iso: r.date })),
+    borderColor: C.muted || C.ma, borderWidth: 1.5, borderDash: [6, 5], pointRadius: 0, fill: false, yAxisID: 'y1' });
+
+  make('chart-runs', {
+    type: 'line',
+    data: { labels: pts.map(r => shortDate(r.date)), datasets: ds },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: chartAnim ? undefined : false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false },
+        tooltip: TT(i => i.dataset.label === 'קצב' || i.dataset.label === 'יעד'
+          ? `${i.dataset.label}: ${paceTxt(i.raw.y)} דק׳/ק״מ` : `יעילות: ${fmt(i.raw.y, 2)}`) },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 6 } },
+        y: { position: 'left', grid: { color: C.grid }, border: { display: false },
+             ticks: { color: C.violet, font: { size: 10 } } },
+        // ציר הקצב הפוך — קצב נמוך הוא טוב, וכך שני הקווים עולים כשמשתפרים
+        y1: { position: 'right', reverse: true, grid: { display: false }, border: { display: false },
+              ticks: { color: C.teal, font: { size: 10 }, maxTicksLimit: 4, callback: v => paceTxt(v) } },
+      },
+    },
+  });
+}
+
+$('runs-card').addEventListener('click', e => {
+  const row = e.target.closest('[data-run]');
+  if (!row) return;
+  const id = row.dataset.run;
+  if (runTags[id] === 'intervals') delete runTags[id]; else runTags[id] = 'intervals';
+  saveRunTags(); haptic(8);
+  renderRuns(); renderActivityRec();
+});
+
+/* =========================================================================
  * פרופיל — כרטיס גוף ואזורי דופק
  * ========================================================================= */
 function renderBody() {
@@ -1528,7 +1762,7 @@ function renderWorkout(animate) {
         ${e.skipped ? '<p class="tm-skipped">התרגיל דולג. סמן סט כדי לחזור אליו.</p>' : ''}
       </header>
 
-      <div class="tm-sets">
+      <div class="tm-sets" data-n="${e.sets.length}">
         ${e.sets.map((s, si) => {
           const editing = tmEdit && tmEdit.ei === ei && tmEdit.si === si;
           const kgTxt = fmt(s.kg, s.kg % 1 ? 1 : 0);
@@ -2125,6 +2359,23 @@ function pickSession(score, statusKey, strLeft) {
   if (strLeft > 0) return { key: 'strength', why: 'מוכנות בינונית ונותרו אימוני כוח ליעד' };
   return { key: 'zone2', why: 'מוכנות בינונית — יום טוב לבניית בסיס אירובי' };
 }
+/* המלצה לריצה הבאה: מודל 80/20 (רוב קל, מיעוט קשה) מוצלב עם מוכנות היום.
+ * מוכנות נמוכה גוברת על האיזון — אין טעם באינטרוולים על גוף לא מאושש. */
+function nextRunAdvice(score) {
+  const runs = runsInRange();
+  if (!runs.length) return null;
+  const recent = runs.slice(-10);
+  const hard = recent.filter(r => r.kind === 'tempo' || r.kind === 'intervals').length;
+  const hardPct = hard / recent.length * 100;
+  const daysSince = Math.round((new Date(todayISO()) - new Date(runs[runs.length - 1].date)) / 864e5);
+
+  if (score !== null && score < 50) return 'מוכנות נמוכה — ריצה קלה בזון 2, או יום מנוחה.';
+  if (hardPct > 25) return `<b>${Math.round(hardPct)}%</b> מהריצות האחרונות היו קשות (יעד ~20%) — הבאה קלה או נפח.`;
+  if (daysSince <= 1) return 'רצת אתמול — ריצה קלה או מנוחה.';
+  if (hardPct < 12 && score !== null && score >= 70) return 'האיזון נוטה לקל ומוכנות טובה — זה הזמן לטמפו או אינטרוולים.';
+  return 'האיזון בין קל לקשה תקין — המשך לפי התוכנית.';
+}
+
 function renderActivityRec() {
   const el = $('activity-rec');
   const score = latest('readiness_score', 2) ?? heuristicReadiness();
@@ -2158,6 +2409,8 @@ function renderActivityRec() {
   targets.push(intLeft > 0
     ? `${icon('run', 16)} עוד <b>${intLeft}</b> דק׳ פעילות אינטנסיבית ליעד ה-150 השבועי`
     : `${icon('run', 16)} מעל יעד ה-WHO (${Math.round(intMin)} דק׳)`);
+  const runRec = nextRunAdvice(score);
+  if (runRec) targets.push(`${icon('run', 16)} ${runRec}`);
 
   el.innerHTML = `<article class="card rec-card rec-${tone}">
     <div class="card-head"><h2>כושר ואימון מומלץ</h2><span class="unit">מוכנות ${score}</span></div>
@@ -2174,11 +2427,19 @@ function renderActivityRec() {
 /* =========================================================================
  * מודאל פרופיל
  * ========================================================================= */
-const PROFILE_FIELDS = ['age', 'heightCm', 'weightKg', 'sleepGoal', 'stepsGoal', 'strengthGoal', 'weightGoal', 'maxHrOverride'];
+const PROFILE_FIELDS = ['age', 'heightCm', 'weightKg', 'sleepGoal', 'stepsGoal', 'strengthGoal', 'weightGoal', 'runGoalKm', 'maxHrOverride'];
+/* קצב היעד נשמר בשניות לק״מ אבל מוקלד כ-"5:30" — המרה בשני הכיוונים */
+function parsePace(txt) {
+  const m = String(txt).trim().match(/^(\d{1,2})[:.](\d{1,2})$/);
+  if (m) return Number(m[1]) * 60 + Number(m[2]);
+  const n = Number(txt);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+}
 function fillProfileForm() {
   const f = $('profile-form');
   PROFILE_FIELDS.forEach(k => { if (f[k]) f[k].value = profile[k] ?? ''; });
   if (f.sex) f.sex.value = profile.sex || '';
+  if (f.runGoalPace) f.runGoalPace.value = profile.runGoalPace ? paceTxt(profile.runGoalPace) : '';
 }
 function openProfile() { fillProfileForm(); $('profile-modal').classList.remove('hidden'); }
 function closeProfile() { $('profile-modal').classList.add('hidden'); }
@@ -2191,6 +2452,8 @@ $('profile-form').addEventListener('submit', e => {
   const f = e.target, p = {};
   PROFILE_FIELDS.forEach(k => { const v = f[k].value.trim(); if (v !== '') p[k] = Number(v); });
   if (f.sex.value) p.sex = f.sex.value;
+  const gp = parsePace(f.runGoalPace.value);
+  if (gp) p.runGoalPace = gp;
   saveProfileObj(p); closeProfile(); renderAll();
 });
 $('profile-clear').addEventListener('click', () => { saveProfileObj({}); fillProfileForm(); closeProfile(); renderAll(); });
@@ -2270,7 +2533,7 @@ function exportBackup() {
   const backup = {
     version: 1, exportedAt: new Date().toISOString(),
     profile, weight_log_v1: weights, strength_checks_v1: strengthChecks,
-    strength_programs_v1: programs, strength_sessions_v1: sessions,
+    strength_programs_v1: programs, strength_sessions_v1: sessions, run_tags_v1: runTags,
   };
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -2291,6 +2554,7 @@ function importBackup(file) {
       if (b.strength_checks_v1 && typeof b.strength_checks_v1 === 'object') { strengthChecks = b.strength_checks_v1; saveStrength(); }
       if (Array.isArray(b.strength_programs_v1)) { programs = b.strength_programs_v1; savePrograms(); }
       if (Array.isArray(b.strength_sessions_v1)) { sessions = b.strength_sessions_v1; saveSessions(); }
+      if (b.run_tags_v1 && typeof b.run_tags_v1 === 'object') { runTags = b.run_tags_v1; saveRunTags(); }
       loadProfile();
       closeProfile();
       renderAll();
@@ -2331,6 +2595,7 @@ function renderAll() {
   renderStrength();
   renderTrain();
   renderActivityRec();
+  renderRuns();
   renderCharts();
   renderBreathing();
   renderWorkouts();
@@ -2584,6 +2849,7 @@ async function init() {
   loadWeights();
   loadStrength();
   loadTraining();
+  loadRunTags();
   const { data, isDemo } = await loadHealthData();
   state.data = data;
   state.isDemo = isDemo;
