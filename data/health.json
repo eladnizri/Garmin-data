@@ -1465,7 +1465,13 @@
     "minutes": 59,
     "km": 5.01,
     "avg_hr": 111,
-    "calories": 311
+    "calories": 311,
+    "max_hr": 125,
+    "pace_s": 707,
+    "elev_gain": 11,
+    "cadence": 97,
+    "aerobic_te": 1.1,
+    "vo2max": 52.0
    }
   ]
  },
@@ -1695,15 +1701,15 @@
  {
   "date": "2026-08-20",
   "rhr": 51,
-  "stress_avg": 12,
+  "stress_avg": 24,
   "body_battery_high": 92,
   "body_battery_low": 15,
   "body_battery_charged": 77,
-  "body_battery_drained": 3,
-  "steps": 22,
-  "calories": 751.0,
-  "floors": 0.0,
-  "intensity_min": 0,
+  "body_battery_drained": 37,
+  "steps": 3054,
+  "calories": 1363.0,
+  "floors": 1.0,
+  "intensity_min": 2,
   "sleep_hours": 7.98,
   "deep_min": 60,
   "light_min": 289,
