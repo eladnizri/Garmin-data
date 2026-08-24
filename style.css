@@ -839,6 +839,8 @@ body.tm-open { overflow: hidden; }
 .tm-mgs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .tm-mg { font-size: .72rem; font-weight: 700; color: var(--primary-500); background: var(--primary-soft); border-radius: 999px; padding: 5px 11px; }
 .tm-mg.sec { color: var(--ink-2); background: var(--surface-2); font-weight: 600; }
+/* טווח חזרות — מסומן אחרת מקבוצות שריר, זו הוראה ולא סיווג */
+.tm-mg.rng { color: var(--ink-2); background: none; border: 1px dashed var(--border); font-weight: 600; }
 .tm-prev { font-size: .75rem; color: var(--muted); margin-top: 7px; line-height: 1.45; }
 .tm-sug { display: flex; align-items: center; gap: 5px; font-size: .78rem; font-weight: 700; color: var(--primary-500); margin-top: 7px; }
 .tm-skipped { font-size: .78rem; color: var(--muted); margin-top: 8px; }

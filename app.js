@@ -1982,6 +1982,34 @@ function fillMuscles(ex) {
   return ex;
 }
 
+/* תוכניות הבסיס — פול-באדי A/B לסירוגין. reps הוא תחתית הטווח (שם מתחילים
+ * ומטפסים), reps2 היא התקרה שאחריה מעלים משקל. kg הוא נקודת פתיחה בלבד. */
+const STARTER_PROGRAMS = [
+  ['אימון A', [
+    ['סקוואט',            'legs',      ['core'],               3, 6, 8,  40],
+    ['בנץ׳ פרס',          'chest',     ['arms', 'shoulders'],  3, 6, 8,  40],
+    ['מתח',               'back',      ['arms'],               3, 6, 8,   0],
+    ['דחיקת כתפיים',      'shoulders', ['arms'],               3, 8, 10, 20],
+    ['כפיפת מרפקים',      'arms',      [],                     3, 10, 12, 10],
+  ]],
+  ['אימון B', [
+    ['דדליפט רומני',      'legs',      ['back', 'core'],       3, 8, 10, 40],
+    ['מקבילים',           'chest',     ['arms'],               3, 8, 10,  0],
+    ['חתירה',             'back',      ['arms'],               3, 8, 10, 30],
+    ['הרמות לצדדים',      'shoulders', [],                     3, 10, 12, 6],
+    ['פשיטת מרפקים',      'arms',      [],                     3, 10, 12, 10],
+  ]],
+];
+function starterPrograms() {
+  return STARTER_PROGRAMS.map(([name, exs]) => ({
+    id: uid(), name,
+    exercises: exs.map(([exName, primary, secondary, nSets, reps, reps2, kg]) => ({
+      id: uid(), name: exName, primary, secondary: secondary.slice(), reps2,
+      sets: Array.from({ length: nSets }, () => ({ reps, kg })),
+    })),
+  }));
+}
+
 let programs = [], sessions = [], active = null;
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -1996,6 +2024,8 @@ function loadTraining() {
   active = jsonGet(ACTIVE_KEY, null);
   if (!Array.isArray(programs)) programs = [];
   if (!Array.isArray(sessions)) sessions = [];
+  // התקנה ראשונה: במקום מסך ריק, שתי התוכניות מוכנות לשימוש
+  if (!programs.length && !sessions.length) { programs = starterPrograms(); savePrograms(); }
   for (const p of programs) for (const ex of (p.exercises || [])) fillMuscles(ex);
   for (const s of sessions) for (const e of (s.entries || [])) fillMuscles(e);
   if (active) for (const e of (active.entries || [])) fillMuscles(e);
@@ -2100,6 +2130,7 @@ function startWorkout(programId) {
     programId: p.id, programName: p.name, note: '', idx: 0,
     entries: (p.exercises || []).map(ex => ({
       exId: ex.id, name: ex.name, primary: ex.primary || '', secondary: (ex.secondary || []).slice(),
+      reps2: ex.reps2 || null,
       sub: null, skipped: false,
       sets: (ex.sets || []).map(s => ({ pReps: s.reps, reps: s.reps, kg: s.kg, done: false })),
     })),
@@ -2239,7 +2270,9 @@ function renderWorkout(animate) {
     const sug = overloadSuggestion(e.name);
     const groups = [e.primary, ...(e.secondary || []).filter(g => g !== e.primary)]
       .filter(g => MUSCLES[g])
-      .map((g, i) => `<span class="tm-mg ${i ? 'sec' : ''}">${MUSCLES[g]}</span>`).join('');
+      .map((g, i) => `<span class="tm-mg ${i ? 'sec' : ''}">${MUSCLES[g]}</span>`).join('')
+      // טווח החזרות של התוכנית — מטפסים בתוכו, ובתקרה מעלים משקל
+      + (e.reps2 ? `<span class="tm-mg rng">${e.sets[0]?.reps ?? ''}–${e.reps2} חזרות</span>` : '');
     const done = e.sets.filter(s => s.done).length;
 
     return `<section class="tm-card ${e.skipped ? 'skipped' : ''} ${entryDone(e) ? 'complete' : ''}" data-card="${ei}">
@@ -2693,6 +2726,13 @@ $('program-modal').addEventListener('click', e => {
     renderProgram(); return;
   }
   if (e.target.closest('#pg-newprog')) { openProgram(); return; }
+  if (e.target.closest('#pg-starter')) {
+    if (!confirm('להחליף את כל התוכניות בשתי תוכניות הבסיס A ו-B? האימונים שכבר תועדו יישארו.')) return;
+    programs = starterPrograms();
+    savePrograms(); closeProgram(); renderTrain(); haptic(10);
+    toast('אימון A ו-B הותקנו');
+    return;
+  }
   const other = e.target.closest('.pg-other');
   if (other) { openProgram(other.dataset.pid); return; }
   const act = e.target.closest('[data-act]');
