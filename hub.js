@@ -85,7 +85,7 @@
     }
     if (e.target.closest('#hub-train')) {
       // מצב אימון הוא שכבה מעל כל המעטפת — אין צורך להחליף עולם
-      try { startWorkout(); } catch (_) {}
+      try { openPicker(); } catch (_) {}
       if (navigator.vibrate) { try { navigator.vibrate(8); } catch (_) {} }
       return;
     }
