@@ -1148,13 +1148,13 @@ function runPace(r) {
 }
 const paceTxt = s => s == null ? '—' : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 
-/* תאריך ריצה — שאר האפליקציה מציגה חודשיים אחורה ולכן d.m מספיק לה, אבל
- * היסטוריית הריצות נמתחת על שנתיים ובלי השנה "4.9" הוא דו־משמעי */
-function runDate(iso) {
+/* תאריך עם שנה כשצריך. רוב האפליקציה מציגה חודשיים אחורה ולכן d.m מספיק לה,
+ * אבל היסטוריית הריצות והאימונים נמתחת על שנים — ושם "4.9" דו־משמעי. */
+function shortDateY(iso) {
   const y = iso.slice(0, 4);
   return y === todayISO().slice(0, 4) ? shortDate(iso) : `${shortDate(iso)}.${y.slice(2)}`;
 }
-const runLongDate = iso => `יום ${DAY_NAMES[new Date(`${iso}T12:00:00`).getDay()]}, ${runDate(iso)}`;
+const longDateY = iso => `יום ${DAY_NAMES[new Date(`${iso}T12:00:00`).getDay()]}, ${shortDateY(iso)}`;
 
 /* כל הריצות בטווח המוצג, הישן→חדש, עם סיווג ומדדים גזורים */
 function runsInRange() {
@@ -1270,7 +1270,7 @@ function renderRuns() {
       const d = last.avg_hr - prevSame.avg_hr;
       if (Math.abs(d) >= 2) bits.push(`דופק ${d < 0 ? 'נמוך' : 'גבוה'} ב-${Math.abs(d)}`);
     }
-    if (bits.length) cmp = `<p class="run-cmp">מול ה${t.label} הקודמת (${runDate(prevSame.date)}): ${bits.join(' · ')}.</p>`;
+    if (bits.length) cmp = `<p class="run-cmp">מול ה${t.label} הקודמת (${shortDateY(prevSame.date)}): ${bits.join(' · ')}.</p>`;
   }
 
   // יעדים
@@ -1317,7 +1317,7 @@ function renderRuns() {
 
     <div class="run-last" data-run="${last.id}" role="button" tabindex="0">
       <div class="rl-top"><span class="run-badge" style="--rc:${t.color}">${t.label}</span>
-        <span class="rl-date">${runLongDate(last.date)}</span></div>
+        <span class="rl-date">${longDateY(last.date)}</span></div>
       <div class="rl-bits">${bits.join(' · ')}</div>
     </div>
     ${cmp}${goals}
@@ -1340,7 +1340,7 @@ function renderRuns() {
         const rt = RUN_TYPES[r.kind];
         return `<button class="tr-row run-row${r.real ? '' : ' run-skipped'}" data-run="${r.id}"
           ${r.real ? '' : 'title="קצרה או איטית מדי — לא נכנסת לניתוח"'}>
-          <span class="tr-d">${runDate(r.date)}</span>
+          <span class="tr-d">${shortDateY(r.date)}</span>
           <span class="run-dot" style="background:${rt.color}"></span>
           <span class="tr-nm">${rt.label}</span>
           <span class="tr-v">${r.km ? fmt(r.km, 2) + ' ק״מ' : ''}${r.pace ? ' · ' + paceTxt(r.pace) : ''}</span>
@@ -1463,7 +1463,7 @@ function runSheetHtml(r) {
       <div class="rs-grab"></div>
       <div class="rs-top">
         <span class="run-badge" style="--rc:${t.color}">${t.label}</span>
-        <span class="rs-date">${runLongDate(r.date)}</span>
+        <span class="rs-date">${longDateY(r.date)}</span>
         <button class="rs-x" id="rs-close" aria-label="סגירה">✕</button>
       </div>
       <div class="rs-hero"><b>${fmt(r.km, 2)}</b><small>ק״מ</small></div>
@@ -1668,7 +1668,7 @@ function renderRunChart(runs) {
   const mean = a => a.reduce((s, r) => s + r.eff, 0) / a.length;
   const effA = mean(pts.slice(0, edge)), effB = mean(pts.slice(-edge));
   const dEff = (effB - effA) / effA * 100;
-  const span = `${runDate(pts[0].date)}–${runDate(pts[pts.length - 1].date)}`;
+  const span = `${shortDateY(pts[0].date)}–${shortDateY(pts[pts.length - 1].date)}`;
   if (note) {
     const scope = runChartKind === 'all' ? '' : ` בריצות ${RUN_TYPES[runChartKind].label}`;
     note.innerHTML = (Math.abs(dEff) < 2
@@ -1680,7 +1680,7 @@ function renderRunChart(runs) {
   }
   legend('legend-runs', [[C.violet, 'יעילות אירובית'], [C.teal, 'קצב']]);
   const gPace = goalRunPace();
-  const labels = pts.map(r => runDate(r.date));
+  const labels = pts.map(r => shortDateY(r.date));
   const roll = key => pts.map((_, i) => {
     const from = Math.max(0, i - win + 1);
     const slice = pts.slice(from, i + 1);
@@ -2121,6 +2121,49 @@ function allSuggestions() {
 }
 
 /* ---------- מצב אימון ---------- */
+/* מתי בוצעה התוכנית לאחרונה — לפי מזהה, ובנפילה לפי שם, כדי ששחזור
+ * התוכניות (שמייצר מזהים חדשים) לא יאפס את ההיסטוריה שלהן */
+function lastDoneOf(p) {
+  for (let i = sessions.length - 1; i >= 0; i--)
+    if (sessions[i].programId === p.id || sessions[i].programName === p.name) return sessions[i].date;
+  return null;
+}
+/* הבא בתור בסבב = זה שהכי מזמן לא בוצע; תוכנית שטרם בוצעה קודמת לכולן */
+function suggestedProgram() {
+  if (!programs.length) return null;
+  return programs.slice().sort((a, b) => (lastDoneOf(a) || '').localeCompare(lastDoneOf(b) || ''))[0];
+}
+
+function openPicker() {
+  if (!programs.length) { openProgram(); return; }
+  if (active) { openWorkout(); return; }
+  // תוכנית אחת = אין מה לבחור, ותפריט בן פריט אחד הוא רק חיכוך
+  if (programs.length === 1) { startWorkout(programs[0].id); return; }
+
+  const sug = suggestedProgram();
+  $('pick-list').innerHTML = programs.map(p => {
+    const done = lastDoneOf(p);
+    const exs = p.exercises || [];
+    const sets = exs.reduce((a, ex) => a + (ex.sets || []).length, 0);
+    return `<button class="pick-row${p.id === sug.id ? ' next' : ''}" data-pick="${p.id}">
+      <span class="pick-main">
+        <b>${p.name || 'ללא שם'}</b>
+        <small>${exs.length} תרגילים · ${sets} סטים · ${done ? `בוצע ${shortDateY(done)}` : 'טרם בוצע'}</small>
+        <small class="pick-exs">${exs.map(e => e.name).join(' · ')}</small>
+      </span>
+      ${p.id === sug.id ? '<em class="pick-tag">הבא בתור</em>' : ''}
+    </button>`;
+  }).join('');
+  $('pick-modal').classList.remove('hidden');
+}
+const closePicker = () => $('pick-modal').classList.add('hidden');
+
+$('pick-modal').addEventListener('click', e => {
+  if (e.target.closest('[data-close]')) { closePicker(); return; }
+  const row = e.target.closest('[data-pick]');
+  if (row) { closePicker(); startWorkout(row.dataset.pick); }
+});
+
 function startWorkout(programId) {
   if (!programs.length) { openProgram(); return; }
   if (active && !confirm('יש אימון פתוח. להתחיל אימון חדש במקומו?')) { openWorkout(); return; }
@@ -2624,7 +2667,7 @@ function openPastSession(sid) {
 /* ---------- חיווט אירועים ---------- */
 $('train-card').addEventListener('click', e => {
   if (e.target.closest('#tr-new') || e.target.closest('#tr-manage')) { openProgram(programs[0]?.id); return; }
-  if (e.target.closest('#tr-start')) { active ? openWorkout() : startWorkout(programs[0]?.id); return; }
+  if (e.target.closest('#tr-start')) { openPicker(); return; }
   const row = e.target.closest('.tr-row');
   if (row) openPastSession(row.dataset.sid);
 });
@@ -3211,7 +3254,7 @@ async function importAppleRuns(file) {
     renderAll();
     const taken = garminRunDates();
     const fresh = runs.filter(r => !taken.has(r.date)).length;
-    st.innerHTML = `נשמרו <b>${runs.length}</b> ריצות מ-${runDate(runs[0].date)} ואילך
+    st.innerHTML = `נשמרו <b>${runs.length}</b> ריצות מ-${shortDateY(runs[0].date)} ואילך
       (${fresh} שאין עליהן נתוני גרמין). עבור לכרטיס הריצות ובחר "הכל" בסרגל הטווח.
       <button type="button" class="btn-ghost" id="apple-dl">⬇️ הורדת הקובץ לשמירה בריפו</button>`;
   } catch (err) {
