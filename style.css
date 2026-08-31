@@ -839,6 +839,35 @@ body.tm-open { overflow: hidden; }
 .tm-mgs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .tm-mg { font-size: .72rem; font-weight: 700; color: var(--primary-500); background: var(--primary-soft); border-radius: 999px; padding: 5px 11px; }
 .tm-mg.sec { color: var(--ink-2); background: var(--surface-2); font-weight: 600; }
+/* ===== שיאים אישיים ===== */
+.pr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.pr-card {
+  display: flex; flex-direction: column; gap: 3px; text-align: start;
+  background: var(--surface-2); border: 1px solid transparent; border-radius: var(--r-sm);
+  padding: 11px 13px; font-family: inherit; color: var(--ink); transition: transform .12s;
+}
+.pr-card:active { transform: scale(.97); }
+.pr-card.fresh { border-color: var(--primary); background: var(--primary-soft); }
+.pr-card small { font-size: .66rem; color: var(--muted); }
+.pr-card b { font-size: 1.16rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pr-card b em { font-style: normal; font-size: .6rem; font-weight: 600; color: var(--muted); margin-inline-start: 4px; }
+.pr-when { font-size: .64rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pr-card.fresh .pr-when { color: var(--primary-500); font-weight: 700; }
+
+/* ===== רצף שבועות ===== */
+.ws-streak {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+  background: linear-gradient(120deg, var(--primary-soft), transparent);
+  border: 1px solid var(--border); border-radius: var(--r-md); padding: 11px 14px;
+}
+.wst-n {
+  font-size: 1.9rem; font-weight: 800; line-height: 1; color: var(--primary-500);
+  font-variant-numeric: tabular-nums; letter-spacing: -.03em;
+}
+.wst-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wst-txt b { font-size: .84rem; font-weight: 700; }
+.wst-txt small { font-size: .68rem; color: var(--muted); }
+
 /* ===== בחירת תוכנית לאימון ===== */
 #pick-list { display: flex; flex-direction: column; gap: 8px; padding-bottom: 4px; }
 .pick-row {

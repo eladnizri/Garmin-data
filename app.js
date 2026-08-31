@@ -1332,6 +1332,8 @@ function renderRuns() {
       <p class="tr-note" id="run-note"></p>
     </div>
 
+    ${recordsSection()}
+    ${cadenceSection()}
     ${monthlyVolumeSection(real)}
 
     <div class="tr-sec"><h3>היסטוריית ריצות</h3>
@@ -1352,13 +1354,19 @@ function renderRuns() {
     </div>
   </article>`;
   renderRunChart(real);
+  renderCadence();
   renderRunVolume(real);
 }
 
 /* =========================================================================
  * גיליון פירוט ריצה
  * ========================================================================= */
-const durTxt = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+/* משך ריצה. מעל שעה "104:06" נקרא כאילו הוא דקות:שניות, ולכן שעות נפרדות. */
+function durTxt(sec) {
+  const s = Math.round(sec), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  const pad = n => String(n).padStart(2, '0');
+  return h ? `${h}:${pad(m)}:${pad(ss)}` : `${m}:${pad(ss)}`;
+}
 const rowOn = iso => state.data.find(r => r.date === iso) || null;
 const dayAfter = iso => { const d = new Date(`${iso}T12:00:00`); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); };
 const ZONE_NAMES = { 1: 'התאוששות', 2: 'שריפת שומן', 3: 'אירובי', 4: 'אנאירובי', 5: 'מקסימלי' };
@@ -1477,9 +1485,187 @@ function runSheetHtml(r) {
       ${chips.length ? `<div class="rs-chips">${chips.map(([l, v]) =>
         `<span class="rs-chip">${l}<b>${v}</b></span>`).join('')}</div>` : ''}
       ${effSec}${cmpSec}${effortSec}${ctxSec}
+      <button class="btn-primary rs-tag" id="rs-share">📤 שיתוף הריצה</button>
       <button class="btn-ghost rs-tag${tagged ? ' on' : ''}" id="rs-tag">
         ${tagged ? '✓ מסומנת כאינטרוולים — ביטול' : 'סימון כאינטרוולים'}</button>
     </div>`;
+}
+
+/* =========================================================================
+ * כרטיס ריצה לשיתוף — מצויר לקנבס ברזולוציה גבוהה ונשלח כקובץ תמונה.
+ * 1080×1350 (יחס 4:5) הוא הפורמט שרשתות לא חותכות.
+ * ========================================================================= */
+const SHARE_W = 1080, SHARE_H = 1350;
+
+/* איזה שיא הריצה הזו מחזיקה, אם בכלל — לסרט שעל כרטיס השיתוף */
+function recordLabelFor(r) {
+  const hit = personalRecords().find(p => p.run.id === r.id);
+  if (!hit) return null;
+  return hit.label === 'הארוכה ביותר' ? 'הריצה הארוכה שלי'
+    : hit.label === 'הקצב המהיר ביותר' ? 'הקצב המהיר שלי'
+    : `שיא אישי · ${hit.label}`;
+}
+
+/* פינות מעוגלות — roundRect אינו קיים בספארי ישן */
+function shareRoundRect(ctx, x, y, w, h, r) {
+  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); return; }
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+async function runShareCanvas(r) {
+  const cv = document.createElement('canvas');
+  cv.width = SHARE_W; cv.height = SHARE_H;
+  const ctx = cv.getContext('2d');
+  const t = RUN_TYPES[r.kind];
+
+  // הפונט חייב להיות טעון לפני הציור, אחרת הקנבס נופל לברירת מחדל של המערכת
+  try {
+    await Promise.all([document.fonts.load('800 96px Rubik'), document.fonts.load('600 34px Rubik')]);
+  } catch { /* בלי Rubik נצייר בפונט המערכת — פחות יפה, עדיין תקין */ }
+  const font = (weight, size) => `${weight} ${size}px Rubik, system-ui, sans-serif`;
+
+  // רקע: מדרג ירוק עמוק עם זוהר עדין מאחורי המספר הגדול
+  const bg = ctx.createLinearGradient(0, 0, SHARE_W * .4, SHARE_H);
+  bg.addColorStop(0, '#123a2a'); bg.addColorStop(.55, '#0f3324'); bg.addColorStop(1, '#0a2119');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+  const glow = ctx.createRadialGradient(SHARE_W / 2, 560, 40, SHARE_W / 2, 560, 620);
+  glow.addColorStop(0, 'rgba(79,194,148,.20)'); glow.addColorStop(1, 'rgba(79,194,148,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  const R = SHARE_W - 90;          // שוליים ימניים — נקודת המוצא ב-RTL
+
+  // תגית סוג הריצה
+  ctx.font = font(800, 34);
+  const label = t.label;
+  const padX = 30, pillH = 62, pillW = ctx.measureText(label).width + padX * 2;
+  ctx.fillStyle = t.color;
+  shareRoundRect(ctx, R - pillW, 96, pillW, pillH, pillH / 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, R - padX, 96 + pillH / 2 + 2);
+
+  // תאריך
+  ctx.font = font(600, 34);
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(longDateY(r.date), R, 232);
+
+  ctx.textAlign = 'center';
+  const cx = SHARE_W / 2;
+
+  // סרט שיא — מה שהופך ריצה לשווה שיתוף, וממלא את החלל מעל המספר
+  const pr = recordLabelFor(r);
+  if (pr) {
+    ctx.font = font(800, 32);
+    const prW = ctx.measureText(pr).width + 64, prH = 60, prY = 322;
+    ctx.strokeStyle = t.color; ctx.lineWidth = 3;
+    ctx.fillStyle = 'rgba(255,255,255,.06)';
+    shareRoundRect(ctx, cx - prW / 2, prY, prW, prH, prH / 2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = t.color;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(pr, cx, prY + prH / 2 + 2);
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // המספר הגדול — מרחק
+  ctx.fillStyle = '#ffffff';
+  ctx.font = font(800, 300);
+  ctx.fillText(fmt(r.km, 2), cx, 636);
+  ctx.font = font(600, 56);
+  ctx.fillStyle = 'rgba(255,255,255,.6)';
+  ctx.fillText('קילומטרים', cx, 714);
+
+  // פס דגש דק בצבע סוג הריצה
+  ctx.fillStyle = t.color;
+  shareRoundRect(ctx, cx - 60, 748, 120, 8, 4);
+  ctx.fill();
+
+  // שלושה מדדים בשורה
+  const stats = [
+    ['קצב', paceTxt(r.pace), 'דק׳/ק״מ'],
+    ['זמן', r.pace && r.km ? durTxt(r.km * r.pace) : `${r.minutes}`, 'סה״כ'],
+    ['דופק', r.avg_hr ? String(r.avg_hr) : '—', 'ממוצע'],
+  ];
+  const boxW = (SHARE_W - 180 - 40) / 3, boxY = 812, boxH = 220;
+  stats.forEach(([lab, val, sub], i) => {
+    // ב-RTL הפריט הראשון יושב מימין
+    const x = SHARE_W - 90 - boxW - i * (boxW + 20);
+    ctx.fillStyle = 'rgba(255,255,255,.07)';
+    shareRoundRect(ctx, x, boxY, boxW, boxH, 34);
+    ctx.fill();
+    const mid = x + boxW / 2;
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.font = font(600, 30);
+    ctx.fillText(lab, mid, boxY + 62);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(800, 74);
+    ctx.fillText(val, mid, boxY + 148);
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.font = font(600, 26);
+    ctx.fillText(sub, mid, boxY + 190);
+  });
+
+  // שורת פרטים משניים — רק מה שקיים
+  const extra = [];
+  if (r.cadence) extra.push(`${r.cadence} צע׳/דק׳`);
+  if (r.elev_gain) extra.push(`${r.elev_gain} מ׳ עלייה`);
+  if (r.max_hr) extra.push(`דופק מקס׳ ${r.max_hr}`);
+  if (r.calories) extra.push(`${r.calories} קלוריות`);
+  if (extra.length) {
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.font = font(600, 32);
+    ctx.fillText(extra.slice(0, 3).join('   ·   '), cx, 1120);
+  }
+
+  // קו מפריד ושורת סיום
+  ctx.strokeStyle = 'rgba(255,255,255,.12)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(90, 1190); ctx.lineTo(SHARE_W - 90, 1190); ctx.stroke();
+  const pct = runIntensity(r.avg_hr);
+  ctx.fillStyle = 'rgba(255,255,255,.42)';
+  ctx.font = font(600, 30);
+  ctx.fillText(pct !== null ? `${Math.round(pct)}% מרזרבת הדופק · אזור ${hrZoneOf(r.avg_hr)}` : 'סיכום ריצה', cx, 1262);
+
+  return cv;
+}
+
+async function shareRun(id) {
+  const r = runById(id);
+  if (!r) return;
+  const btn = $('rs-share');
+  if (btn) { btn.disabled = true; btn.textContent = 'מכין תמונה…'; }
+  try {
+    const cv = await runShareCanvas(r);
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    const name = `ריצה-${r.date}.png`;
+    const file = new File([blob], name, { type: 'image/png' });
+    // שיתוף מקורי כשהמערכת תומכת בקבצים; אחרת הורדה
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file] });
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+    haptic(10);
+  } catch (err) {
+    // ביטול מצד המשתמש אינו תקלה
+    if (err?.name !== 'AbortError') { console.warn('שיתוף נכשל:', err); toast('לא הצלחתי להכין את התמונה'); }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📤 שיתוף הריצה'; }
+  }
 }
 
 /* --- מצבי הגיליון: סגור / הצצה / מלא --- */
@@ -1519,6 +1705,7 @@ const closeRunSheet = () => setRsState('closed');
 $('run-sheet').addEventListener('click', e => {
   if (e.target.id === 'run-sheet' || e.target.closest('#rs-close')) { closeRunSheet(); return; }
   if (e.target.closest('.rs-grab')) { setRsState(rsState === 'full' ? 'peek' : 'full'); return; }
+  if (e.target.closest('#rs-share') && rsRunId) { shareRun(rsRunId); return; }
   if (e.target.closest('#rs-tag') && rsRunId) {
     if (runTags[rsRunId] === 'intervals') delete runTags[rsRunId]; else runTags[rsRunId] = 'intervals';
     saveRunTags(); haptic(8);
@@ -1587,6 +1774,120 @@ function monthlyKm(real) {
     out.push({ ym, km: sum.get(ym) || 0 });
   }
   return out;
+}
+
+/* =========================================================================
+ * שיאים אישיים — הקצב הטוב ביותר בכל מרחק, על פני כל ההיסטוריה
+ * ========================================================================= */
+/* טווח סביב כל מרחק: ריצה של 5.2 ק״מ היא עדיין "חמישה", אבל 6.5 כבר לא */
+const PR_DISTANCES = [
+  { label: '3 ק״מ',     min: 2.7,  max: 3.4 },
+  { label: '5 ק״מ',     min: 4.6,  max: 5.6 },
+  { label: '10 ק״מ',    min: 9.4,  max: 11 },
+  { label: 'חצי מרתון', min: 20,   max: 22.5 },
+  { label: 'מרתון',     min: 41,   max: 43.5 },
+];
+const PR_FRESH_DAYS = 30;   // עד כאן שיא נחשב "טרי" ומקבל סימון
+
+function personalRecords() {
+  const runs = allRuns().filter(r => r.real && r.pace != null);
+  if (!runs.length) return [];
+  const out = [];
+  for (const d of PR_DISTANCES) {
+    const inRange = runs.filter(r => r.km >= d.min && r.km <= d.max);
+    if (!inRange.length) continue;
+    const best = inRange.reduce((a, r) => r.pace < a.pace ? r : a);
+    out.push({ label: d.label, value: paceTxt(best.pace), unit: 'דק׳/ק״מ', run: best, n: inRange.length });
+  }
+  // שני שיאים שתמיד רלוונטיים, בלי תלות במרחק תקני
+  const longest = runs.reduce((a, r) => r.km > a.km ? r : a);
+  out.push({ label: 'הארוכה ביותר', value: fmt(longest.km, 2), unit: 'ק״מ', run: longest, n: runs.length });
+  const fastest = runs.reduce((a, r) => r.pace < a.pace ? r : a);
+  out.push({ label: 'הקצב המהיר ביותר', value: paceTxt(fastest.pace), unit: 'דק׳/ק״מ', run: fastest, n: runs.length });
+  return out;
+}
+
+function recordsSection() {
+  const prs = personalRecords();
+  if (!prs.length) return '';
+  const today = new Date(todayISO());
+  return `<div class="tr-sec">
+    <div class="tr-sec-head"><h3>שיאים אישיים</h3><span class="unit">כל הזמנים</span></div>
+    <div class="pr-grid">${prs.map(p => {
+      const days = Math.round((today - new Date(p.run.date)) / 864e5);
+      const fresh = days <= PR_FRESH_DAYS;
+      return `<button class="pr-card${fresh ? ' fresh' : ''}" data-run="${p.run.id}">
+        <small>${p.label}</small>
+        <b>${p.value}<em>${p.unit}</em></b>
+        <span class="pr-when">${shortDateY(p.run.date)}${fresh ? ' · חדש' : ''}</span>
+      </button>`;
+    }).join('')}</div>
+    <p class="tr-note">הקצב הטוב ביותר בכל מרחק. לחיצה פותחת את הריצה.</p>
+  </div>`;
+}
+
+/* =========================================================================
+ * מגמת קצב צעדים — עולה עם השנים ומתואמת עם פחות פציעות
+ * ========================================================================= */
+const cadenceRuns = () => allRuns()
+  .filter(r => r.real && r.cadence)
+  .sort((a, b) => a.date.localeCompare(b.date));
+
+function cadenceSection() {
+  const runs = cadenceRuns();
+  if (!runs.length) return '';   // אין בכלל נתון — אין טעם בכרטיס
+  return `<div class="tr-sec">
+    <div class="tr-sec-head"><h3>קצב צעדים</h3><span class="unit">${runs.length} ריצות עם נתון</span></div>
+    ${runs.length >= 3
+      ? `<div class="chart-wrap chart-xs" dir="ltr"><canvas id="chart-cadence"></canvas></div>`
+      : ''}
+    <p class="tr-note" id="cad-note"></p>
+  </div>`;
+}
+
+function renderCadence() {
+  const runs = cadenceRuns();
+  const note = $('cad-note');
+  if (!runs.length) return;
+
+  const last = runs[runs.length - 1];
+  if (note) {
+    if (runs.length < 3) {
+      note.innerHTML = `הריצה האחרונה עם נתון: <b>${last.cadence}</b> צע׳/דק׳.
+        <small>צריך שלוש ריצות לפחות כדי לשרטט מגמה. הריצות המיובאות מהאייפון
+        אינן נושאות קצב צעדים, וגם ריצות גרמין ישנות סונכרנו לפני שהשדה נאסף.</small>`;
+      return;
+    }
+    const edge = Math.min(5, Math.floor(runs.length / 2));
+    const mean = a => a.reduce((s, r) => s + r.cadence, 0) / a.length;
+    const d = mean(runs.slice(-edge)) - mean(runs.slice(0, edge));
+    note.innerHTML = `ממוצע אחרון <b>${Math.round(mean(runs.slice(-edge)))}</b> צע׳/דק׳.
+      ${Math.abs(d) < 1.5 ? 'המגמה יציבה.'
+        : `${d > 0 ? 'עלייה' : 'ירידה'} של <b>${fmt(Math.abs(d), 1)}</b> צע׳/דק׳ לאורך התקופה.`}
+      <small>קצב צעדים גבוה יותר מקצר את הצעד ומפחית עומס על הברך.</small>`;
+  }
+  if (!$('chart-cadence')) return;
+
+  make('chart-cadence', {
+    type: 'line',
+    data: {
+      labels: runs.map(r => shortDateY(r.date)),
+      datasets: [{
+        data: runs.map(r => ({ x: shortDateY(r.date), y: r.cadence, iso: r.date })),
+        borderColor: C.teal, borderWidth: 2.4, pointRadius: 3, pointBackgroundColor: C.teal,
+        tension: .3, fill: false,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: chartAnim ? undefined : false,
+      plugins: { legend: { display: false }, tooltip: TT(i => `${i.raw.y} צע׳/דק׳`) },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 5 } },
+        y: { grid: { color: C.grid }, border: { display: false }, ticks: { font: { size: 10 }, maxTicksLimit: 5 } },
+      },
+    },
+  });
 }
 
 function monthlyVolumeSection(real) {
@@ -2888,6 +3189,47 @@ function weekRunKm(rows) {
   return km;
 }
 
+/* =========================================================================
+ * רצף שבועות פעילים — שבוע נספר אם היה בו אימון כלשהו. סף נמוך במכוון:
+ * רצף הוא על להופיע, וכל סף גבוה יותר היה מספר שהמצאתי.
+ * ========================================================================= */
+function workoutWeeks() {
+  const weeks = new Set();
+  const add = iso => weeks.add(weekStartISO(new Date(iso)));
+  for (const r of state.data) if ((r.workouts || []).length) add(r.date);
+  for (const s of sessions) add(s.date);          // אימוני כוח שתועדו ידנית
+  const taken = garminRunDates();
+  for (const h of historyRuns()) if (!taken.has(h.date)) add(h.date);
+  return weeks;
+}
+function weekStreak() {
+  const weeks = workoutWeeks();
+  if (!weeks.size) return { current: 0, best: 0 };
+
+  const shift = (iso, n) => {
+    const d = new Date(`${iso}T12:00:00`);
+    d.setDate(d.getDate() - n * 7);
+    return weekStartISO(d);
+  };
+  const thisWeek = weekStartISO(new Date(todayISO()));
+
+  // השבוע הנוכחי עוד לא נגמר, ולכן שבוע ריק בו אינו שובר רצף — מתחילים ממנו
+  // אם כבר התאמנת בו, אחרת מהשבוע שעבר.
+  let cur = 0;
+  let cursor = weeks.has(thisWeek) ? thisWeek : shift(thisWeek, 1);
+  while (weeks.has(cursor)) { cur++; cursor = shift(cursor, 1); }
+
+  // הרצף הארוך ביותר אי פעם — סריקה מהשבוע הישן ביותר קדימה
+  const sorted = [...weeks].sort();
+  let best = 0, run = 0, prev = null;
+  for (const w of sorted) {
+    run = (prev && shift(w, 1) === prev) ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = w;
+  }
+  return { current: cur, best };
+}
+
 /* יום פעיל = היה בו אימון, או שנעמד בו יעד הצעדים */
 function activeDays(rows) {
   const goal = goalSteps();
@@ -2948,8 +3290,16 @@ function renderWeekSummary() {
   if (kmGoal && kmC < kmGoal) bits.push(`נשארו ${fmt(kmGoal - kmC, 1)} ק״מ ליעד הריצה`);
   const prose = bits.length ? `<p class="ws-prose">${bits.join(', ')}.</p>` : '';
 
+  const st = weekStreak();
+  const streak = st.current ? `<div class="ws-streak">
+      <span class="wst-n">${st.current}</span>
+      <span class="wst-txt"><b>שבועות רצופים עם אימון</b>
+        <small>${st.current >= st.best ? 'הרצף הארוך שלך עד היום' : `הרצף הארוך ביותר: ${st.best}`}</small></span>
+    </div>` : '';
+
   el.innerHTML = `<article class="card"><div class="card-head"><h2>הסיכום השבועי שלך</h2>
-    <span class="unit">מול השבוע הקודם</span></div>${prose}<div class="ws-grid">${chips.join('')}</div></article>`;
+    <span class="unit">מול השבוע הקודם</span></div>${prose}${streak}
+    <div class="ws-grid">${chips.join('')}</div></article>`;
 }
 
 /* =========================================================================
