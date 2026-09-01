@@ -2,8 +2,10 @@ name: Sync Garmin Data
 
 on:
   schedule:
-    # 09:00 UTC ≈ 12:00 שעון ישראל (קיץ) / 11:00 (חורף) — סביב הצהריים
-    - cron: "0 9 * * *"
+    # 10:00 UTC = 13:00 שעון ישראל בקיץ, 12:00 בחורף.
+    # ה-cron של GitHub הוא ב-UTC ואינו מכיר שעון קיץ, ולכן שעה אחת אינה
+    # יכולה לכסות את שתי התקופות. בפועל הריצה גם נדחית ב-10–60 דקות.
+    - cron: "0 10 * * *"
   workflow_dispatch:
     inputs:
       days:
@@ -52,7 +54,22 @@ jobs:
           GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
           FETCH_DAYS: ${{ inputs.days }}
           DEBUG_GARMIN: ${{ inputs.debug }}
-        run: python scripts/fetch_garmin.py
+        # הסקריפט כותב את הקובץ רק בסוף, ולכן כישלון באמצע משאיר את הנתונים
+        # הקודמים שלמים והניסיון החוזר בטוח. רוב הכשלים כאן הם הגבלת קצב
+        # מגרמין או נפילה זמנית — שניהם חולפים תוך דקות.
+        run: |
+          for attempt in 1 2 3; do
+            if python scripts/fetch_garmin.py; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              wait=$((attempt * 150))
+              echo "::warning::ניסיון $attempt נכשל — ממתין ${wait}ש׳ לפני ניסיון נוסף"
+              sleep "$wait"
+            fi
+          done
+          echo "::error::שלושת הניסיונות למשוך נתונים מגרמין נכשלו"
+          exit 1
 
       - name: Commit updated data
         run: |
