@@ -1,6 +1,6 @@
 /* Offline cache for the app shell - the whole app is static files, so once
    installed it works with no connection at all. */
-const CACHE = "kesef-v6";
+const CACHE = "kesef-v7";
 const FILES = ["./", "index.html", "manifest.json", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (e) => {

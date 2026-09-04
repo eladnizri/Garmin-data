@@ -167,21 +167,45 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1p
 .badge.ok { color: var(--good-text); }
 .badge.over { color: var(--crit); }
 
-/* ---------- financial planning (goals) ---------- */
-.goal-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: start;
+/* ---------- financial planning: milestone timeline ---------- */
+.plan-verdict { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.5;
+  padding: 9px 11px; border-radius: 12px; background: var(--surface-2); margin-bottom: 10px; }
+.plan-verdict .pv-em { flex: none; }
+.plan-verdict.ok { color: var(--good-text); }
+.plan-verdict.warn { color: var(--crit); }
+.ms-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: start;
   padding: 9px 2px; border-top: 1px solid var(--border); }
-.goal-row:first-child { border-top: none; }
-.goal-em { font-size: 20px; flex: none; width: 26px; text-align: center; }
-.goal-main { flex: 1; min-width: 0; }
-.goal-name { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
-.goal-amt { flex: none; font-weight: 700; font-size: 13.5px; }
-.goal-amt small { color: var(--muted); font-weight: 500; }
-.plan-pace { font-size: 12.5px; line-height: 1.5; padding: 8px 10px; border-radius: 10px;
-  background: var(--surface-2); margin-bottom: 10px; }
-.plan-pace.warn { color: var(--crit); }
-.plan-pace.ok { color: var(--good-text); }
-.goal-list { margin-top: 2px; }
+.ms-row:first-child { border-top: none; }
+.ms-em { font-size: 19px; flex: none; width: 26px; text-align: center; }
+.ms-main { flex: 1; min-width: 0; }
+.ms-name { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
+.ms-when { color: var(--muted); font-size: 12px; margin-top: 1px; }
+.ms-side { flex: none; text-align: end; }
+.ms-amt { font-weight: 700; font-size: 13.5px; }
+.ms-amt.in { color: var(--good-text); }
+.ms-left { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.ms-left.neg { color: var(--crit); font-weight: 700; }
+.ms-row.past { opacity: .55; }
+/* the three-way split of a typical month: daily life / travel / what was actually saved */
+.split-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; direction: ltr;
+  background: var(--ring-track); margin: 8px 0 7px; }
+.split-bar > span { display: block; height: 100%; }
+.split-key { display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: 12px; color: var(--ink-2); }
+.split-key i { display: inline-block; width: 9px; height: 9px; border-radius: 3px;
+  margin-inline-end: 5px; vertical-align: middle; font-style: normal; }
+/* rows that open a sub-screen of the planning modal */
+.plan-hub { display: flex; align-items: center; gap: 10px; width: 100%; text-align: start;
+  padding: 11px 2px; border-top: 1px solid var(--border); }
+.plan-hub:first-of-type { border-top: none; }
+.plan-hub .ph-main { flex: 1; min-width: 0; }
+.plan-hub .ph-t { font-weight: 600; font-size: 14px; }
+.plan-hub .ph-s { color: var(--muted); font-size: 12px; margin-top: 1px; }
+.plan-hub .ph-go { color: var(--muted); font-size: 17px; flex: none; }
 .kind-btn { flex: 1 1 auto; }
+.icon-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+.icon-sw { width: 36px; height: 36px; border-radius: 10px; font-size: 19px; flex: none;
+  background: var(--surface-2); border: 2px solid transparent; }
+.icon-sw.on { border-color: var(--accent); }
 
 /* ---------- month ---------- */
 .month-nav { display: flex; align-items: center; justify-content: space-between; margin: 4px 0; }
@@ -523,11 +547,6 @@ h2 { font-weight: 800; }
 /* ---------- day-of-week chart labels ---------- */
 #m-dow-chart .vlab { font-size: 11px; font-weight: 600; }
 
-/* ---------- patterns card ---------- */
-.pattern-line { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; font-size: 14px; }
-.pattern-line .em { flex: none; }
-.pattern-line b { font-weight: 700; }
-
 /* ---------- budget-alert pill in the budget strip ---------- */
 .bs-alert { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700;
   padding: 1px 7px; border-radius: 999px; margin-inline-start: 4px; }
@@ -556,7 +575,6 @@ h2 { font-weight: 800; }
 @media (prefers-reduced-motion: reduce) { .collapse.open .collapse-body { animation: none; } .collapse-head .chev { transition: none; } }
 .sub-h { font-size: 12.5px; font-weight: 700; color: var(--ink-2); letter-spacing: -.1px; margin: 14px 0 6px; }
 .sub-h:first-child { margin-top: 2px; }
-#m-patterns .pattern-line:first-child { padding-top: 2px; }
 
 /* ---------- swipe a transaction row: one way deletes, the other edits ---------- */
 .tx-item[data-tx] { position: relative; touch-action: pan-y; }
@@ -602,9 +620,6 @@ h2 { font-weight: 800; }
 .cat-row:active { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .bar-amt .bar-pct { display: block; font-size: 10px; color: var(--muted); font-weight: 600; margin-top: -1px; }
 .cat-total { padding-top: 9px; margin-top: 5px; border-top: 1px solid var(--grid); }
-.tag-sub { font-size: 10px; font-weight: 700; color: var(--accent); white-space: nowrap;
-  background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 1px 6px; border-radius: 999px; }
-
 /* ---------- modal drag handle + swipe-down-to-close ---------- */
 .modal { position: relative; }
 .modal::before { content: ""; display: block; width: 38px; height: 4px; border-radius: 999px;
@@ -625,7 +640,7 @@ h2 { font-weight: 800; }
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
 .cat-btn .cat-sw { width: 22px; height: 22px; margin-bottom: 1px; }
 .tx-emoji .cat-sw { width: 16px; height: 16px; }
-.insight-line .cat-sw, .pattern-line .cat-sw, .rc-line .cat-sw { width: 13px; height: 13px; }
+.insight-line .cat-sw, .rc-line .cat-sw { width: 13px; height: 13px; }
 .color-grid { display: flex; flex-wrap: wrap; gap: 9px; }
 .color-sw { width: 32px; height: 32px; border-radius: 50%; border: 2px solid transparent; flex: none;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); transition: transform .1s; }
@@ -871,12 +886,12 @@ body {
     </div>
   </section>
 
-  <section class="collapse" id="c-patterns">
+  <section class="collapse" id="c-plan">
     <button class="collapse-head" aria-expanded="false">
       <span class="ch-title"><span class="lico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5.9 1 1 1.7h5.2c.1-.7.4-1.2 1-1.7A6 6 0 0 0 12 3Z"/></svg></span> חיסכון ובקרה</span>
       <span class="chev" aria-hidden="true">⌄</span>
     </button>
-    <div class="collapse-body"><div id="m-plans"></div><div id="m-patterns"></div></div>
+    <div class="collapse-body"><div id="m-plans"></div></div>
   </section>
 
   <section class="collapse" id="c-fixed">
@@ -951,7 +966,7 @@ body {
       <h3 style="font-size:15px">🎯 תכנון כלכלי</h3>
       <span class="mut" id="plan-count"></span>
     </div>
-    <p class="mut" style="margin:2px 0 10px">יעדי חיסכון, טיולים וההשקעות שלך — במעקב לאורך זמן</p>
+    <p class="mut" style="margin:2px 0 10px">אבני הדרך שלפניך — מענקים, טיסות וטיולים — מול מה שנכנס ונשאר בחיסכון</p>
     <button class="btn primary" style="width:100%" id="plan-open">פתיחת תכנון כלכלי</button>
   </div>
   <div class="card">
@@ -1034,13 +1049,39 @@ const DEFAULTS = () => ({
   tx: [],     // {id, type:'expense'|'income', amount, cat, note, ts, bucket:'weekend'|'base'|'other'|'travel', tripId?}
   fixed: [],  // {id, type:'expense'|'income', name, amount}
   trips: [],  // {id, name, budget, start, end}  (end === null while active)
-  plans: { goals: [] },
-  // goal: {id, name, kind:'general'|'trip'|'invest', target, targetDate, entries:[{date,amount}]}
-  // entries hold a running BALANCE for general/trip goals (progress = latest entry) and a
-  // DEPOSIT amount for invest goals (progress = sum of entries) — a balance snapshot is the
-  // realistic way to track a savings pot, but an investment account's balance moves with the
-  // market too, so tracking deposits is what actually answers "am I sticking to the plan".
+  // planning is a dated cash-flow timeline, not a set of pots to fill: the savings account
+  // already exists, so what matters is whether the money that keeps entering it survives the
+  // life events that are already on the calendar (a discharge grant in, two flights out, a
+  // big trip after that) — and whether daily life, travel and saving still coexist meanwhile.
+  plans: {
+    v: 2,
+    savings: [],         // [{date, amount}] balance snapshots of the existing savings account
+    minMonthly: 0,       // the least that should enter savings in a month ("don't neglect it")
+    invest: { monthly: 0, entries: [] },  // planned monthly deposit + the deposits actually made
+    flow: [],            // [{id, from:"YYYY-MM", amount}] future monthly-net stages; before the
+                         // first stage the projection uses what the app's own history measures
+    milestones: [],      // [{id, name, date, dir:'in'|'out', amount, fund:'savings'|'flow', icon}]
+    goals: [],           // v1 leftovers, folded into the timeline once and kept only as a backup
+  },
 });
+
+/* v1 tracked "goals" (a target plus a running balance). The plan is a timeline now, so old
+   goals are folded in once: a trip becomes a dated expense, a general savings goal seeds the
+   account balance, and an investment goal seeds the deposit log. The raw array stays put. */
+function migratePlans(p) {
+  if (p.v >= 2 || !(p.goals || []).length) { p.v = 2; return; }
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const inSixMonths = () => { const d = new Date(); d.setMonth(d.getMonth() + 6); return d.toISOString().slice(0, 10); };
+  p.goals.forEach((g) => {
+    const es = (g.entries || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+    if (g.kind === "invest") es.forEach((e) => p.invest.entries.push({ date: e.date, amount: e.amount }));
+    else if (g.kind === "trip" && g.target > 0)
+      p.milestones.push({ id: newId(), name: g.name, date: g.targetDate || inSixMonths(),
+                          dir: "out", amount: g.target, fund: "savings", icon: "✈️" });
+    else if (es.length) p.savings.push({ date: es[es.length - 1].date, amount: es[es.length - 1].amount });
+  });
+  p.v = 2;
+}
 
 let S = load();
 function load() {
@@ -1048,8 +1089,12 @@ function load() {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return DEFAULTS();
     const parsed = JSON.parse(raw);
+    const dp = DEFAULTS().plans, pp = parsed.plans || {};
+    // stored state that predates the version marker is v1 by definition — the default's own
+    // `v: 2` must not leak in, or the migration below would think it had already run
     const s = { ...DEFAULTS(), ...parsed, settings: { ...DEFAULTS().settings, ...parsed.settings },
-                plans: { goals: (parsed.plans && parsed.plans.goals) || [] } };
+                plans: { ...dp, ...pp, v: pp.v || 1, invest: { ...dp.invest, ...(pp.invest || {}) } } };
+    migratePlans(s.plans);
     // migrate old expenses that predate manual buckets: tag by their timestamp
     (s.tx || []).forEach((t) => {
       if (t.type === "expense" && !t.bucket) {
@@ -1148,72 +1193,125 @@ const tripById = (id) => (S.trips || []).find((t) => t.id === id) || null;
 const tripTx = (id) => S.tx.filter((t) => t.type === "expense" && t.tripId === id);
 const tripSpent = (id) => sum(tripTx(id));
 
-/* ------- financial planning: savings/trip/investment goals ------- */
-const GOAL_KIND = {
-  general: { icon: "🏦", label: "חיסכון כללי" },
-  trip:    { icon: "✈️", label: "טיול" },
-  invest:  { icon: "📈", label: "השקעות" },
-};
-const goalById = (id) => (S.plans.goals || []).find((g) => g.id === id) || null;
-const goalEntries = (g) => (g.entries || []).slice().sort((a, b) => a.date.localeCompare(b.date));
-/* current progress: latest balance for general/trip, total deposited for invest */
-function goalSaved(g) {
-  const es = goalEntries(g);
-  if (!es.length) return 0;
-  return g.kind === "invest" ? es.reduce((a, e) => a + e.amount, 0) : es[es.length - 1].amount;
-}
-/* change since the previous entry — null when there is nothing to compare against yet */
-function goalDelta(g) {
-  const es = goalEntries(g);
-  if (es.length < 2) return null;
-  if (g.kind === "invest") return es[es.length - 1].amount; // the deposit itself is the "change"
-  return es[es.length - 1].amount - es[es.length - 2].amount;
-}
-/* growth rate in ₪/day: linear-regression slope of balance over time for general/trip,
-   average deposit rate for invest. null when there are fewer than two entries. */
-function goalPace(g) {
-  const es = goalEntries(g);
-  if (es.length < 2) return null;
-  if (g.kind === "invest") {
-    const days = (new Date(es[es.length - 1].date) - new Date(es[0].date)) / 864e5;
-    return days >= 1 ? goalSaved(g) / days : null;
-  }
-  const t0 = new Date(es[0].date).getTime();
-  const xs = es.map((e) => (new Date(e.date).getTime() - t0) / 864e5);
-  const ys = es.map((e) => e.amount);
-  const n = xs.length, sx = xs.reduce((a, x) => a + x, 0), sy = ys.reduce((a, y) => a + y, 0);
-  const sxx = xs.reduce((a, x) => a + x * x, 0), sxy = xs.reduce((a, x, i) => a + x * ys[i], 0);
-  const denom = n * sxx - sx * sx;
-  return denom ? (n * sxy - sx * sy) / denom : null;
-}
-/* projected date to reach the target at the current pace — null without a target, without
-   enough history, or when the pace has flattened/reversed */
-function goalETA(g) {
-  const saved = goalSaved(g), pace = goalPace(g);
-  if (!g.target || saved >= g.target || !pace || pace <= 0) return null;
-  const d = new Date();
-  d.setDate(d.getDate() + Math.ceil((g.target - saved) / pace));
-  return d;
-}
-/* discipline check for one goal: is its OWN historical pace enough to hit ITS OWN date —
-   independent of overall cash flow, which the aggregate summary handles separately */
-function goalStatus(g) {
-  if (!g.target || !g.targetDate) return null;
-  const saved = goalSaved(g);
-  if (saved >= g.target) return "done";
-  const daysLeft = (new Date(g.targetDate) - new Date()) / 864e5;
-  if (daysLeft <= 0) return "overdue";
-  const pace = goalPace(g);
-  if (pace == null) return null;
-  return pace >= ((g.target - saved) / daysLeft) * 0.97 ? "onpace" : "behind";
-}
-/* average monthly net (income − expenses) over the last n *full* months — the real budget
-   a person actually has to allocate across every goal, not a number typed into a form */
+/* ------- financial planning: a dated cash-flow timeline ------- */
+const MS_ICONS = ["✈️", "🌍", "🏖️", "🎖️", "💰", "🏠", "🚗", "🎓", "💍", "🎁", "💼", "🏥"];
+const pl = () => S.plans;
+const msSorted = () => (pl().milestones || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+const msById = (id) => (pl().milestones || []).find((m) => m.id === id) || null;
+const bySnapDate = (list) => (list || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+const savingsSnaps = () => bySnapDate(pl().savings);
+function savingsBalance() { const s = savingsSnaps(); return s.length ? s[s.length - 1].amount : 0; }
+function savingsUpdated() { const s = savingsSnaps(); return s.length ? s[s.length - 1].date : null; }
+const investTotal = () => (pl().invest.entries || []).reduce((a, e) => a + e.amount, 0);
+const mKey = (y, m) => `${y}-${String(m + 1).padStart(2, "0")}`;
+const keyLabel = (k) => { const [y, m] = k.split("-").map(Number); return `${MONTHS[m - 1]} ${y}`; };
+const keyShort = (k) => { const [y, m] = k.split("-").map(Number); return `${MONTHS[m - 1].slice(0, 3)}׳${String(y).slice(2)}`; };
+
+/* average monthly net (income − expenses) over the last n *full* months — what the app
+   measures the user actually keeps, rather than a number typed into a form */
 function avgMonthlyNet(n = 3) {
   const now = new Date();
-  let y = now.getFullYear(), m = now.getMonth() - 1, total = 0;
-  for (let i = 0; i < n; i++) { if (m < 0) { m = 11; y--; } total += monthTotals(y, m).net; m--; }
-  return total / n;
+  let y = now.getFullYear(), m = now.getMonth() - 1, total = 0, used = 0;
+  for (let i = 0; i < n; i++) {
+    if (m < 0) { m = 11; y--; }
+    const t = monthTotals(y, m);
+    if (t.inc || t.out) { total += t.net; used++; }
+    m--;
+  }
+  return used ? total / used : 0;
+}
+/* the monthly net expected in a given month: the newest stage that has already begun, or —
+   before any stage — the measured average. A stage is how a known change in income (a
+   discharge, a new job) enters the plan before it has any history behind it. */
+function flowFor(key, auto) {
+  const started = (pl().flow || []).filter((f) => f.from <= key).sort((a, b) => a.from.localeCompare(b.from));
+  return started.length ? started[started.length - 1].amount : auto;
+}
+/* month-by-month projection of the savings balance from today forward.
+   Each month the flow arrives, the planned investment deposit leaves, and the milestones
+   dated that month are applied. A "flow"-funded event is paid out of that month's income —
+   so it can push the month's deposit negative, which is what `tight` flags; a "savings"-funded
+   one is a planned withdrawal from the pot. Both move the balance, only one strains the month. */
+function projection() {
+  const ms = msSorted(), today = todayISO();
+  const now = new Date(), y0 = now.getFullYear(), m0 = now.getMonth();
+  const auto = avgMonthlyNet(3);
+  const monthsFromNow = (iso) => {
+    const [y, m] = iso.slice(0, 7).split("-").map(Number);
+    return (y - y0) * 12 + (m - 1 - m0);
+  };
+  let n = 6;
+  ms.forEach((x) => { n = Math.max(n, monthsFromNow(x.date) + 3); });
+  (pl().flow || []).forEach((f) => { n = Math.max(n, monthsFromNow(f.from) + 3); });
+  n = Math.min(48, n);
+
+  // the current month is already part-spent, so only the remaining share of its flow counts
+  const dim = new Date(y0, m0 + 1, 0).getDate();
+  const leftFrac = (dim - now.getDate() + 1) / dim;
+
+  let bal = savingsBalance();
+  const rows = [];
+  for (let i = 0; i < n; i++) {
+    const y = y0 + Math.floor((m0 + i) / 12), m = (m0 + i) % 12, key = mKey(y, m);
+    const share = i === 0 ? leftFrac : 1;
+    const flow = flowFor(key, auto) * share;
+    const inv = (pl().invest.monthly || 0) * share;
+    const mine = ms.filter((x) => x.date.slice(0, 7) === key && (i > 0 || x.date >= today));
+    let flowNet = 0, savNet = 0;
+    mine.forEach((x) => {
+      const v = x.dir === "in" ? x.amount : -x.amount;
+      if (x.fund === "flow") flowNet += v; else savNet += v;
+    });
+    const deposit = flow - inv + flowNet;
+    bal += deposit + savNet;
+    rows.push({ key, label: keyLabel(key), short: keyShort(key), flow, inv, deposit, balance: bal,
+                milestones: mine, tight: deposit < 0,
+                neglect: deposit >= 0 && pl().minMonthly > 0 && deposit < pl().minMonthly });
+  }
+  return rows;
+}
+/* does the plan hold? the first month the pot runs dry, and the first month income alone
+   can't carry the events booked into it */
+function planVerdict(rows) {
+  return { dry: rows.find((r) => r.balance < 0) || null,
+           tight: rows.find((r) => r.tight) || null,
+           neglect: rows.find((r) => r.neglect) || null,
+           end: rows.length ? rows[rows.length - 1].balance : savingsBalance() };
+}
+/* how much actually entered the savings account each month, straight from the balance
+   snapshots — the honest answer to "am I neglecting it", which no budget figure can give.
+   A gap between two snapshots is spread evenly over the months it covers. */
+function savingsMonthly(n = 6) {
+  const s = savingsSnaps();
+  if (s.length < 2) return [];
+  const perMonth = {};
+  for (let i = 1; i < s.length; i++) {
+    const gap = Math.max(1, Math.round((new Date(s[i].date) - new Date(s[i - 1].date)) / 864e5 / 30.44));
+    const per = (s[i].amount - s[i - 1].amount) / gap;
+    for (let k = gap; k >= 1; k--) {
+      const d = new Date(`${s[i].date}T12:00:00`);
+      d.setMonth(d.getMonth() - (k - 1));
+      perMonth[mKey(d.getFullYear(), d.getMonth())] = Math.round(per);
+    }
+  }
+  return Object.keys(perMonth).sort().slice(-n).map((k) => ({ key: k, label: keyShort(k), value: perMonth[k] }));
+}
+/* the three-way split the user asked to keep in balance: daily life, travel, and what was
+   left over to save — averaged over the last n full months that have any activity */
+function monthSplit(n = 3) {
+  const now = new Date();
+  let y = now.getFullYear(), m = now.getMonth() - 1;
+  let daily = 0, travel = 0, saved = 0, used = 0;
+  for (let i = 0; i < n; i++) {
+    if (m < 0) { m = 11; y--; }
+    const t = monthTotals(y, m);
+    if (t.inc || t.out) {
+      daily += t.fixedOut + t.reportedOut; travel += t.travelOut; saved += Math.max(0, t.net); used++;
+    }
+    m--;
+  }
+  if (!used) return null;
+  return { daily: daily / used, travel: travel / used, saved: saved / used, months: used };
 }
 
 /* completed weekends (before current), newest first */
@@ -1706,14 +1804,16 @@ function renderMetrics(m) {
       <div class="mini-num"><b${it.dim ? ' style="color:var(--muted)"' : ""}>${it.val}</b><s>%</s></div></div>
     <div class="mini-lab">${it.icon}${it.lab}</div></div>`).join("");
 }
-/* vertical bar chart (oldest→newest, left→right). items: [{label,value,over}] */
-function vbars(items, budget) {
+/* vertical bar chart (oldest→newest, left→right). items: [{label,value,over}].
+   `budget` draws a reference line; `refLabel` names it, since the same line means "תקציב"
+   on the spending charts but "יעד" on a savings one. */
+function vbars(items, budget, refLabel = "תקציב") {
   if (!items.length || items.every((x) => !x.value)) {
     return `<div class="chart-empty">אין עדיין מספיק נתונים לגרף</div>`;
   }
   const max = Math.max(budget || 0, ...items.map((x) => x.value)) * 1.12 || 1;
   const line = budget > 0
-    ? `<div class="budget-line" style="bottom:${16 + (budget / max) * (118 - 16)}px"><span>תקציב ${fmt(budget)}</span></div>`
+    ? `<div class="budget-line" style="bottom:${16 + (budget / max) * (118 - 16)}px"><span>${refLabel} ${fmt(budget)}</span></div>`
     : "";
   return `<div class="vchart" style="position:relative">${line}` + items.map((x) => `
     <div class="vbar-col">
@@ -2001,9 +2101,9 @@ function renderMonth() {
     ? vbars([6, 5, 4, 3, 2, 1, 0].map((i) => ({ label: DAY_SHORT[i], value: Math.round(dow[i]), over: false })), 0)
     : `<div class="chart-empty">אין הוצאות מדווחות החודש</div>`;
 
-  // monthly recap (this-month narrative) + all-time patterns
+  // monthly recap (this-month narrative) + the forward-looking plan
   renderRecap(m);
-  renderPatterns();
+  renderPlansSummary();
 
   // per-category breakdown (month / all-time toggle)
   renderCatsBreakdown();
@@ -2165,178 +2265,330 @@ document.body.addEventListener("click", (e) => {
 });
 
 /* ======================= financial planning modal ====================== */
-const dmy = (iso) => { const d = new Date(`${iso}T12:00:00`); return `${d.getDate()}.${d.getMonth() + 1}`; };
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-function openPlanModal() { renderGoalList(); }
+const dmyY = (iso) => { const d = new Date(`${iso}T12:00:00`); return `${d.getDate()}.${d.getMonth() + 1}.${String(d.getFullYear()).slice(2)}`; };
+/* "בעוד 7 חודשים" / "החודש" — the distance that actually matters when reading a timeline */
+function untilTxt(iso) {
+  const now = new Date(), d = new Date(`${iso}T12:00:00`);
+  const months = (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
+  if (iso < todayISO()) return "עבר";
+  if (months <= 0) return "החודש";
+  if (months === 1) return "בעוד חודש";
+  if (months < 12) return `בעוד ${months} חודשים`;
+  const yrs = Math.floor(months / 12), rest = months % 12;
+  return `בעוד ${yrs === 1 ? "שנה" : `${yrs} שנים`}${rest ? ` ו-${rest} ח׳` : ""}`;
+}
 
-function renderGoalList() {
-  const goals = S.plans.goals || [];
-  const hasInvest = goals.some((g) => g.kind === "invest");
-  const rows = goals.map((g) => {
-    const saved = goalSaved(g), k = GOAL_KIND[g.kind];
-    const frac = g.target > 0 ? Math.min(100, saved / g.target * 100) : null;
-    return `<div class="tx-item" data-goto="${g.id}" style="cursor:pointer">
-      <span class="tx-emoji">${k.icon}</span>
-      <span class="tx-main">
-        <div class="tx-name">${esc(g.name)}</div>
-        <div class="mut">${k.label}${g.target ? ` · ${fmt(saved)} / ${fmt(g.target)}` : ` · ${fmt(saved)}`}</div>
-        ${frac !== null ? `<span class="meter" style="margin-top:5px"><div style="width:${frac}%;background:${frac >= 100 ? "var(--good)" : "var(--accent)"}"></div></span>` : ""}
+function openPlanModal() {
+  const p = pl(), rows = projection(), v = planVerdict(rows);
+  const all = msSorted(), today = todayISO();
+  const auto = avgMonthlyNet(3);
+  const nowKey = mKey(new Date().getFullYear(), new Date().getMonth());
+  const balAt = (iso) => { const r = rows.find((x) => x.key === iso.slice(0, 7)); return r ? r.balance : null; };
+
+  const msRows = all.map((m) => {
+    const past = m.date < today, left = past ? null : balAt(m.date);
+    return `<button class="ms-row${past ? " past" : ""}" data-msedit="${m.id}">
+      <span class="ms-em">${m.icon || (m.dir === "in" ? "💰" : "🎯")}</span>
+      <span class="ms-main">
+        <span class="ms-name">${esc(m.name)}</span>
+        <span class="ms-when">${dmyY(m.date)} · ${m.fund === "flow" ? "מהתזרים" : "מהחיסכון"}</span>
       </span>
-    </div>`;
+      <span class="ms-side">
+        <span class="ms-amt num ${m.dir === "in" ? "in" : ""}">${m.dir === "in" ? "+" : "−"}${fmt(m.amount)}</span>
+        ${left !== null ? `<span class="ms-left${left < 0 ? " neg" : ""}">${left < 0 ? `חסר ${fmt(-left)}` : `נשאר ${fmt(left)}`}</span>` : ""}
+      </span>
+    </button>`;
   }).join("");
+
+  const flowNow = flowFor(nowKey, auto);
+  const stages = (p.flow || []).length;
   modal(`
     <h3>🎯 תכנון כלכלי</h3>
-    <p class="sub" style="margin-bottom:10px">חיסכון כללי, טיולים והשקעות — יעד לכל אחד, ומעקב לאורך זמן.</p>
-    ${rows || `<p class="mut">אין עדיין יעדים.</p>`}
-    <div class="btn-row" style="margin-top:12px">
-      <button class="btn primary" id="goal-new" style="flex:1">+ יעד חדש</button>
-    </div>`);
-  $("#goal-new").onclick = () => openGoalForm();
-  document.getElementById("modal").querySelectorAll("[data-goto]").forEach((row) => {
-    row.onclick = () => openGoalDetail(row.dataset.goto);
+    <p class="sub" style="margin-bottom:6px">אבני הדרך שלפניך, מול מה שנכנס בפועל ומה שנשאר בחיסכון.</p>
+    <button class="plan-hub" id="ph-savings">
+      <span class="ms-em">🏦</span>
+      <span class="ph-main"><span class="ph-t">חשבון החיסכון</span>
+        <span class="ph-s">${savingsUpdated() ? `${fmt(savingsBalance())} · עודכן ${dmyY(savingsUpdated())}` : "עדיין לא עודכנה יתרה"}${p.minMonthly > 0 ? ` · יעד ${fmt(p.minMonthly)}/ח׳` : ""}</span></span>
+      <span class="ph-go">›</span>
+    </button>
+    <button class="plan-hub" id="ph-flow">
+      <span class="ms-em">📊</span>
+      <span class="ph-main"><span class="ph-t">תזרים חודשי</span>
+        <span class="ph-s">${fmt(flowNow)}/ח׳ ${stages ? `· ${stages} שלבים מוגדרים` : "· לפי הנתונים באפליקציה"}</span></span>
+      <span class="ph-go">›</span>
+    </button>
+    <button class="plan-hub" id="ph-invest">
+      <span class="ms-em">📈</span>
+      <span class="ph-main"><span class="ph-t">תיק ההשקעות</span>
+        <span class="ph-s">${p.invest.monthly > 0 ? `${fmt(p.invest.monthly)}/ח׳ מתוכנן` : "ללא הפקדה חודשית מתוכננת"}${investTotal() ? ` · הופקדו ${fmt(investTotal())}` : ""}</span></span>
+      <span class="ph-go">›</span>
+    </button>
+
+    <h4 class="sub-h" style="margin-top:16px">אבני דרך</h4>
+    ${msRows || emptyState("🗓️", "עדיין אין אבני דרך. שחרור, טיסה, טיול גדול — כל דבר עם תאריך וסכום.")}
+    <button class="btn primary" id="ms-new" style="width:100%;margin-top:10px">+ אבן דרך חדשה</button>
+    ${all.some((m) => m.date >= today) ? `<p class="mut" style="margin-top:10px">בסוף התקופה המתוכננת: <b>${fmt(v.end)}</b> בחיסכון</p>` : ""}`);
+
+  $("#ph-savings").onclick = openSavingsScreen;
+  $("#ph-flow").onclick = openFlowScreen;
+  $("#ph-invest").onclick = openInvestScreen;
+  $("#ms-new").onclick = () => openMsForm();
+  document.getElementById("modal").querySelectorAll("[data-msedit]").forEach((b) => {
+    b.onclick = () => openMsForm(b.dataset.msedit);
   });
 }
 
-/* create (no id) or edit (existing id) a goal's name/kind/target/date */
-function openGoalForm(id) {
-  const g = id ? goalById(id) : null;
-  const goals = S.plans.goals || [];
-  const hasInvest = goals.some((x) => x.kind === "invest" && x.id !== id);
-  const kinds = Object.entries(GOAL_KIND).filter(([k]) => k !== "invest" || !hasInvest || (g && g.kind === "invest"));
-  let kind = (g && g.kind) || kinds[0][0];
-  const kindBtns = () => kinds.map(([k, v]) =>
-    `<button type="button" class="btn kind-btn${k === kind ? " primary" : ""}" data-kind="${k}">${v.icon} ${v.label}</button>`).join("");
-  modal(`
-    <h3>${g ? "עריכת יעד" : "יעד חדש"}</h3>
-    <div class="field"><label>סוג</label><div class="btn-row" id="goal-kinds">${kindBtns()}</div></div>
-    <div class="field"><label>שם</label><input id="gf-name" placeholder="למשל: טיול ליוון, קרן חירום" value="${g ? esc(g.name) : ""}" autocomplete="off"></div>
-    <div class="field"><label>סכום יעד (₪) <span class="mut">אופציונלי</span></label>
-      <input type="number" id="gf-target" min="0" inputmode="numeric" placeholder="לא חובה" value="${g && g.target ? g.target : ""}"></div>
-    <div class="field"><label>תאריך יעד <span class="mut">אופציונלי</span></label>
-      <input type="date" id="gf-date" value="${g && g.targetDate ? g.targetDate : ""}"></div>
-    <div class="btn-row">
-      <button class="btn primary" id="gf-save">שמירה</button>
-      <button class="btn" id="gf-cancel">ביטול</button>
-      ${g ? `<button class="btn danger" id="gf-delete" style="margin-inline-start:auto">מחיקה</button>` : ""}
-    </div>`);
-  $("#goal-kinds").onclick = (e) => {
-    const b = e.target.closest("[data-kind]"); if (!b) return;
-    kind = b.dataset.kind;
-    $("#goal-kinds").innerHTML = kindBtns();
-  };
-  $("#gf-save").onclick = () => {
-    const name = $("#gf-name").value.trim();
-    if (!name) return;
-    const target = Math.max(0, parseFloat($("#gf-target").value) || 0);
-    const targetDate = $("#gf-date").value || null;
-    if (g) { Object.assign(g, { name, kind, target, targetDate }); }
-    else { S.plans.goals.push({ id: uid(), name, kind, target, targetDate, entries: [] }); }
-    save(); render();
-    openGoalDetail(g ? g.id : S.plans.goals[S.plans.goals.length - 1].id);
-  };
-  $("#gf-cancel").onclick = () => (g ? openGoalDetail(g.id) : renderGoalList());
-  if (g) $("#gf-delete").onclick = () => confirmDeleteGoal(g.id);
-}
-
-function confirmDeleteGoal(id) {
-  const g = goalById(id); if (!g) return;
-  modal(`
-    <h3>למחוק את "${esc(g.name)}"?</h3>
-    <p class="sub">כל היסטוריית העדכונים של היעד תימחק. הפעולה הזו בלתי הפיכה.</p>
-    <div class="btn-row">
-      <button class="btn danger" id="gd-yes">מחיקה</button>
-      <button class="btn" id="gd-no">ביטול</button>
-    </div>`);
-  $("#gd-yes").onclick = () => {
-    S.plans.goals = S.plans.goals.filter((x) => x.id !== id);
-    save(); render(); renderGoalList();
-  };
-  $("#gd-no").onclick = () => openGoalDetail(id);
-}
-
-/* monthly deposit totals for an invest goal's chart — a running balance chart makes no sense
-   for a stream of deposits, so this buckets them the same way the month screen's own trend does */
-function goalMonthlyDeposits(g, n = 8) {
-  const buckets = {};
-  goalEntries(g).forEach((e) => {
-    const key = e.date.slice(0, 7);
-    buckets[key] = (buckets[key] || 0) + e.amount;
-  });
-  return Object.keys(buckets).sort().slice(-n).map((key) => {
-    const [y, m] = key.split("-").map(Number);
-    return { label: MONTHS[m - 1].slice(0, 3), value: buckets[key] };
-  });
-}
-
-function openGoalDetail(id) {
-  const g = goalById(id); if (!g) return renderGoalList();
-  const k = GOAL_KIND[g.kind];
-  const saved = goalSaved(g);
-  const delta = goalDelta(g);
-  const es = goalEntries(g);
-  const eta = goalETA(g);
-  const status = goalStatus(g);
-
-  const chartItems = g.kind === "invest" ? goalMonthlyDeposits(g) : es.slice(-8).map((e) => ({ label: dmy(e.date), value: e.amount }));
-  const chartBudget = g.kind === "invest" ? 0 : (g.target || 0);
-
-  const statusLine = status === "done" ? `<p class="sub" style="color:var(--good-text)">✓ היעד הושג</p>`
-    : status === "overdue" ? `<p class="sub" style="color:var(--crit)">התאריך שהוגדר כבר חלף</p>`
-    : status === "onpace" ? `<p class="sub" style="color:var(--good-text)">בקצב הנוכחי — בהישג יד</p>`
-    : status === "behind" ? `<p class="sub" style="color:var(--crit)">בקצב הנוכחי לא תגיע בזמן</p>` : "";
-  const etaLine = eta && !status ? `<p class="sub">בקצב הנוכחי: הגעה ליעד סביב ${dmy(eta.toISOString().slice(0, 10))}.${String(eta.getFullYear()).slice(2)}</p>` : "";
-  const deltaLine = delta !== null
-    ? `<p class="mut" style="margin:2px 0 10px">${g.kind === "invest" ? "הפקדה אחרונה" : "שינוי מאז העדכון הקודם"}: ${delta >= 0 ? "+" : ""}${fmt(delta)}</p>` : "";
-
-  const recentRows = es.slice(-5).reverse().map((e) => `
+/* ---- the savings account: a balance to keep an eye on, not a pot with a finish line ---- */
+function openSavingsScreen() {
+  const p = pl(), snaps = savingsSnaps(), monthly = savingsMonthly(8);
+  const recent = snaps.slice(-5).reverse().map((e) => `
     <div class="tx-item">
-      <span class="tx-main"><div class="tx-name">${fmt(e.amount)}</div><div class="mut">${dmy(e.date)}</div></span>
-      <button class="btn danger" data-delentry="${e.date}|${e.amount}">✕</button>
+      <span class="tx-main"><div class="tx-name num">${fmt(e.amount)}</div><div class="mut">${dmyY(e.date)}</div></span>
+      <button class="btn danger" data-delsnap="${e.date}|${e.amount}">✕</button>
     </div>`).join("");
+  const avgIn = monthly.length ? monthly.reduce((a, x) => a + x.value, 0) / monthly.length : null;
+  const verdict = avgIn === null ? ""
+    : p.minMonthly > 0
+      ? `<div class="plan-verdict ${avgIn >= p.minMonthly ? "ok" : "warn"}"><span class="pv-em">${avgIn >= p.minMonthly ? "✓" : "⚠️"}</span>
+         <span>נכנסו בממוצע <b>${fmt(avgIn)}</b> לחודש מול יעד של ${fmt(p.minMonthly)}${avgIn >= p.minMonthly ? " — החשבון לא מוזנח" : ` — חסרים ${fmt(p.minMonthly - avgIn)} בחודש`}</span></div>`
+      : `<div class="plan-verdict"><span class="pv-em">📥</span><span>נכנסו בממוצע <b>${fmt(avgIn)}</b> לחודש</span></div>`;
 
   modal(`
-    <button class="btn" id="gdet-back" style="margin-bottom:8px">‹ חזרה</button>
-    <h3>${k.icon} ${esc(g.name)}</h3>
-    <div class="amount-display" style="margin:6px 0">${fmt(saved)}${g.target ? `<span class="mut" style="font-size:14px"> / ${fmt(g.target)}</span>` : ""}</div>
-    ${statusLine}${etaLine}${deltaLine}
+    <button class="btn" id="sv-back" style="margin-bottom:8px">‹ חזרה</button>
+    <h3>🏦 חשבון החיסכון</h3>
+    <div class="amount-display" style="margin:6px 0">${fmt(savingsBalance())}</div>
+    <p class="mut" style="margin:0 0 10px">${savingsUpdated() ? `עודכן לאחרונה ${dmyY(savingsUpdated())}` : "עדכן את היתרה כדי שהתחזית תתחיל מנקודה אמיתית"}</p>
+    ${verdict}
     <div class="field">
-      <label>${g.kind === "invest" ? "הפקדה חדשה (₪)" : "עדכון היתרה הנוכחית (₪)"}</label>
+      <label>עדכון היתרה הנוכחית (₪)</label>
       <div class="row" style="gap:8px">
-        <input type="number" id="ge-amount" min="0" inputmode="numeric" style="flex:1" placeholder="${g.kind === "invest" ? "סכום ההפקדה" : "היתרה כרגע"}">
-        <input type="date" id="ge-date" value="${todayISO()}" style="flex:1">
+        <input type="number" id="sv-amount" min="0" inputmode="numeric" style="flex:1" placeholder="היתרה כרגע">
+        <input type="date" id="sv-date" value="${todayISO()}" style="flex:1">
       </div>
     </div>
-    <button class="btn primary" id="ge-add" style="width:100%">${g.kind === "invest" ? "הוספת הפקדה" : "עדכון יתרה"}</button>
-    ${chartItems.length >= 2 ? `<h4 class="sub-h" style="margin-top:16px">${g.kind === "invest" ? "הפקדות לפי חודש" : "מגמה"}</h4>${vbars(chartItems, chartBudget)}` : ""}
-    ${recentRows ? `<h4 class="sub-h" style="margin-top:14px">עדכונים אחרונים</h4>${recentRows}` : ""}
-    <div class="btn-row" style="margin-top:14px">
-      <button class="btn" id="gdet-edit">עריכת יעד</button>
-    </div>`);
+    <button class="btn primary" id="sv-add" style="width:100%">שמירת יתרה</button>
+    <div class="field" style="margin-top:14px">
+      <label>מינימום שנכנס כל חודש (₪) <span class="mut">היעד שלא להזניח</span></label>
+      <input type="number" id="sv-min" min="0" inputmode="numeric" placeholder="0" value="${p.minMonthly || ""}">
+    </div>
+    ${monthly.length >= 2 ? `<h4 class="sub-h">כמה נכנס בכל חודש</h4>${vbars(monthly, p.minMonthly || 0, "יעד")}` : ""}
+    ${recent ? `<h4 class="sub-h">עדכוני יתרה</h4>${recent}` : ""}`);
 
-  $("#gdet-back").onclick = renderGoalList;
-  $("#gdet-edit").onclick = () => openGoalForm(g.id);
-  $("#ge-add").onclick = () => {
-    const amount = parseFloat($("#ge-amount").value);
-    if (!amount || amount <= 0) return;
-    const date = $("#ge-date").value || todayISO();
-    g.entries.push({ date, amount });
-    save(); render(); openGoalDetail(g.id);
+  $("#sv-back").onclick = openPlanModal;
+  $("#sv-add").onclick = () => {
+    const amount = parseFloat($("#sv-amount").value);
+    if (isNaN(amount) || amount < 0) return;
+    const date = $("#sv-date").value || todayISO();
+    p.savings = (p.savings || []).filter((e) => e.date !== date);
+    p.savings.push({ date, amount });
+    save(); render(); openSavingsScreen();
   };
-  document.getElementById("modal").querySelectorAll("[data-delentry]").forEach((btn) => {
+  $("#sv-min").onchange = () => {
+    p.minMonthly = Math.max(0, parseFloat($("#sv-min").value) || 0);
+    save(); render();
+  };
+  document.getElementById("modal").querySelectorAll("[data-delsnap]").forEach((btn) => {
     btn.onclick = () => {
-      const [date, amount] = btn.dataset.delentry.split("|");
-      const i = g.entries.findIndex((e) => e.date === date && String(e.amount) === amount);
-      if (i > -1) g.entries.splice(i, 1);
-      save(); render(); openGoalDetail(g.id);
+      const [date, amount] = btn.dataset.delsnap.split("|");
+      const i = p.savings.findIndex((e) => e.date === date && String(e.amount) === amount);
+      if (i > -1) p.savings.splice(i, 1);
+      save(); render(); openSavingsScreen();
     };
   });
 }
 
+/* ---- monthly flow: measured from real data now, declared in stages for what's coming ---- */
+function openFlowScreen() {
+  const p = pl(), auto = avgMonthlyNet(3);
+  const stages = (p.flow || []).slice().sort((a, b) => a.from.localeCompare(b.from));
+  const rows = stages.map((f) => `
+    <div class="tx-item">
+      <span class="tx-main"><div class="tx-name">מ${keyLabel(f.from)}</div><div class="mut num">${fmt(f.amount)} לחודש</div></span>
+      <button class="btn danger" data-delflow="${f.id}">✕</button>
+    </div>`).join("");
+  const nextMonth = () => { const d = new Date(); d.setMonth(d.getMonth() + 1); return mKey(d.getFullYear(), d.getMonth()); };
+
+  modal(`
+    <button class="btn" id="fl-back" style="margin-bottom:8px">‹ חזרה</button>
+    <h3>📊 תזרים חודשי</h3>
+    <p class="sub" style="margin-bottom:10px">כמה נשאר בידיים בכל חודש. עד השלב הראשון התחזית משתמשת במה שנמדד באפליקציה — ומהשלב הזה והלאה במה שתגדיר.</p>
+    <div class="plan-verdict"><span class="pv-em">📐</span>
+      <span>נמדד מהאפליקציה: <b>${fmt(auto)}</b> לחודש${S.tx.length < 5 ? " <span class=\"mut\">(עדיין מעט נתונים)</span>" : ""}</span></div>
+    ${rows ? `<h4 class="sub-h">שלבים עתידיים</h4>${rows}` : ""}
+    <div class="field" style="margin-top:12px">
+      <label>שלב חדש</label>
+      <div class="row" style="gap:8px">
+        <input type="month" id="fl-from" value="${nextMonth()}" style="flex:1">
+        <input type="number" id="fl-amount" inputmode="numeric" style="flex:1" placeholder="₪ לחודש">
+      </div>
+    </div>
+    <button class="btn primary" id="fl-add" style="width:100%">הוספת שלב</button>`);
+
+  $("#fl-back").onclick = openPlanModal;
+  $("#fl-add").onclick = () => {
+    const from = $("#fl-from").value, amount = parseFloat($("#fl-amount").value);
+    if (!from || isNaN(amount)) return;
+    p.flow = (p.flow || []).filter((f) => f.from !== from);
+    p.flow.push({ id: uid(), from, amount });
+    save(); render(); openFlowScreen();
+  };
+  document.getElementById("modal").querySelectorAll("[data-delflow]").forEach((btn) => {
+    btn.onclick = () => {
+      p.flow = p.flow.filter((f) => f.id !== btn.dataset.delflow);
+      save(); render(); openFlowScreen();
+    };
+  });
+}
+
+/* ---- the investment account: money that leaves the same monthly flow the savings live on,
+       so raising the deposit visibly pushes the milestones further out ---- */
+function openInvestScreen() {
+  const p = pl(), es = bySnapDate(p.invest.entries);
+  const byMonth = {};
+  es.forEach((e) => { byMonth[e.date.slice(0, 7)] = (byMonth[e.date.slice(0, 7)] || 0) + e.amount; });
+  const chart = Object.keys(byMonth).sort().slice(-8).map((k) => ({ label: keyShort(k), value: byMonth[k] }));
+  const recent = es.slice(-5).reverse().map((e) => `
+    <div class="tx-item">
+      <span class="tx-main"><div class="tx-name num">${fmt(e.amount)}</div><div class="mut">${dmyY(e.date)}</div></span>
+      <button class="btn danger" data-delinv="${e.date}|${e.amount}">✕</button>
+    </div>`).join("");
+
+  modal(`
+    <button class="btn" id="iv-back" style="margin-bottom:8px">‹ חזרה</button>
+    <h3>📈 תיק ההשקעות</h3>
+    <div class="amount-display" style="margin:6px 0">${fmt(investTotal())}</div>
+    <p class="mut" style="margin:0 0 10px">סך ההפקדות שרשמת (לא שווי התיק — הוא זז עם השוק)</p>
+    <div class="field">
+      <label>הפקדה חודשית מתוכננת (₪)</label>
+      <input type="number" id="iv-monthly" min="0" inputmode="numeric" placeholder="0" value="${p.invest.monthly || ""}">
+      <p class="mut" style="margin:4px 0 0">יורדת מהתזרים החודשי בתחזית — מה שנכנס לתיק לא נכנס לחיסכון.</p>
+    </div>
+    <div class="field">
+      <label>הפקדה שבוצעה</label>
+      <div class="row" style="gap:8px">
+        <input type="number" id="iv-amount" min="0" inputmode="numeric" style="flex:1" placeholder="סכום">
+        <input type="date" id="iv-date" value="${todayISO()}" style="flex:1">
+      </div>
+    </div>
+    <button class="btn primary" id="iv-add" style="width:100%">הוספת הפקדה</button>
+    ${chart.length >= 2 ? `<h4 class="sub-h">הפקדות לפי חודש</h4>${vbars(chart, p.invest.monthly || 0, "מתוכנן")}` : ""}
+    ${recent ? `<h4 class="sub-h">הפקדות אחרונות</h4>${recent}` : ""}`);
+
+  $("#iv-back").onclick = openPlanModal;
+  $("#iv-monthly").onchange = () => {
+    p.invest.monthly = Math.max(0, parseFloat($("#iv-monthly").value) || 0);
+    save(); render();
+  };
+  $("#iv-add").onclick = () => {
+    const amount = parseFloat($("#iv-amount").value);
+    if (!amount || amount <= 0) return;
+    p.invest.entries.push({ date: $("#iv-date").value || todayISO(), amount });
+    save(); render(); openInvestScreen();
+  };
+  document.getElementById("modal").querySelectorAll("[data-delinv]").forEach((btn) => {
+    btn.onclick = () => {
+      const [date, amount] = btn.dataset.delinv.split("|");
+      const i = p.invest.entries.findIndex((e) => e.date === date && String(e.amount) === amount);
+      if (i > -1) p.invest.entries.splice(i, 1);
+      save(); render(); openInvestScreen();
+    };
+  });
+}
+
+/* create (no id) or edit (existing id) one dated event on the timeline */
+function openMsForm(id) {
+  const m = id ? msById(id) : null;
+  let dir = (m && m.dir) || "out";
+  let fund = (m && m.fund) || "savings";
+  // until the icon is picked by hand it follows the direction, so a grant and a flight don't
+  // end up sharing the same default symbol
+  let picked = !!(m && m.icon);
+  const defaultIcon = () => (dir === "in" ? "💰" : "✈️");
+  let icon = (m && m.icon) || defaultIcon();
+  const inSix = () => { const d = new Date(); d.setMonth(d.getMonth() + 6); return d.toISOString().slice(0, 10); };
+
+  const dirBtns = () => [["out", "🎯 הוצאה"], ["in", "💰 הכנסה"]].map(([k, t]) =>
+    `<button type="button" class="btn kind-btn${k === dir ? " primary" : ""}" data-dir="${k}">${t}</button>`).join("");
+  const fundBtns = () => [
+    ["savings", dir === "in" ? "לחיסכון" : "מהחיסכון"],
+    ["flow", dir === "in" ? "לתזרים החודשי" : "מהתזרים החודשי"],
+  ].map(([k, t]) => `<button type="button" class="btn kind-btn${k === fund ? " primary" : ""}" data-fund="${k}">${t}</button>`).join("");
+  const iconBtns = () => MS_ICONS.map((e) =>
+    `<button type="button" class="icon-sw${e === icon ? " on" : ""}" data-icon="${e}">${e}</button>`).join("");
+  const fundHint = () => dir === "in"
+    ? (fund === "savings" ? "הסכום נכנס ישירות לחשבון החיסכון." : "הסכום מצטרף לכסף של אותו חודש.")
+    : (fund === "savings" ? "משיכה מתוכננת מהחיסכון — לא מכבידה על החודש עצמו." : "משולם מההכנסה של אותו חודש — אם היא לא מספיקה, זה יסומן כחריגה.");
+
+  modal(`
+    <h3>${m ? "עריכת אבן דרך" : "אבן דרך חדשה"}</h3>
+    <div class="field"><label>סוג</label><div class="btn-row" id="ms-dirs">${dirBtns()}</div></div>
+    <div class="field"><label>שם</label>
+      <input id="mf-name" placeholder="למשל: מענק שחרור, טיסה לרודוס" value="${m ? esc(m.name) : ""}" autocomplete="off"></div>
+    <div class="field"><label>סכום (₪)</label>
+      <input type="number" id="mf-amount" min="0" inputmode="numeric" placeholder="0" value="${m && m.amount ? m.amount : ""}"></div>
+    <div class="field"><label>תאריך</label>
+      <input type="date" id="mf-date" value="${m ? m.date : inSix()}"></div>
+    <div class="field"><label>מאיפה הכסף</label><div class="btn-row" id="ms-funds">${fundBtns()}</div>
+      <p class="mut" id="ms-fund-hint" style="margin:4px 0 0">${fundHint()}</p></div>
+    <div class="field"><label>אייקון</label><div class="icon-grid" id="ms-icons">${iconBtns()}</div></div>
+    <div class="btn-row">
+      <button class="btn primary" id="mf-save">שמירה</button>
+      <button class="btn" id="mf-cancel">ביטול</button>
+      ${m ? `<button class="btn danger" id="mf-delete" style="margin-inline-start:auto">מחיקה</button>` : ""}
+    </div>`);
+
+  $("#ms-dirs").onclick = (e) => {
+    const b = e.target.closest("[data-dir]"); if (!b) return;
+    dir = b.dataset.dir;
+    if (!picked) icon = defaultIcon();
+    $("#ms-dirs").innerHTML = dirBtns(); $("#ms-funds").innerHTML = fundBtns();
+    $("#ms-fund-hint").textContent = fundHint();
+    $("#ms-icons").innerHTML = iconBtns();
+  };
+  $("#ms-funds").onclick = (e) => {
+    const b = e.target.closest("[data-fund]"); if (!b) return;
+    fund = b.dataset.fund;
+    $("#ms-funds").innerHTML = fundBtns(); $("#ms-fund-hint").textContent = fundHint();
+  };
+  $("#ms-icons").onclick = (e) => {
+    const b = e.target.closest("[data-icon]"); if (!b) return;
+    icon = b.dataset.icon; picked = true; $("#ms-icons").innerHTML = iconBtns();
+  };
+  $("#mf-save").onclick = () => {
+    const name = $("#mf-name").value.trim();
+    const amount = Math.max(0, parseFloat($("#mf-amount").value) || 0);
+    const date = $("#mf-date").value;
+    if (!name || !amount || !date) return;
+    if (m) Object.assign(m, { name, amount, date, dir, fund, icon });
+    else pl().milestones.push({ id: uid(), name, amount, date, dir, fund, icon });
+    save(); render(); openPlanModal();
+  };
+  $("#mf-cancel").onclick = openPlanModal;
+  if (m) $("#mf-delete").onclick = () => confirmDeleteMs(m.id);
+}
+
+function confirmDeleteMs(id) {
+  const m = msById(id); if (!m) return;
+  modal(`
+    <h3>למחוק את "${esc(m.name)}"?</h3>
+    <p class="sub">אבן הדרך תוסר מהתחזית. הפעולה הזו בלתי הפיכה.</p>
+    <div class="btn-row">
+      <button class="btn danger" id="md-yes">מחיקה</button>
+      <button class="btn" id="md-no">ביטול</button>
+    </div>`);
+  $("#md-yes").onclick = () => {
+    pl().milestones = pl().milestones.filter((x) => x.id !== id);
+    save(); render(); openPlanModal();
+  };
+  $("#md-no").onclick = () => openMsForm(id);
+}
+
 document.body.addEventListener("click", (e) => {
   if (e.target.closest("#plan-open")) openPlanModal();
-  const gr = e.target.closest("[data-goal]");
-  if (gr) openGoalDetail(gr.dataset.goal);
+  const mr = e.target.closest("[data-ms]");
+  if (mr) openMsForm(mr.dataset.ms);
 });
 
 function renderMonthTx() {
@@ -2395,121 +2647,98 @@ function renderRecap(m) {
   el.style.display = "";
 }
 
-/* ---------- saving & control: recurring/subscriptions + ranked saving levers ----------
-   Focused on decisions, not trivia: what repeats (leaks) and where cutting saves the most.
-   The raw per-category breakdown lives in the "לאן הלך הכסף" card, so it isn't repeated here. */
-/* live summary card inside "חיסכון ובקרה" — read-only; editing happens in the plan modal.
-   Goal rows are tappable so a quick balance/deposit update never requires a trip to settings. */
+/* the split of a typical month between daily life, travel and what was left to save —
+   the balance the user actually wants to hold, shown from real data rather than intentions */
+function splitBlock(split) {
+  const total = split ? split.daily + split.travel + split.saved : 0;
+  if (total <= 0) return "";
+  const pct = (v) => (v / total * 100).toFixed(1);
+  const key = (color, label, value) =>
+    `<span><i style="background:${color}"></i>${label} ${fmt(value)}</span>`;
+  return `<h4 class="sub-h">חודש טיפוסי <span class="mut" style="font-weight:500">(${split.months} ח׳ אחרונים)</span></h4>
+    <div class="split-bar">
+      <span style="width:${pct(split.daily)}%;background:var(--c1)"></span>
+      <span style="width:${pct(split.travel)}%;background:var(--c4)"></span>
+      <span style="width:${pct(split.saved)}%;background:var(--good)"></span>
+    </div>
+    <div class="split-key">
+      ${key("var(--c1)", "יומיום", split.daily)}
+      ${key("var(--c4)", "טיולים", split.travel)}
+      ${key("var(--good)", "נשאר לחיסכון", split.saved)}
+    </div>`;
+}
+
+/* ---------- "חיסכון ובקרה" on the month screen: the plan, read-only ----------
+   The question here is not how full each pot is, but whether what comes in carries the
+   events already on the calendar — and whether the savings account keeps growing while
+   daily life and travel happen. Editing lives in the plan modal; rows here open it. */
 function renderPlansSummary() {
-  const el = $("#m-plans");
-  const goals = S.plans.goals || [];
-  $("#plan-count").textContent = goals.length ? `${goals.length} יעדים` : "";
-  if (!goals.length) {
-    el.innerHTML = `<p class="mut" style="margin:0 0 10px">אין עדיין יעדי חיסכון. הגדר אותם ב<b>הגדרות ← תכנון כלכלי</b>.</p>`;
+  const el = $("#m-plans"), wrap = $("#c-plan");
+  const p = pl(), today = todayISO();
+  const upcoming = msSorted().filter((m) => m.date >= today);
+  const split = monthSplit(3);
+  const hasPlan = upcoming.length || (p.savings || []).length || (p.flow || []).length
+    || p.minMonthly > 0 || p.invest.monthly > 0;
+
+  $("#plan-count").textContent = upcoming.length ? `${upcoming.length} אבני דרך` : "";
+  wrap.style.display = (hasPlan || split) ? "" : "none";
+  if (!hasPlan) {
+    el.innerHTML = splitBlock(split) +
+      `<p class="mut" style="margin:12px 0 0">רוצה לדעת אם התוכניות שלך מחזיקות? הגדר אבני דרך ב<b>הגדרות ← תכנון כלכלי</b>.</p>`;
     return;
   }
 
-  const withTarget = goals.filter((g) => g.target > 0);
-  const totalTarget = withTarget.reduce((a, g) => a + g.target, 0);
-  const totalCovered = withTarget.reduce((a, g) => a + Math.min(goalSaved(g), g.target), 0);
-  const pct = totalTarget > 0 ? Math.round(totalCovered / totalTarget * 100) : null;
+  const rows = projection(), v = planVerdict(rows);
+  const balAt = (iso) => { const r = rows.find((x) => x.key === iso.slice(0, 7)); return r ? r.balance : null; };
 
-  // pace check needs real history to mean anything — a fresh install has none
-  let paceLine = "";
-  const dated = withTarget.filter((g) => g.targetDate && goalSaved(g) < g.target);
-  if (dated.length && S.tx.length >= 5) {
-    const now = new Date();
-    const requiredMonthly = dated.reduce((a, g) => {
-      const months = Math.max(1 / 30, (new Date(g.targetDate) - now) / 864e5 / 30.44);
-      return a + (g.target - goalSaved(g)) / months;
-    }, 0);
-    const actual = avgMonthlyNet(3);
-    const ok = actual >= requiredMonthly;
-    paceLine = `<div class="plan-pace ${ok ? "ok" : "warn"}">${ok ? "✓" : "⚠️"}
-      בקצב ההכנסה/הוצאה הממוצע שלך (${fmt(actual)}/ח׳) —
-      ${ok ? "כל היעדים עם תאריך בהישג יד" : `חסר כ-<b>${fmt(requiredMonthly - actual)}</b>/ח׳ כדי לעמוד בכולם בזמן`}</div>`;
+  let verdict = "";
+  if (upcoming.length) {
+    if (v.dry) verdict = `<div class="plan-verdict warn"><span class="pv-em">⚠️</span>
+      <span>לפי התחזית החיסכון נגמר כבר ב<b>${v.dry.label}</b> — משהו בתוכנית צריך לזוז</span></div>`;
+    else if (v.tight) verdict = `<div class="plan-verdict warn"><span class="pv-em">⚠️</span>
+      <span>ב<b>${v.tight.label}</b> תוציא ${fmt(-v.tight.deposit)} יותר ממה שנכנס — ההפרש ייצא מהחיסכון</span></div>`;
+    else if (v.neglect) verdict = `<div class="plan-verdict warn"><span class="pv-em">🐌</span>
+      <span>הכול מכוסה, אבל ב<b>${v.neglect.label}</b> ייכנסו לחיסכון רק ${fmt(v.neglect.deposit)} — מתחת ליעד של ${fmt(p.minMonthly)}</span></div>`;
+    else verdict = `<div class="plan-verdict ok"><span class="pv-em">✓</span>
+      <span>כל אבני הדרך מכוסות — ואחריהן נשארים <b>${fmt(v.end)}</b> בחיסכון</span></div>`;
   }
 
-  const rows = goals.map((g) => {
-    const saved = goalSaved(g), k = GOAL_KIND[g.kind];
-    const frac = g.target > 0 ? Math.min(100, saved / g.target * 100) : null;
-    const status = goalStatus(g);
-    const tag = status === "done" ? `<span class="badge ok">הושלם</span>`
-      : status === "onpace" ? `<span class="badge ok">בקצב</span>`
-      : status === "behind" ? `<span class="badge over">מפגר</span>`
-      : status === "overdue" ? `<span class="badge over">חלף התאריך</span>` : "";
-    return `<button class="goal-row" data-goal="${g.id}">
-      <span class="goal-em">${k.icon}</span>
-      <span class="goal-main">
-        <span class="goal-name">${esc(g.name)}${tag}</span>
-        ${frac !== null ? `<span class="meter"><div style="width:${frac}%;background:${frac >= 100 ? "var(--good)" : "var(--accent)"}"></div></span>` : ""}
+  // is the account actually being fed? measured from the balance snapshots, not from intent
+  const monthly = savingsMonthly(6);
+  const avgIn = monthly.length ? monthly.reduce((a, x) => a + x.value, 0) / monthly.length : null;
+  const minLine = p.minMonthly > 0 && avgIn !== null
+    ? `<div class="row spread" style="margin-top:5px"><span class="mut">נכנס בפועל לחודש</span>
+        <span><b class="num">${fmt(avgIn)}</b> <span class="badge ${avgIn >= p.minMonthly ? "ok" : "over"}">${avgIn >= p.minMonthly ? "ביעד" : `חסר ${fmt(p.minMonthly - avgIn)}`}</span></span></div>`
+    : avgIn !== null
+      ? `<div class="row spread" style="margin-top:5px"><span class="mut">נכנס בפועל לחודש</span><b class="num">${fmt(avgIn)}</b></div>`
+      : "";
+
+  const savingsBlock = (p.savings || []).length
+    ? `<div class="row spread"><span class="mut">בחשבון החיסכון</span><b class="num">${fmt(savingsBalance())}</b></div>
+       ${minLine}`
+    : `<p class="mut" style="margin:0 0 6px">עדכן את יתרת החיסכון בתכנון הכלכלי כדי שהתחזית תתחיל מנקודה אמיתית.</p>`;
+
+  const msRows = upcoming.slice(0, 6).map((m) => {
+    const left = balAt(m.date);
+    return `<button class="ms-row" data-ms="${m.id}">
+      <span class="ms-em">${m.icon || (m.dir === "in" ? "💰" : "🎯")}</span>
+      <span class="ms-main">
+        <span class="ms-name">${esc(m.name)}</span>
+        <span class="ms-when">${dmyY(m.date)} · ${untilTxt(m.date)}</span>
       </span>
-      <span class="goal-amt num">${fmt(saved)}${g.target ? `<small> / ${fmt(g.target)}</small>` : ""}</span>
+      <span class="ms-side">
+        <span class="ms-amt num ${m.dir === "in" ? "in" : ""}">${m.dir === "in" ? "+" : "−"}${fmt(m.amount)}</span>
+        ${left !== null ? `<span class="ms-left${left < 0 ? " neg" : ""}">${left < 0 ? `חסר ${fmt(-left)}` : `נשאר ${fmt(left)}`}</span>` : ""}
+      </span>
     </button>`;
   }).join("");
 
   el.innerHTML = `
-    ${pct !== null ? `<div class="row spread" style="margin-bottom:4px"><span class="mut">מכוסה מכל היעדים</span><b class="num">${pct}%</b></div>
-      <div class="meter" style="margin-bottom:10px"><div style="width:${pct}%;background:${pct >= 100 ? "var(--good)" : "var(--accent)"}"></div></div>` : ""}
-    ${paceLine}
-    <div class="goal-list">${rows}</div>`;
-}
-
-function renderPatterns() {
-  const el = $("#m-patterns"), wrap = $("#c-patterns");
-  renderPlansSummary();
-  const exp = S.tx.filter((t) => t.type === "expense" && t.bucket !== "travel");
-  const hasPlans = (S.plans.goals || []).length > 0;
-  wrap.style.display = (hasPlans || exp.length >= 3) ? "" : "none";
-  if (exp.length < 3) { el.innerHTML = ""; return; }
-  const total = sum(exp);
-  const times = exp.map((t) => +new Date(t.ts));
-  const first = new Date(Math.min(...times)), last = new Date(Math.max(...times));
-  const monthSpan = Math.max(1, (last.getFullYear() - first.getFullYear()) * 12 + (last.getMonth() - first.getMonth()) + 1);
-
-  // group by merchant (note) — the basis for both recurring detection and the "nibble" lever
-  const byNote = {};
-  exp.forEach((t) => {
-    const k = (t.note || "").trim(); if (!k) return;
-    const d = new Date(t.ts);
-    (byNote[k] || (byNote[k] = { n: 0, sum: 0, months: new Set(), amts: [] }));
-    byNote[k].n++; byNote[k].sum += t.amount; byNote[k].months.add(`${d.getFullYear()}-${d.getMonth()}`); byNote[k].amts.push(t.amount);
-  });
-  // a "subscription" repeats a near-constant amount across most months
-  const isSub = (v) => {
-    if (v.months.size < 3) return false;
-    const avg = v.sum / v.n, near = v.amts.filter((x) => Math.abs(x - avg) <= Math.max(1, avg * 0.1)).length;
-    return near >= v.n * 0.7;
-  };
-  const recurring = Object.entries(byNote).filter(([, v]) => v.months.size >= 3 || v.n >= 4).sort((a, b) => b[1].sum - a[1].sum);
-  const recLines = recurring.slice(0, 4).map(([name, v]) =>
-    [ico("repeat"), `<b>${esc(name)}</b> — ${v.n}× ב-${v.months.size} חודשים · <b>${fmt(v.sum)}</b>${isSub(v) ? ` <span class="tag-sub">מנוי? ~${fmt(v.sum / v.months.size)}/ח׳</span>` : ` <span class="mut">(~${fmt(v.sum / monthSpan)}/ח׳)</span>`}`]);
-
-  // ranked saving levers — biggest impact first
-  const catSums = {};
-  exp.forEach((t) => { catSums[t.cat || "other"] = (catSums[t.cat || "other"] || 0) + t.amount; });
-  const levers = [];
-  const top = Object.entries(catSums).sort((a, b) => b[1] - a[1])[0];
-  if (top) {
-    const c = catById(top[0]), perMonth = top[1] / monthSpan;
-    levers.push([ico("scissors"), `<b>${esc(c.name)}</b> — ~${fmt(perMonth)}/ח׳ (${Math.round(top[1] / total * 100)}% מההוצאות). קיצוץ 15% חוסך ~<b>${fmt(perMonth * 0.15)}</b>/ח׳`]);
-  }
-  const subs = recurring.filter(([, v]) => isSub(v));
-  const subMonthly = subs.reduce((a, [, v]) => a + v.sum / v.months.size, 0);
-  if (subMonthly > 0) levers.push([ico("pin"), `מנויים/חוזרות קבועות: ~<b>${fmt(subMonthly)}</b>/ח׳ — עבור עליהם ובטל מה שלא בשימוש`]);
-  const nibble = Object.entries(byNote).filter(([, v]) => v.n >= 5 && !isSub(v)).sort((a, b) => b[1].sum - a[1].sum)[0];
-  if (nibble) {
-    const [name, v] = nibble;
-    levers.push([ico("coffee"), `<b>${esc(name)}</b> — ${v.n} קניות קטנות שהצטברו ל-<b>${fmt(v.sum)}</b> (~${fmt(v.sum / monthSpan)}/ח׳)`]);
-  }
-
-  const section = (title, arr) => arr.length
-    ? `<h4 class="sub-h">${title}</h4>${arr.map(([em, t]) => `<div class="pattern-line"><span class="em">${em}</span><span>${t}</span></div>`).join("")}`
-    : "";
-  el.innerHTML = `
-    <p class="mut" style="margin:0 0 8px">מאז ${first.getDate()}.${first.getMonth() + 1}.${String(first.getFullYear()).slice(2)} · ${monthSpan} חודשים · סה"כ ${fmt(total)} (~${fmt(total / monthSpan)}/ח׳)</p>
-    ${section(`${ico("repeat")} חוזרות ומנויים`, recLines) || `<p class="mut">עדיין אין מספיק נתונים לזיהוי חוזרות</p>`}
-    ${section(`${ico("scissors")} איפה הכי קל לחסוך`, levers)}`;
+    ${verdict}
+    ${savingsBlock}
+    ${msRows ? `<h4 class="sub-h">מה מחכה קדימה</h4>${msRows}
+      ${upcoming.length > 6 ? `<p class="mut" style="margin-top:6px">ועוד ${upcoming.length - 6} בתכנון הכלכלי</p>` : ""}` : ""}
+    ${splitBlock(split)}`;
 }
 
 /* ======================== edit modals (tx/fixed/cat) ================= */
