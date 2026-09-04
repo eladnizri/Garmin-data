@@ -167,6 +167,22 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1p
 .badge.ok { color: var(--good-text); }
 .badge.over { color: var(--crit); }
 
+/* ---------- financial planning (goals) ---------- */
+.goal-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: start;
+  padding: 9px 2px; border-top: 1px solid var(--border); }
+.goal-row:first-child { border-top: none; }
+.goal-em { font-size: 20px; flex: none; width: 26px; text-align: center; }
+.goal-main { flex: 1; min-width: 0; }
+.goal-name { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
+.goal-amt { flex: none; font-weight: 700; font-size: 13.5px; }
+.goal-amt small { color: var(--muted); font-weight: 500; }
+.plan-pace { font-size: 12.5px; line-height: 1.5; padding: 8px 10px; border-radius: 10px;
+  background: var(--surface-2); margin-bottom: 10px; }
+.plan-pace.warn { color: var(--crit); }
+.plan-pace.ok { color: var(--good-text); }
+.goal-list { margin-top: 2px; }
+.kind-btn { flex: 1 1 auto; }
+
 /* ---------- month ---------- */
 .month-nav { display: flex; align-items: center; justify-content: space-between; margin: 4px 0; }
 .month-nav button { font-size: 22px; padding: 4px 14px; color: var(--ink-2); }
@@ -860,7 +876,7 @@ body {
       <span class="ch-title"><span class="lico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5.9 1 1 1.7h5.2c.1-.7.4-1.2 1-1.7A6 6 0 0 0 12 3Z"/></svg></span> חיסכון ובקרה</span>
       <span class="chev" aria-hidden="true">⌄</span>
     </button>
-    <div class="collapse-body"><div id="m-patterns"></div></div>
+    <div class="collapse-body"><div id="m-plans"></div><div id="m-patterns"></div></div>
   </section>
 
   <section class="collapse" id="c-fixed">
@@ -929,6 +945,14 @@ body {
         <select id="set-end-hour"></select>
       </span>
     </div>
+  </div>
+  <div class="card">
+    <div class="row spread">
+      <h3 style="font-size:15px">🎯 תכנון כלכלי</h3>
+      <span class="mut" id="plan-count"></span>
+    </div>
+    <p class="mut" style="margin:2px 0 10px">יעדי חיסכון, טיולים וההשקעות שלך — במעקב לאורך זמן</p>
+    <button class="btn primary" style="width:100%" id="plan-open">פתיחת תכנון כלכלי</button>
   </div>
   <div class="card">
     <div class="row spread">
@@ -1010,6 +1034,12 @@ const DEFAULTS = () => ({
   tx: [],     // {id, type:'expense'|'income', amount, cat, note, ts, bucket:'weekend'|'base'|'other'|'travel', tripId?}
   fixed: [],  // {id, type:'expense'|'income', name, amount}
   trips: [],  // {id, name, budget, start, end}  (end === null while active)
+  plans: { goals: [] },
+  // goal: {id, name, kind:'general'|'trip'|'invest', target, targetDate, entries:[{date,amount}]}
+  // entries hold a running BALANCE for general/trip goals (progress = latest entry) and a
+  // DEPOSIT amount for invest goals (progress = sum of entries) — a balance snapshot is the
+  // realistic way to track a savings pot, but an investment account's balance moves with the
+  // market too, so tracking deposits is what actually answers "am I sticking to the plan".
 });
 
 let S = load();
@@ -1018,7 +1048,8 @@ function load() {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return DEFAULTS();
     const parsed = JSON.parse(raw);
-    const s = { ...DEFAULTS(), ...parsed, settings: { ...DEFAULTS().settings, ...parsed.settings } };
+    const s = { ...DEFAULTS(), ...parsed, settings: { ...DEFAULTS().settings, ...parsed.settings },
+                plans: { goals: (parsed.plans && parsed.plans.goals) || [] } };
     // migrate old expenses that predate manual buckets: tag by their timestamp
     (s.tx || []).forEach((t) => {
       if (t.type === "expense" && !t.bucket) {
@@ -1116,6 +1147,74 @@ const activeTrip = () => (S.trips || []).find((t) => !t.end) || null;
 const tripById = (id) => (S.trips || []).find((t) => t.id === id) || null;
 const tripTx = (id) => S.tx.filter((t) => t.type === "expense" && t.tripId === id);
 const tripSpent = (id) => sum(tripTx(id));
+
+/* ------- financial planning: savings/trip/investment goals ------- */
+const GOAL_KIND = {
+  general: { icon: "🏦", label: "חיסכון כללי" },
+  trip:    { icon: "✈️", label: "טיול" },
+  invest:  { icon: "📈", label: "השקעות" },
+};
+const goalById = (id) => (S.plans.goals || []).find((g) => g.id === id) || null;
+const goalEntries = (g) => (g.entries || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+/* current progress: latest balance for general/trip, total deposited for invest */
+function goalSaved(g) {
+  const es = goalEntries(g);
+  if (!es.length) return 0;
+  return g.kind === "invest" ? es.reduce((a, e) => a + e.amount, 0) : es[es.length - 1].amount;
+}
+/* change since the previous entry — null when there is nothing to compare against yet */
+function goalDelta(g) {
+  const es = goalEntries(g);
+  if (es.length < 2) return null;
+  if (g.kind === "invest") return es[es.length - 1].amount; // the deposit itself is the "change"
+  return es[es.length - 1].amount - es[es.length - 2].amount;
+}
+/* growth rate in ₪/day: linear-regression slope of balance over time for general/trip,
+   average deposit rate for invest. null when there are fewer than two entries. */
+function goalPace(g) {
+  const es = goalEntries(g);
+  if (es.length < 2) return null;
+  if (g.kind === "invest") {
+    const days = (new Date(es[es.length - 1].date) - new Date(es[0].date)) / 864e5;
+    return days >= 1 ? goalSaved(g) / days : null;
+  }
+  const t0 = new Date(es[0].date).getTime();
+  const xs = es.map((e) => (new Date(e.date).getTime() - t0) / 864e5);
+  const ys = es.map((e) => e.amount);
+  const n = xs.length, sx = xs.reduce((a, x) => a + x, 0), sy = ys.reduce((a, y) => a + y, 0);
+  const sxx = xs.reduce((a, x) => a + x * x, 0), sxy = xs.reduce((a, x, i) => a + x * ys[i], 0);
+  const denom = n * sxx - sx * sx;
+  return denom ? (n * sxy - sx * sy) / denom : null;
+}
+/* projected date to reach the target at the current pace — null without a target, without
+   enough history, or when the pace has flattened/reversed */
+function goalETA(g) {
+  const saved = goalSaved(g), pace = goalPace(g);
+  if (!g.target || saved >= g.target || !pace || pace <= 0) return null;
+  const d = new Date();
+  d.setDate(d.getDate() + Math.ceil((g.target - saved) / pace));
+  return d;
+}
+/* discipline check for one goal: is its OWN historical pace enough to hit ITS OWN date —
+   independent of overall cash flow, which the aggregate summary handles separately */
+function goalStatus(g) {
+  if (!g.target || !g.targetDate) return null;
+  const saved = goalSaved(g);
+  if (saved >= g.target) return "done";
+  const daysLeft = (new Date(g.targetDate) - new Date()) / 864e5;
+  if (daysLeft <= 0) return "overdue";
+  const pace = goalPace(g);
+  if (pace == null) return null;
+  return pace >= ((g.target - saved) / daysLeft) * 0.97 ? "onpace" : "behind";
+}
+/* average monthly net (income − expenses) over the last n *full* months — the real budget
+   a person actually has to allocate across every goal, not a number typed into a form */
+function avgMonthlyNet(n = 3) {
+  const now = new Date();
+  let y = now.getFullYear(), m = now.getMonth() - 1, total = 0;
+  for (let i = 0; i < n; i++) { if (m < 0) { m = 11; y--; } total += monthTotals(y, m).net; m--; }
+  return total / n;
+}
 
 /* completed weekends (before current), newest first */
 function pastWeekends(maxN = 26) {
@@ -2065,6 +2164,181 @@ document.body.addEventListener("click", (e) => {
   else if (e.target.closest("#trip-end")) endTrip();
 });
 
+/* ======================= financial planning modal ====================== */
+const dmy = (iso) => { const d = new Date(`${iso}T12:00:00`); return `${d.getDate()}.${d.getMonth() + 1}`; };
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+function openPlanModal() { renderGoalList(); }
+
+function renderGoalList() {
+  const goals = S.plans.goals || [];
+  const hasInvest = goals.some((g) => g.kind === "invest");
+  const rows = goals.map((g) => {
+    const saved = goalSaved(g), k = GOAL_KIND[g.kind];
+    const frac = g.target > 0 ? Math.min(100, saved / g.target * 100) : null;
+    return `<div class="tx-item" data-goto="${g.id}" style="cursor:pointer">
+      <span class="tx-emoji">${k.icon}</span>
+      <span class="tx-main">
+        <div class="tx-name">${esc(g.name)}</div>
+        <div class="mut">${k.label}${g.target ? ` · ${fmt(saved)} / ${fmt(g.target)}` : ` · ${fmt(saved)}`}</div>
+        ${frac !== null ? `<span class="meter" style="margin-top:5px"><div style="width:${frac}%;background:${frac >= 100 ? "var(--good)" : "var(--accent)"}"></div></span>` : ""}
+      </span>
+    </div>`;
+  }).join("");
+  modal(`
+    <h3>🎯 תכנון כלכלי</h3>
+    <p class="sub" style="margin-bottom:10px">חיסכון כללי, טיולים והשקעות — יעד לכל אחד, ומעקב לאורך זמן.</p>
+    ${rows || `<p class="mut">אין עדיין יעדים.</p>`}
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn primary" id="goal-new" style="flex:1">+ יעד חדש</button>
+    </div>`);
+  $("#goal-new").onclick = () => openGoalForm();
+  document.getElementById("modal").querySelectorAll("[data-goto]").forEach((row) => {
+    row.onclick = () => openGoalDetail(row.dataset.goto);
+  });
+}
+
+/* create (no id) or edit (existing id) a goal's name/kind/target/date */
+function openGoalForm(id) {
+  const g = id ? goalById(id) : null;
+  const goals = S.plans.goals || [];
+  const hasInvest = goals.some((x) => x.kind === "invest" && x.id !== id);
+  const kinds = Object.entries(GOAL_KIND).filter(([k]) => k !== "invest" || !hasInvest || (g && g.kind === "invest"));
+  let kind = (g && g.kind) || kinds[0][0];
+  const kindBtns = () => kinds.map(([k, v]) =>
+    `<button type="button" class="btn kind-btn${k === kind ? " primary" : ""}" data-kind="${k}">${v.icon} ${v.label}</button>`).join("");
+  modal(`
+    <h3>${g ? "עריכת יעד" : "יעד חדש"}</h3>
+    <div class="field"><label>סוג</label><div class="btn-row" id="goal-kinds">${kindBtns()}</div></div>
+    <div class="field"><label>שם</label><input id="gf-name" placeholder="למשל: טיול ליוון, קרן חירום" value="${g ? esc(g.name) : ""}" autocomplete="off"></div>
+    <div class="field"><label>סכום יעד (₪) <span class="mut">אופציונלי</span></label>
+      <input type="number" id="gf-target" min="0" inputmode="numeric" placeholder="לא חובה" value="${g && g.target ? g.target : ""}"></div>
+    <div class="field"><label>תאריך יעד <span class="mut">אופציונלי</span></label>
+      <input type="date" id="gf-date" value="${g && g.targetDate ? g.targetDate : ""}"></div>
+    <div class="btn-row">
+      <button class="btn primary" id="gf-save">שמירה</button>
+      <button class="btn" id="gf-cancel">ביטול</button>
+      ${g ? `<button class="btn danger" id="gf-delete" style="margin-inline-start:auto">מחיקה</button>` : ""}
+    </div>`);
+  $("#goal-kinds").onclick = (e) => {
+    const b = e.target.closest("[data-kind]"); if (!b) return;
+    kind = b.dataset.kind;
+    $("#goal-kinds").innerHTML = kindBtns();
+  };
+  $("#gf-save").onclick = () => {
+    const name = $("#gf-name").value.trim();
+    if (!name) return;
+    const target = Math.max(0, parseFloat($("#gf-target").value) || 0);
+    const targetDate = $("#gf-date").value || null;
+    if (g) { Object.assign(g, { name, kind, target, targetDate }); }
+    else { S.plans.goals.push({ id: uid(), name, kind, target, targetDate, entries: [] }); }
+    save(); render();
+    openGoalDetail(g ? g.id : S.plans.goals[S.plans.goals.length - 1].id);
+  };
+  $("#gf-cancel").onclick = () => (g ? openGoalDetail(g.id) : renderGoalList());
+  if (g) $("#gf-delete").onclick = () => confirmDeleteGoal(g.id);
+}
+
+function confirmDeleteGoal(id) {
+  const g = goalById(id); if (!g) return;
+  modal(`
+    <h3>למחוק את "${esc(g.name)}"?</h3>
+    <p class="sub">כל היסטוריית העדכונים של היעד תימחק. הפעולה הזו בלתי הפיכה.</p>
+    <div class="btn-row">
+      <button class="btn danger" id="gd-yes">מחיקה</button>
+      <button class="btn" id="gd-no">ביטול</button>
+    </div>`);
+  $("#gd-yes").onclick = () => {
+    S.plans.goals = S.plans.goals.filter((x) => x.id !== id);
+    save(); render(); renderGoalList();
+  };
+  $("#gd-no").onclick = () => openGoalDetail(id);
+}
+
+/* monthly deposit totals for an invest goal's chart — a running balance chart makes no sense
+   for a stream of deposits, so this buckets them the same way the month screen's own trend does */
+function goalMonthlyDeposits(g, n = 8) {
+  const buckets = {};
+  goalEntries(g).forEach((e) => {
+    const key = e.date.slice(0, 7);
+    buckets[key] = (buckets[key] || 0) + e.amount;
+  });
+  return Object.keys(buckets).sort().slice(-n).map((key) => {
+    const [y, m] = key.split("-").map(Number);
+    return { label: MONTHS[m - 1].slice(0, 3), value: buckets[key] };
+  });
+}
+
+function openGoalDetail(id) {
+  const g = goalById(id); if (!g) return renderGoalList();
+  const k = GOAL_KIND[g.kind];
+  const saved = goalSaved(g);
+  const delta = goalDelta(g);
+  const es = goalEntries(g);
+  const eta = goalETA(g);
+  const status = goalStatus(g);
+
+  const chartItems = g.kind === "invest" ? goalMonthlyDeposits(g) : es.slice(-8).map((e) => ({ label: dmy(e.date), value: e.amount }));
+  const chartBudget = g.kind === "invest" ? 0 : (g.target || 0);
+
+  const statusLine = status === "done" ? `<p class="sub" style="color:var(--good-text)">✓ היעד הושג</p>`
+    : status === "overdue" ? `<p class="sub" style="color:var(--crit)">התאריך שהוגדר כבר חלף</p>`
+    : status === "onpace" ? `<p class="sub" style="color:var(--good-text)">בקצב הנוכחי — בהישג יד</p>`
+    : status === "behind" ? `<p class="sub" style="color:var(--crit)">בקצב הנוכחי לא תגיע בזמן</p>` : "";
+  const etaLine = eta && !status ? `<p class="sub">בקצב הנוכחי: הגעה ליעד סביב ${dmy(eta.toISOString().slice(0, 10))}.${String(eta.getFullYear()).slice(2)}</p>` : "";
+  const deltaLine = delta !== null
+    ? `<p class="mut" style="margin:2px 0 10px">${g.kind === "invest" ? "הפקדה אחרונה" : "שינוי מאז העדכון הקודם"}: ${delta >= 0 ? "+" : ""}${fmt(delta)}</p>` : "";
+
+  const recentRows = es.slice(-5).reverse().map((e) => `
+    <div class="tx-item">
+      <span class="tx-main"><div class="tx-name">${fmt(e.amount)}</div><div class="mut">${dmy(e.date)}</div></span>
+      <button class="btn danger" data-delentry="${e.date}|${e.amount}">✕</button>
+    </div>`).join("");
+
+  modal(`
+    <button class="btn" id="gdet-back" style="margin-bottom:8px">‹ חזרה</button>
+    <h3>${k.icon} ${esc(g.name)}</h3>
+    <div class="amount-display" style="margin:6px 0">${fmt(saved)}${g.target ? `<span class="mut" style="font-size:14px"> / ${fmt(g.target)}</span>` : ""}</div>
+    ${statusLine}${etaLine}${deltaLine}
+    <div class="field">
+      <label>${g.kind === "invest" ? "הפקדה חדשה (₪)" : "עדכון היתרה הנוכחית (₪)"}</label>
+      <div class="row" style="gap:8px">
+        <input type="number" id="ge-amount" min="0" inputmode="numeric" style="flex:1" placeholder="${g.kind === "invest" ? "סכום ההפקדה" : "היתרה כרגע"}">
+        <input type="date" id="ge-date" value="${todayISO()}" style="flex:1">
+      </div>
+    </div>
+    <button class="btn primary" id="ge-add" style="width:100%">${g.kind === "invest" ? "הוספת הפקדה" : "עדכון יתרה"}</button>
+    ${chartItems.length >= 2 ? `<h4 class="sub-h" style="margin-top:16px">${g.kind === "invest" ? "הפקדות לפי חודש" : "מגמה"}</h4>${vbars(chartItems, chartBudget)}` : ""}
+    ${recentRows ? `<h4 class="sub-h" style="margin-top:14px">עדכונים אחרונים</h4>${recentRows}` : ""}
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn" id="gdet-edit">עריכת יעד</button>
+    </div>`);
+
+  $("#gdet-back").onclick = renderGoalList;
+  $("#gdet-edit").onclick = () => openGoalForm(g.id);
+  $("#ge-add").onclick = () => {
+    const amount = parseFloat($("#ge-amount").value);
+    if (!amount || amount <= 0) return;
+    const date = $("#ge-date").value || todayISO();
+    g.entries.push({ date, amount });
+    save(); render(); openGoalDetail(g.id);
+  };
+  document.getElementById("modal").querySelectorAll("[data-delentry]").forEach((btn) => {
+    btn.onclick = () => {
+      const [date, amount] = btn.dataset.delentry.split("|");
+      const i = g.entries.findIndex((e) => e.date === date && String(e.amount) === amount);
+      if (i > -1) g.entries.splice(i, 1);
+      save(); render(); openGoalDetail(g.id);
+    };
+  });
+}
+
+document.body.addEventListener("click", (e) => {
+  if (e.target.closest("#plan-open")) openPlanModal();
+  const gr = e.target.closest("[data-goal]");
+  if (gr) openGoalDetail(gr.dataset.goal);
+});
+
 function renderMonthTx() {
   const m = monthTotals(mYear, mMonth);
   const q = txQuery.trim().toLowerCase();
@@ -2124,11 +2398,70 @@ function renderRecap(m) {
 /* ---------- saving & control: recurring/subscriptions + ranked saving levers ----------
    Focused on decisions, not trivia: what repeats (leaks) and where cutting saves the most.
    The raw per-category breakdown lives in the "לאן הלך הכסף" card, so it isn't repeated here. */
+/* live summary card inside "חיסכון ובקרה" — read-only; editing happens in the plan modal.
+   Goal rows are tappable so a quick balance/deposit update never requires a trip to settings. */
+function renderPlansSummary() {
+  const el = $("#m-plans");
+  const goals = S.plans.goals || [];
+  $("#plan-count").textContent = goals.length ? `${goals.length} יעדים` : "";
+  if (!goals.length) {
+    el.innerHTML = `<p class="mut" style="margin:0 0 10px">אין עדיין יעדי חיסכון. הגדר אותם ב<b>הגדרות ← תכנון כלכלי</b>.</p>`;
+    return;
+  }
+
+  const withTarget = goals.filter((g) => g.target > 0);
+  const totalTarget = withTarget.reduce((a, g) => a + g.target, 0);
+  const totalCovered = withTarget.reduce((a, g) => a + Math.min(goalSaved(g), g.target), 0);
+  const pct = totalTarget > 0 ? Math.round(totalCovered / totalTarget * 100) : null;
+
+  // pace check needs real history to mean anything — a fresh install has none
+  let paceLine = "";
+  const dated = withTarget.filter((g) => g.targetDate && goalSaved(g) < g.target);
+  if (dated.length && S.tx.length >= 5) {
+    const now = new Date();
+    const requiredMonthly = dated.reduce((a, g) => {
+      const months = Math.max(1 / 30, (new Date(g.targetDate) - now) / 864e5 / 30.44);
+      return a + (g.target - goalSaved(g)) / months;
+    }, 0);
+    const actual = avgMonthlyNet(3);
+    const ok = actual >= requiredMonthly;
+    paceLine = `<div class="plan-pace ${ok ? "ok" : "warn"}">${ok ? "✓" : "⚠️"}
+      בקצב ההכנסה/הוצאה הממוצע שלך (${fmt(actual)}/ח׳) —
+      ${ok ? "כל היעדים עם תאריך בהישג יד" : `חסר כ-<b>${fmt(requiredMonthly - actual)}</b>/ח׳ כדי לעמוד בכולם בזמן`}</div>`;
+  }
+
+  const rows = goals.map((g) => {
+    const saved = goalSaved(g), k = GOAL_KIND[g.kind];
+    const frac = g.target > 0 ? Math.min(100, saved / g.target * 100) : null;
+    const status = goalStatus(g);
+    const tag = status === "done" ? `<span class="badge ok">הושלם</span>`
+      : status === "onpace" ? `<span class="badge ok">בקצב</span>`
+      : status === "behind" ? `<span class="badge over">מפגר</span>`
+      : status === "overdue" ? `<span class="badge over">חלף התאריך</span>` : "";
+    return `<button class="goal-row" data-goal="${g.id}">
+      <span class="goal-em">${k.icon}</span>
+      <span class="goal-main">
+        <span class="goal-name">${esc(g.name)}${tag}</span>
+        ${frac !== null ? `<span class="meter"><div style="width:${frac}%;background:${frac >= 100 ? "var(--good)" : "var(--accent)"}"></div></span>` : ""}
+      </span>
+      <span class="goal-amt num">${fmt(saved)}${g.target ? `<small> / ${fmt(g.target)}</small>` : ""}</span>
+    </button>`;
+  }).join("");
+
+  el.innerHTML = `
+    ${pct !== null ? `<div class="row spread" style="margin-bottom:4px"><span class="mut">מכוסה מכל היעדים</span><b class="num">${pct}%</b></div>
+      <div class="meter" style="margin-bottom:10px"><div style="width:${pct}%;background:${pct >= 100 ? "var(--good)" : "var(--accent)"}"></div></div>` : ""}
+    ${paceLine}
+    <div class="goal-list">${rows}</div>`;
+}
+
 function renderPatterns() {
   const el = $("#m-patterns"), wrap = $("#c-patterns");
+  renderPlansSummary();
   const exp = S.tx.filter((t) => t.type === "expense" && t.bucket !== "travel");
-  if (exp.length < 3) { el.innerHTML = ""; wrap.style.display = "none"; return; }
-  wrap.style.display = "";
+  const hasPlans = (S.plans.goals || []).length > 0;
+  wrap.style.display = (hasPlans || exp.length >= 3) ? "" : "none";
+  if (exp.length < 3) { el.innerHTML = ""; return; }
   const total = sum(exp);
   const times = exp.map((t) => +new Date(t.ts));
   const first = new Date(Math.min(...times)), last = new Date(Math.max(...times));
