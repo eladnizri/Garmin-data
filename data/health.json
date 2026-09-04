@@ -2318,15 +2318,15 @@
  {
   "date": "2026-09-04",
   "rhr": 56,
-  "stress_avg": 38,
+  "stress_avg": 46,
   "body_battery_high": 35,
   "body_battery_low": 5,
   "body_battery_charged": 30,
-  "body_battery_drained": 6,
-  "steps": 1343,
-  "calories": 1114.0,
-  "floors": 0.0,
-  "intensity_min": 0,
+  "body_battery_drained": 27,
+  "steps": 9781,
+  "calories": 2061.0,
+  "floors": 2.63189,
+  "intensity_min": 52,
   "sleep_hours": 7.85,
   "deep_min": 62,
   "light_min": 383,
@@ -2350,6 +2350,22 @@
   "recovery_hours": 44,
   "respiration_avg": 14.0,
   "training_status": "RECOVERY_1",
-  "training_load": 178
+  "training_load": 178,
+  "workouts": [
+   {
+    "type": "הליכה",
+    "type_key": "walking",
+    "minutes": 67,
+    "km": 4.71,
+    "avg_hr": 104,
+    "calories": 298,
+    "max_hr": 123,
+    "pace_s": 852,
+    "elev_gain": 5,
+    "cadence": 74,
+    "aerobic_te": 0.7,
+    "vo2max": 52.0
+   }
+  ]
  }
 ]
