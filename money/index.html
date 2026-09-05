@@ -1231,12 +1231,26 @@ function avgMonthlyNet(n = 3) {
   }
   return used ? total / used : 0;
 }
-/* the monthly net expected in a given month: the newest stage that has already begun, or —
-   before any stage — the measured average. A stage is how a known change in income (a
-   discharge, a new job) enters the plan before it has any history behind it. */
-function flowFor(key, auto) {
+/* average total monthly spend (every expense, travel included) over the last n *full*
+   months — what a future stage's gross income gets measured against, since the user
+   only has to type what actually lands in the account, not guess their own spending */
+function avgMonthlyOut(n = 6) {
+  const now = new Date();
+  let y = now.getFullYear(), m = now.getMonth() - 1, total = 0, used = 0;
+  for (let i = 0; i < n; i++) {
+    if (m < 0) { m = 11; y--; }
+    const t = monthTotals(y, m);
+    if (t.inc || t.out) { total += t.out; used++; }
+    m--;
+  }
+  return used ? total / used : 0;
+}
+/* the monthly net expected in a given month: before any stage, the measured average; from
+   a stage's start, the gross income declared for it minus the measured average spend — so
+   the user only ever types what comes into the account, never has to guess their own net. */
+function flowFor(key, auto, avgOut) {
   const started = (pl().flow || []).filter((f) => f.from <= key).sort((a, b) => a.from.localeCompare(b.from));
-  return started.length ? started[started.length - 1].amount : auto;
+  return started.length ? started[started.length - 1].amount - avgOut : auto;
 }
 /* how many months out the projection/solver needs to look, given the milestones and flow
    stages on the books — shared by every function below that walks the timeline */
@@ -1259,7 +1273,7 @@ function planHorizon(y0, m0) {
 function projection() {
   const ms = msSorted(), today = todayISO();
   const now = new Date(), y0 = now.getFullYear(), m0 = now.getMonth();
-  const auto = avgMonthlyNet(3);
+  const auto = avgMonthlyNet(3), avgOut = avgMonthlyOut(6);
   const n = planHorizon(y0, m0);
 
   // the current month is already part-spent, so only the remaining share of its flow counts
@@ -1271,7 +1285,7 @@ function projection() {
   for (let i = 0; i < n; i++) {
     const y = y0 + Math.floor((m0 + i) / 12), m = (m0 + i) % 12, key = mKey(y, m);
     const share = i === 0 ? leftFrac : 1;
-    const flow = flowFor(key, auto) * share;
+    const flow = flowFor(key, auto, avgOut) * share;
     const dep = (pl().invest.monthly || 0) * share;
     const mine = ms.filter((x) => x.date.slice(0, 7) === key && (i > 0 || x.date >= today));
     const msNet = mine.reduce((a, x) => a + (x.dir === "in" ? x.amount : -x.amount), 0);
@@ -1307,7 +1321,7 @@ function investProjection(months) {
 function minFlowNeeded(fromKey) {
   const ms = msSorted(), today = todayISO();
   const now = new Date(), y0 = now.getFullYear(), m0 = now.getMonth();
-  const auto = avgMonthlyNet(3);
+  const auto = avgMonthlyNet(3), avgOut = avgMonthlyOut(6);
   const dep = Math.max(pl().invest.monthly || 0, pl().minMonthly || 0);
   const n = planHorizon(y0, m0);
   const dim = new Date(y0, m0 + 1, 0).getDate();
@@ -1318,7 +1332,7 @@ function minFlowNeeded(fromKey) {
     for (let i = 0; i < n; i++) {
       const y = y0 + Math.floor((m0 + i) / 12), m = (m0 + i) % 12, key = mKey(y, m);
       const share = i === 0 ? leftFrac : 1;
-      const flow = (key >= fromKey ? candidate : flowFor(key, auto)) * share;
+      const flow = (key >= fromKey ? candidate : flowFor(key, auto, avgOut)) * share;
       const mine = ms.filter((x) => x.date.slice(0, 7) === key && (i > 0 || x.date >= today));
       const msNet = mine.reduce((a, x) => a + (x.dir === "in" ? x.amount : -x.amount), 0);
       cash += flow - dep * share + msNet;
@@ -2337,7 +2351,7 @@ function openPlanModal() {
     </button>`;
   }).join("");
 
-  const flowNow = flowFor(nowKey, auto);
+  const flowNow = flowFor(nowKey, auto, avgMonthlyOut(6));
   const stages = (p.flow || []).length;
   modal(`
     <h3>🎯 תכנון כלכלי</h3>
@@ -2368,37 +2382,43 @@ function openPlanModal() {
   });
 }
 
-/* ---- monthly flow: measured from real data now, declared in stages for what's coming ---- */
+/* ---- monthly flow: measured from real data now, declared in stages for what's coming.
+       a stage is a GROSS income figure — what actually lands in the account — and the
+       expected spend (measured live from the last 6 months, travel included) is deducted
+       automatically, so the user never has to estimate their own net. ---- */
 function openFlowScreen() {
-  const p = pl(), auto = avgMonthlyNet(3);
+  const p = pl(), auto = avgMonthlyNet(3), avgOut = avgMonthlyOut(6);
   const stages = (p.flow || []).slice().sort((a, b) => a.from.localeCompare(b.from));
   const rows = stages.map((f) => `
     <div class="tx-item">
-      <span class="tx-main"><div class="tx-name">מ${keyLabel(f.from)}</div><div class="mut num">${fmt(f.amount)} לחודש</div></span>
+      <span class="tx-main"><div class="tx-name">מ${keyLabel(f.from)}</div><div class="mut num">${fmt(f.amount)} ברוטו · נטו ${fmt(f.amount - avgOut)}</div></span>
       <button class="btn danger" data-delflow="${f.id}">✕</button>
     </div>`).join("");
   const nextMonth = () => { const d = new Date(); d.setMonth(d.getMonth() + 1); return mKey(d.getFullYear(), d.getMonth()); };
 
   const lastStage = stages[stages.length - 1];
   const needLine = lastStage ? (() => {
-    const need = minFlowNeeded(lastStage.from), ok = lastStage.amount >= need;
+    const needNet = minFlowNeeded(lastStage.from), needGross = needNet + avgOut;
+    const ok = lastStage.amount >= needGross;
     return `<div class="plan-verdict ${ok ? "ok" : "warn"}"><span class="pv-em">${ok ? "✓" : "⚠️"}</span>
-      <span>כדי שהתוכנית תחזיק מ<b>${keyLabel(lastStage.from)}</b>, צריך לפחות <b>${fmt(need)}</b> לחודש${ok ? " — זה מכוסה" : ` — ${fmt(need - lastStage.amount)} יותר ממה שהגדרת`}</span></div>`;
+      <span>כדי שהתוכנית תחזיק מ<b>${keyLabel(lastStage.from)}</b>, צריך לפחות <b>${fmt(needGross)}</b> ברוטו לחודש (נטו ${fmt(needNet)})${ok ? " — זה מכוסה" : ` — ${fmt(needGross - lastStage.amount)} יותר ממה שהגדרת`}</span></div>`;
   })() : "";
 
   modal(`
     <button class="btn" id="fl-back" style="margin-bottom:8px">‹ חזרה</button>
     <h3>📊 תזרים חודשי</h3>
-    <p class="sub" style="margin-bottom:10px">כמה נשאר בידיים בכל חודש. עד השלב הראשון התחזית משתמשת במה שנמדד באפליקציה — ומהשלב הזה והלאה במה שתגדיר.</p>
+    <p class="sub" style="margin-bottom:10px">עד השלב הראשון התחזית משתמשת במה שנמדד באפליקציה. מהשלב הזה והלאה, תזין כמה ברוטו נכנס לחשבון — וההוצאות יורדות אוטומטית לפי הממוצע שנמדד.</p>
     <div class="plan-verdict"><span class="pv-em">📐</span>
-      <span>נמדד מהאפליקציה: <b>${fmt(auto)}</b> לחודש${S.tx.length < 5 ? " <span class=\"mut\">(עדיין מעט נתונים)</span>" : ""}</span></div>
+      <span>נמדד מהאפליקציה: <b>${fmt(auto)}</b> נטו לחודש${S.tx.length < 5 ? " <span class=\"mut\">(עדיין מעט נתונים)</span>" : ""}</span></div>
+    <div class="plan-verdict"><span class="pv-em">🧾</span>
+      <span>ממוצע הוצאות (6 ח׳ אחרונים, כולל טיולים): <b>${fmt(avgOut)}</b> לחודש — יורד אוטומטית מהברוטו שתזין</span></div>
     ${rows ? `<h4 class="sub-h">שלבים עתידיים</h4>${rows}` : ""}
     ${needLine}
     <div class="field" style="margin-top:12px">
       <label>שלב חדש</label>
       <div class="row" style="gap:8px">
         <input type="month" id="fl-from" value="${nextMonth()}" style="flex:1">
-        <input type="number" id="fl-amount" inputmode="numeric" style="flex:1" placeholder="₪ לחודש">
+        <input type="number" id="fl-amount" inputmode="numeric" style="flex:1" placeholder="משכורת ברוטו לחודש (₪)">
       </div>
     </div>
     <button class="btn primary" id="fl-add" style="width:100%">הוספת שלב</button>`);
