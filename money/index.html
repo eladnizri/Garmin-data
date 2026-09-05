@@ -966,7 +966,7 @@ body {
       <h3 style="font-size:15px">🎯 תכנון כלכלי</h3>
       <span class="mut" id="plan-count"></span>
     </div>
-    <p class="mut" style="margin:2px 0 10px">אבני הדרך שלפניך — מענקים, טיסות וטיולים — מול מה שנכנס ונשאר בחיסכון</p>
+    <p class="mut" style="margin:2px 0 10px">אבני הדרך שלפניך — מענקים, טיסות וטיולים — מול התזרים החודשי, ותיק ההשקעות בנפרד</p>
     <button class="btn primary" style="width:100%" id="plan-open">פתיחת תכנון כלכלי</button>
   </div>
   <div class="card">
@@ -1049,38 +1049,52 @@ const DEFAULTS = () => ({
   tx: [],     // {id, type:'expense'|'income', amount, cat, note, ts, bucket:'weekend'|'base'|'other'|'travel', tripId?}
   fixed: [],  // {id, type:'expense'|'income', name, amount}
   trips: [],  // {id, name, budget, start, end}  (end === null while active)
-  // planning is a dated cash-flow timeline, not a set of pots to fill: the savings account
-  // already exists, so what matters is whether the money that keeps entering it survives the
-  // life events that are already on the calendar (a discharge grant in, two flights out, a
-  // big trip after that) — and whether daily life, travel and saving still coexist meanwhile.
+  // planning is a dated cash-flow timeline, not a set of pots to fill: the investment account
+  // already exists (it IS the savings account — one pot, not two) and isn't touched for
+  // anything, so what matters is whether the monthly flow alone survives the life events
+  // already on the calendar (a discharge grant in, two flights out, a big trip after that)
+  // while the account keeps compounding untouched in the background.
   plans: {
-    v: 2,
-    savings: [],         // [{date, amount}] balance snapshots of the existing savings account
-    minMonthly: 0,       // the least that should enter savings in a month ("don't neglect it")
-    invest: { monthly: 0, entries: [] },  // planned monthly deposit + the deposits actually made
+    v: 3,
+    invest: { balance: 0, updated: null, monthly: 0, rate: 0.07 },  // the one account: current
+                         // value, planned monthly deposit, average annual return
+    minMonthly: 0,       // the least that should go into it every month ("don't neglect it")
     flow: [],            // [{id, from:"YYYY-MM", amount}] future monthly-net stages; before the
                          // first stage the projection uses what the app's own history measures
-    milestones: [],      // [{id, name, date, dir:'in'|'out', amount, fund:'savings'|'flow', icon}]
-    goals: [],           // v1 leftovers, folded into the timeline once and kept only as a backup
+    milestones: [],      // [{id, name, date, dir:'in'|'out', amount, icon}] — always settled
+                         // against that month's flow, never against the investment account
+    savings: [],         // v2 leftovers, folded into the account balance once
+    goals: [],           // v1 leftovers, folded into the timeline once
   },
 });
 
-/* v1 tracked "goals" (a target plus a running balance). The plan is a timeline now, so old
-   goals are folded in once: a trip becomes a dated expense, a general savings goal seeds the
-   account balance, and an investment goal seeds the deposit log. The raw array stays put. */
+/* older plan shapes are folded in once, in place, straight to the current version:
+   v1 "goals" (a target plus a running balance) become a trip milestone, a seed for the
+   account balance, or a seed for its deposit total; v2 split the account into a "savings"
+   balance and a separate "invest" deposit log, but they were always the same real account,
+   so whichever one has real numbers becomes the single balance the timeline follows now. */
 function migratePlans(p) {
-  if (p.v >= 2 || !(p.goals || []).length) { p.v = 2; return; }
-  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  const inSixMonths = () => { const d = new Date(); d.setMonth(d.getMonth() + 6); return d.toISOString().slice(0, 10); };
-  p.goals.forEach((g) => {
-    const es = (g.entries || []).slice().sort((a, b) => a.date.localeCompare(b.date));
-    if (g.kind === "invest") es.forEach((e) => p.invest.entries.push({ date: e.date, amount: e.amount }));
-    else if (g.kind === "trip" && g.target > 0)
-      p.milestones.push({ id: newId(), name: g.name, date: g.targetDate || inSixMonths(),
-                          dir: "out", amount: g.target, fund: "savings", icon: "✈️" });
-    else if (es.length) p.savings.push({ date: es[es.length - 1].date, amount: es[es.length - 1].amount });
-  });
-  p.v = 2;
+  if (p.v >= 3) return;
+  if (!p.v || p.v < 2) {
+    const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const inSixMonths = () => { const d = new Date(); d.setMonth(d.getMonth() + 6); return d.toISOString().slice(0, 10); };
+    (p.goals || []).forEach((g) => {
+      const es = (g.entries || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+      if (g.kind === "invest" && es.length)
+        p.invest.balance = (p.invest.balance || 0) + es.reduce((a, e) => a + e.amount, 0);
+      else if (g.kind === "trip" && g.target > 0)
+        p.milestones.push({ id: newId(), name: g.name, date: g.targetDate || inSixMonths(),
+                            dir: "out", amount: g.target, icon: "✈️" });
+      else if (es.length) p.savings.push({ date: es[es.length - 1].date, amount: es[es.length - 1].amount });
+    });
+  }
+  const snaps = (p.savings || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const oldInvestDeposits = (p.invest.entries || []).reduce((a, e) => a + e.amount, 0);
+  if (snaps.length) { p.invest.balance = (p.invest.balance || 0) + snaps[snaps.length - 1].amount; p.invest.updated = snaps[snaps.length - 1].date; }
+  else if (oldInvestDeposits) p.invest.balance = (p.invest.balance || 0) + oldInvestDeposits;
+  p.invest.rate = p.invest.rate || 0.07;
+  (p.milestones || []).forEach((m) => { delete m.fund; });
+  p.v = 3;
 }
 
 let S = load();
@@ -1198,11 +1212,8 @@ const MS_ICONS = ["✈️", "🌍", "🏖️", "🎖️", "💰", "🏠", "🚗"
 const pl = () => S.plans;
 const msSorted = () => (pl().milestones || []).slice().sort((a, b) => a.date.localeCompare(b.date));
 const msById = (id) => (pl().milestones || []).find((m) => m.id === id) || null;
-const bySnapDate = (list) => (list || []).slice().sort((a, b) => a.date.localeCompare(b.date));
-const savingsSnaps = () => bySnapDate(pl().savings);
-function savingsBalance() { const s = savingsSnaps(); return s.length ? s[s.length - 1].amount : 0; }
-function savingsUpdated() { const s = savingsSnaps(); return s.length ? s[s.length - 1].date : null; }
-const investTotal = () => (pl().invest.entries || []).reduce((a, e) => a + e.amount, 0);
+const investBalance = () => pl().invest.balance || 0;
+const investUpdated = () => pl().invest.updated || null;
 const mKey = (y, m) => `${y}-${String(m + 1).padStart(2, "0")}`;
 const keyLabel = (k) => { const [y, m] = k.split("-").map(Number); return `${MONTHS[m - 1]} ${y}`; };
 const keyShort = (k) => { const [y, m] = k.split("-").map(Number); return `${MONTHS[m - 1].slice(0, 3)}׳${String(y).slice(2)}`; };
@@ -1227,15 +1238,10 @@ function flowFor(key, auto) {
   const started = (pl().flow || []).filter((f) => f.from <= key).sort((a, b) => a.from.localeCompare(b.from));
   return started.length ? started[started.length - 1].amount : auto;
 }
-/* month-by-month projection of the savings balance from today forward.
-   Each month the flow arrives, the planned investment deposit leaves, and the milestones
-   dated that month are applied. A "flow"-funded event is paid out of that month's income —
-   so it can push the month's deposit negative, which is what `tight` flags; a "savings"-funded
-   one is a planned withdrawal from the pot. Both move the balance, only one strains the month. */
-function projection() {
-  const ms = msSorted(), today = todayISO();
-  const now = new Date(), y0 = now.getFullYear(), m0 = now.getMonth();
-  const auto = avgMonthlyNet(3);
+/* how many months out the projection/solver needs to look, given the milestones and flow
+   stages on the books — shared by every function below that walks the timeline */
+function planHorizon(y0, m0) {
+  const ms = msSorted();
   const monthsFromNow = (iso) => {
     const [y, m] = iso.slice(0, 7).split("-").map(Number);
     return (y - y0) * 12 + (m - 1 - m0);
@@ -1243,58 +1249,87 @@ function projection() {
   let n = 6;
   ms.forEach((x) => { n = Math.max(n, monthsFromNow(x.date) + 3); });
   (pl().flow || []).forEach((f) => { n = Math.max(n, monthsFromNow(f.from) + 3); });
-  n = Math.min(48, n);
+  return Math.min(48, n);
+}
+/* month-by-month CASH-FLOW projection: the running buffer left in hand after the planned
+   investment deposit and every milestone due that month. Milestones always settle against
+   that month's flow now — never against the investment account, which is left alone to
+   compound on its own (see investProjection) — so a big expense here is an income problem
+   to plan around, not a withdrawal to make. */
+function projection() {
+  const ms = msSorted(), today = todayISO();
+  const now = new Date(), y0 = now.getFullYear(), m0 = now.getMonth();
+  const auto = avgMonthlyNet(3);
+  const n = planHorizon(y0, m0);
 
   // the current month is already part-spent, so only the remaining share of its flow counts
   const dim = new Date(y0, m0 + 1, 0).getDate();
   const leftFrac = (dim - now.getDate() + 1) / dim;
 
-  let bal = savingsBalance();
+  let cash = 0;
   const rows = [];
   for (let i = 0; i < n; i++) {
     const y = y0 + Math.floor((m0 + i) / 12), m = (m0 + i) % 12, key = mKey(y, m);
     const share = i === 0 ? leftFrac : 1;
     const flow = flowFor(key, auto) * share;
-    const inv = (pl().invest.monthly || 0) * share;
+    const dep = (pl().invest.monthly || 0) * share;
     const mine = ms.filter((x) => x.date.slice(0, 7) === key && (i > 0 || x.date >= today));
-    let flowNet = 0, savNet = 0;
-    mine.forEach((x) => {
-      const v = x.dir === "in" ? x.amount : -x.amount;
-      if (x.fund === "flow") flowNet += v; else savNet += v;
-    });
-    const deposit = flow - inv + flowNet;
-    bal += deposit + savNet;
-    rows.push({ key, label: keyLabel(key), short: keyShort(key), flow, inv, deposit, balance: bal,
-                milestones: mine, tight: deposit < 0,
-                neglect: deposit >= 0 && pl().minMonthly > 0 && deposit < pl().minMonthly });
+    const msNet = mine.reduce((a, x) => a + (x.dir === "in" ? x.amount : -x.amount), 0);
+    const net = flow - dep + msNet;
+    cash += net;
+    rows.push({ key, label: keyLabel(key), short: keyShort(key), flow, dep, net, cash,
+                milestones: mine, tight: cash < -0.5 });
   }
   return rows;
 }
-/* does the plan hold? the first month the pot runs dry, and the first month income alone
-   can't carry the events booked into it */
+/* does the plan hold? the first month the cash buffer runs negative, and whether the planned
+   deposit itself is below the "don't neglect it" floor */
 function planVerdict(rows) {
-  return { dry: rows.find((r) => r.balance < 0) || null,
-           tight: rows.find((r) => r.tight) || null,
-           neglect: rows.find((r) => r.neglect) || null,
-           end: rows.length ? rows[rows.length - 1].balance : savingsBalance() };
+  const p = pl();
+  return { dry: rows.find((r) => r.tight) || null,
+           neglect: p.invest.monthly > 0 && p.minMonthly > 0 && p.invest.monthly < p.minMonthly,
+           end: rows.length ? rows[rows.length - 1].cash : 0 };
 }
-/* how much actually entered the savings account each month, straight from the balance
-   snapshots — the honest answer to "am I neglecting it", which no budget figure can give.
-   A gap between two snapshots is spread evenly over the months it covers. */
-function savingsMonthly(n = 6) {
-  const s = savingsSnaps();
-  if (s.length < 2) return [];
-  const perMonth = {};
-  for (let i = 1; i < s.length; i++) {
-    const gap = Math.max(1, Math.round((new Date(s[i].date) - new Date(s[i - 1].date)) / 864e5 / 30.44));
-    const per = (s[i].amount - s[i - 1].amount) / gap;
-    for (let k = gap; k >= 1; k--) {
-      const d = new Date(`${s[i].date}T12:00:00`);
-      d.setMonth(d.getMonth() - (k - 1));
-      perMonth[mKey(d.getFullYear(), d.getMonth())] = Math.round(per);
+/* the investment account's own trajectory: current balance plus its fixed monthly deposit,
+   compounding monthly at the average annual return — untouched by anything on the timeline,
+   since the whole point is not to touch it. Returns balance after 0..months months. */
+function investProjection(months) {
+  const p = pl().invest, r = (p.rate || 0) / 12;
+  let bal = p.balance || 0;
+  const rows = [bal];
+  for (let i = 0; i < months; i++) { bal = bal * (1 + r) + (p.monthly || 0); rows.push(bal); }
+  return rows;
+}
+/* the minimum constant flow, from a given "YYYY-MM" forward, that keeps the cash buffer at
+   or above zero for the whole horizon — using at least the "don't neglect it" deposit floor
+   even if the planned deposit is currently set lower. Answers "how much do I actually need
+   once income changes", not just "today's plan falls short". */
+function minFlowNeeded(fromKey) {
+  const ms = msSorted(), today = todayISO();
+  const now = new Date(), y0 = now.getFullYear(), m0 = now.getMonth();
+  const auto = avgMonthlyNet(3);
+  const dep = Math.max(pl().invest.monthly || 0, pl().minMonthly || 0);
+  const n = planHorizon(y0, m0);
+  const dim = new Date(y0, m0 + 1, 0).getDate();
+  const leftFrac = (dim - now.getDate() + 1) / dim;
+
+  const feasible = (candidate) => {
+    let cash = 0;
+    for (let i = 0; i < n; i++) {
+      const y = y0 + Math.floor((m0 + i) / 12), m = (m0 + i) % 12, key = mKey(y, m);
+      const share = i === 0 ? leftFrac : 1;
+      const flow = (key >= fromKey ? candidate : flowFor(key, auto)) * share;
+      const mine = ms.filter((x) => x.date.slice(0, 7) === key && (i > 0 || x.date >= today));
+      const msNet = mine.reduce((a, x) => a + (x.dir === "in" ? x.amount : -x.amount), 0);
+      cash += flow - dep * share + msNet;
+      if (cash < -0.5) return false;
     }
-  }
-  return Object.keys(perMonth).sort().slice(-n).map((k) => ({ key: k, label: keyShort(k), value: perMonth[k] }));
+    return true;
+  };
+  let lo = -20000, hi = 20000;
+  while (!feasible(hi) && hi < 2e6) hi *= 2;
+  for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (feasible(mid)) hi = mid; else lo = mid; }
+  return Math.ceil(hi / 10) * 10;
 }
 /* the three-way split the user asked to keep in balance: daily life, travel, and what was
    left over to save — averaged over the last n full months that have any activity */
@@ -2285,15 +2320,15 @@ function openPlanModal() {
   const all = msSorted(), today = todayISO();
   const auto = avgMonthlyNet(3);
   const nowKey = mKey(new Date().getFullYear(), new Date().getMonth());
-  const balAt = (iso) => { const r = rows.find((x) => x.key === iso.slice(0, 7)); return r ? r.balance : null; };
+  const cashAt = (iso) => { const r = rows.find((x) => x.key === iso.slice(0, 7)); return r ? r.cash : null; };
 
   const msRows = all.map((m) => {
-    const past = m.date < today, left = past ? null : balAt(m.date);
+    const past = m.date < today, left = past ? null : cashAt(m.date);
     return `<button class="ms-row${past ? " past" : ""}" data-msedit="${m.id}">
       <span class="ms-em">${m.icon || (m.dir === "in" ? "💰" : "🎯")}</span>
       <span class="ms-main">
         <span class="ms-name">${esc(m.name)}</span>
-        <span class="ms-when">${dmyY(m.date)} · ${m.fund === "flow" ? "מהתזרים" : "מהחיסכון"}</span>
+        <span class="ms-when">${dmyY(m.date)} · ${untilTxt(m.date)}</span>
       </span>
       <span class="ms-side">
         <span class="ms-amt num ${m.dir === "in" ? "in" : ""}">${m.dir === "in" ? "+" : "−"}${fmt(m.amount)}</span>
@@ -2306,11 +2341,11 @@ function openPlanModal() {
   const stages = (p.flow || []).length;
   modal(`
     <h3>🎯 תכנון כלכלי</h3>
-    <p class="sub" style="margin-bottom:6px">אבני הדרך שלפניך, מול מה שנכנס בפועל ומה שנשאר בחיסכון.</p>
-    <button class="plan-hub" id="ph-savings">
-      <span class="ms-em">🏦</span>
-      <span class="ph-main"><span class="ph-t">חשבון החיסכון</span>
-        <span class="ph-s">${savingsUpdated() ? `${fmt(savingsBalance())} · עודכן ${dmyY(savingsUpdated())}` : "עדיין לא עודכנה יתרה"}${p.minMonthly > 0 ? ` · יעד ${fmt(p.minMonthly)}/ח׳` : ""}</span></span>
+    <p class="sub" style="margin-bottom:6px">אבני הדרך שלפניך, מול התזרים החודשי. תיק ההשקעות גדל בנפרד ולא נוגעים בו.</p>
+    <button class="plan-hub" id="ph-invest">
+      <span class="ms-em">📈</span>
+      <span class="ph-main"><span class="ph-t">תיק ההשקעות</span>
+        <span class="ph-s">${fmt(investBalance())}${investUpdated() ? ` · עודכן ${dmyY(investUpdated())}` : ""}${p.invest.monthly > 0 ? ` · ${fmt(p.invest.monthly)}/ח׳` : ""}</span></span>
       <span class="ph-go">›</span>
     </button>
     <button class="plan-hub" id="ph-flow">
@@ -2319,83 +2354,17 @@ function openPlanModal() {
         <span class="ph-s">${fmt(flowNow)}/ח׳ ${stages ? `· ${stages} שלבים מוגדרים` : "· לפי הנתונים באפליקציה"}</span></span>
       <span class="ph-go">›</span>
     </button>
-    <button class="plan-hub" id="ph-invest">
-      <span class="ms-em">📈</span>
-      <span class="ph-main"><span class="ph-t">תיק ההשקעות</span>
-        <span class="ph-s">${p.invest.monthly > 0 ? `${fmt(p.invest.monthly)}/ח׳ מתוכנן` : "ללא הפקדה חודשית מתוכננת"}${investTotal() ? ` · הופקדו ${fmt(investTotal())}` : ""}</span></span>
-      <span class="ph-go">›</span>
-    </button>
 
     <h4 class="sub-h" style="margin-top:16px">אבני דרך</h4>
     ${msRows || emptyState("🗓️", "עדיין אין אבני דרך. שחרור, טיסה, טיול גדול — כל דבר עם תאריך וסכום.")}
     <button class="btn primary" id="ms-new" style="width:100%;margin-top:10px">+ אבן דרך חדשה</button>
-    ${all.some((m) => m.date >= today) ? `<p class="mut" style="margin-top:10px">בסוף התקופה המתוכננת: <b>${fmt(v.end)}</b> בחיסכון</p>` : ""}`);
+    ${all.some((m) => m.date >= today) ? `<p class="mut" style="margin-top:10px">אחרי כל אבני הדרך נשארים בתזרים: <b>${fmt(v.end)}</b> · תיק ההשקעות ממשיך לגדול בנפרד</p>` : ""}`);
 
-  $("#ph-savings").onclick = openSavingsScreen;
-  $("#ph-flow").onclick = openFlowScreen;
   $("#ph-invest").onclick = openInvestScreen;
+  $("#ph-flow").onclick = openFlowScreen;
   $("#ms-new").onclick = () => openMsForm();
   document.getElementById("modal").querySelectorAll("[data-msedit]").forEach((b) => {
     b.onclick = () => openMsForm(b.dataset.msedit);
-  });
-}
-
-/* ---- the savings account: a balance to keep an eye on, not a pot with a finish line ---- */
-function openSavingsScreen() {
-  const p = pl(), snaps = savingsSnaps(), monthly = savingsMonthly(8);
-  const recent = snaps.slice(-5).reverse().map((e) => `
-    <div class="tx-item">
-      <span class="tx-main"><div class="tx-name num">${fmt(e.amount)}</div><div class="mut">${dmyY(e.date)}</div></span>
-      <button class="btn danger" data-delsnap="${e.date}|${e.amount}">✕</button>
-    </div>`).join("");
-  const avgIn = monthly.length ? monthly.reduce((a, x) => a + x.value, 0) / monthly.length : null;
-  const verdict = avgIn === null ? ""
-    : p.minMonthly > 0
-      ? `<div class="plan-verdict ${avgIn >= p.minMonthly ? "ok" : "warn"}"><span class="pv-em">${avgIn >= p.minMonthly ? "✓" : "⚠️"}</span>
-         <span>נכנסו בממוצע <b>${fmt(avgIn)}</b> לחודש מול יעד של ${fmt(p.minMonthly)}${avgIn >= p.minMonthly ? " — החשבון לא מוזנח" : ` — חסרים ${fmt(p.minMonthly - avgIn)} בחודש`}</span></div>`
-      : `<div class="plan-verdict"><span class="pv-em">📥</span><span>נכנסו בממוצע <b>${fmt(avgIn)}</b> לחודש</span></div>`;
-
-  modal(`
-    <button class="btn" id="sv-back" style="margin-bottom:8px">‹ חזרה</button>
-    <h3>🏦 חשבון החיסכון</h3>
-    <div class="amount-display" style="margin:6px 0">${fmt(savingsBalance())}</div>
-    <p class="mut" style="margin:0 0 10px">${savingsUpdated() ? `עודכן לאחרונה ${dmyY(savingsUpdated())}` : "עדכן את היתרה כדי שהתחזית תתחיל מנקודה אמיתית"}</p>
-    ${verdict}
-    <div class="field">
-      <label>עדכון היתרה הנוכחית (₪)</label>
-      <div class="row" style="gap:8px">
-        <input type="number" id="sv-amount" min="0" inputmode="numeric" style="flex:1" placeholder="היתרה כרגע">
-        <input type="date" id="sv-date" value="${todayISO()}" style="flex:1">
-      </div>
-    </div>
-    <button class="btn primary" id="sv-add" style="width:100%">שמירת יתרה</button>
-    <div class="field" style="margin-top:14px">
-      <label>מינימום שנכנס כל חודש (₪) <span class="mut">היעד שלא להזניח</span></label>
-      <input type="number" id="sv-min" min="0" inputmode="numeric" placeholder="0" value="${p.minMonthly || ""}">
-    </div>
-    ${monthly.length >= 2 ? `<h4 class="sub-h">כמה נכנס בכל חודש</h4>${vbars(monthly, p.minMonthly || 0, "יעד")}` : ""}
-    ${recent ? `<h4 class="sub-h">עדכוני יתרה</h4>${recent}` : ""}`);
-
-  $("#sv-back").onclick = openPlanModal;
-  $("#sv-add").onclick = () => {
-    const amount = parseFloat($("#sv-amount").value);
-    if (isNaN(amount) || amount < 0) return;
-    const date = $("#sv-date").value || todayISO();
-    p.savings = (p.savings || []).filter((e) => e.date !== date);
-    p.savings.push({ date, amount });
-    save(); render(); openSavingsScreen();
-  };
-  $("#sv-min").onchange = () => {
-    p.minMonthly = Math.max(0, parseFloat($("#sv-min").value) || 0);
-    save(); render();
-  };
-  document.getElementById("modal").querySelectorAll("[data-delsnap]").forEach((btn) => {
-    btn.onclick = () => {
-      const [date, amount] = btn.dataset.delsnap.split("|");
-      const i = p.savings.findIndex((e) => e.date === date && String(e.amount) === amount);
-      if (i > -1) p.savings.splice(i, 1);
-      save(); render(); openSavingsScreen();
-    };
   });
 }
 
@@ -2410,6 +2379,13 @@ function openFlowScreen() {
     </div>`).join("");
   const nextMonth = () => { const d = new Date(); d.setMonth(d.getMonth() + 1); return mKey(d.getFullYear(), d.getMonth()); };
 
+  const lastStage = stages[stages.length - 1];
+  const needLine = lastStage ? (() => {
+    const need = minFlowNeeded(lastStage.from), ok = lastStage.amount >= need;
+    return `<div class="plan-verdict ${ok ? "ok" : "warn"}"><span class="pv-em">${ok ? "✓" : "⚠️"}</span>
+      <span>כדי שהתוכנית תחזיק מ<b>${keyLabel(lastStage.from)}</b>, צריך לפחות <b>${fmt(need)}</b> לחודש${ok ? " — זה מכוסה" : ` — ${fmt(need - lastStage.amount)} יותר ממה שהגדרת`}</span></div>`;
+  })() : "";
+
   modal(`
     <button class="btn" id="fl-back" style="margin-bottom:8px">‹ חזרה</button>
     <h3>📊 תזרים חודשי</h3>
@@ -2417,6 +2393,7 @@ function openFlowScreen() {
     <div class="plan-verdict"><span class="pv-em">📐</span>
       <span>נמדד מהאפליקציה: <b>${fmt(auto)}</b> לחודש${S.tx.length < 5 ? " <span class=\"mut\">(עדיין מעט נתונים)</span>" : ""}</span></div>
     ${rows ? `<h4 class="sub-h">שלבים עתידיים</h4>${rows}` : ""}
+    ${needLine}
     <div class="field" style="margin-top:12px">
       <label>שלב חדש</label>
       <div class="row" style="gap:8px">
@@ -2442,66 +2419,65 @@ function openFlowScreen() {
   });
 }
 
-/* ---- the investment account: money that leaves the same monthly flow the savings live on,
-       so raising the deposit visibly pushes the milestones further out ---- */
+/* ---- the investment account: it IS the savings account, one pot, and nothing on the
+       timeline touches it. Current balance + planned monthly deposit compound at the average
+       annual return; the milestone timeline only ever draws on the monthly flow. ---- */
 function openInvestScreen() {
-  const p = pl(), es = bySnapDate(p.invest.entries);
-  const byMonth = {};
-  es.forEach((e) => { byMonth[e.date.slice(0, 7)] = (byMonth[e.date.slice(0, 7)] || 0) + e.amount; });
-  const chart = Object.keys(byMonth).sort().slice(-8).map((k) => ({ label: keyShort(k), value: byMonth[k] }));
-  const recent = es.slice(-5).reverse().map((e) => `
-    <div class="tx-item">
-      <span class="tx-main"><div class="tx-name num">${fmt(e.amount)}</div><div class="mut">${dmyY(e.date)}</div></span>
-      <button class="btn danger" data-delinv="${e.date}|${e.amount}">✕</button>
-    </div>`).join("");
+  const p = pl().invest, mm = pl().minMonthly;
+  const years = [1, 3, 5, 10];
+  const fv = investProjection(years[years.length - 1] * 12);
+  const fvRows = years.map((y) => `<div class="row spread"><span class="mut">בעוד ${y === 1 ? "שנה" : `${y} שנים`}</span><b class="num">${fmt(fv[y * 12])}</b></div>`).join("");
+  const depositNote = mm > 0
+    ? (p.monthly >= mm
+        ? `<div class="plan-verdict ok"><span class="pv-em">✓</span><span>ההפקדה המתוכננת עומדת ביעד המינימום של ${fmt(mm)}</span></div>`
+        : `<div class="plan-verdict warn"><span class="pv-em">⚠️</span><span>ההפקדה המתוכננת מתחת ליעד המינימום — חסרים ${fmt(mm - p.monthly)} לחודש</span></div>`)
+    : "";
 
   modal(`
     <button class="btn" id="iv-back" style="margin-bottom:8px">‹ חזרה</button>
     <h3>📈 תיק ההשקעות</h3>
-    <div class="amount-display" style="margin:6px 0">${fmt(investTotal())}</div>
-    <p class="mut" style="margin:0 0 10px">סך ההפקדות שרשמת (לא שווי התיק — הוא זז עם השוק)</p>
+    <div class="amount-display" style="margin:6px 0">${fmt(p.balance || 0)}</div>
+    <p class="mut" style="margin:0 0 10px">${investUpdated() ? `עודכן לאחרונה ${dmyY(investUpdated())}` : "עדכן את היתרה כדי שהתחזית תתחיל מנקודה אמיתית"} · לא נוגעים בו בשביל אבני דרך</p>
+    ${depositNote}
     <div class="field">
-      <label>הפקדה חודשית מתוכננת (₪)</label>
-      <input type="number" id="iv-monthly" min="0" inputmode="numeric" placeholder="0" value="${p.invest.monthly || ""}">
-      <p class="mut" style="margin:4px 0 0">יורדת מהתזרים החודשי בתחזית — מה שנכנס לתיק לא נכנס לחיסכון.</p>
-    </div>
-    <div class="field">
-      <label>הפקדה שבוצעה</label>
+      <label>עדכון היתרה הנוכחית (₪)</label>
       <div class="row" style="gap:8px">
-        <input type="number" id="iv-amount" min="0" inputmode="numeric" style="flex:1" placeholder="סכום">
+        <input type="number" id="iv-balance" min="0" inputmode="numeric" style="flex:1" placeholder="היתרה כרגע" value="${p.balance || ""}">
         <input type="date" id="iv-date" value="${todayISO()}" style="flex:1">
       </div>
     </div>
-    <button class="btn primary" id="iv-add" style="width:100%">הוספת הפקדה</button>
-    ${chart.length >= 2 ? `<h4 class="sub-h">הפקדות לפי חודש</h4>${vbars(chart, p.invest.monthly || 0, "מתוכנן")}` : ""}
-    ${recent ? `<h4 class="sub-h">הפקדות אחרונות</h4>${recent}` : ""}`);
+    <button class="btn primary" id="iv-save-balance" style="width:100%">שמירת יתרה</button>
+    <div class="field" style="margin-top:14px">
+      <label>הפקדה חודשית מתוכננת (₪)</label>
+      <input type="number" id="iv-monthly" min="0" inputmode="numeric" placeholder="0" value="${p.monthly || ""}">
+    </div>
+    <div class="field">
+      <label>מינימום שנכנס כל חודש (₪) <span class="mut">היעד שלא להזניח</span></label>
+      <input type="number" id="iv-min" min="0" inputmode="numeric" placeholder="0" value="${mm || ""}">
+    </div>
+    <div class="field">
+      <label>תשואה שנתית ממוצעת (%)</label>
+      <input type="number" id="iv-rate" min="0" step="0.1" inputmode="decimal" value="${((p.rate || 0) * 100).toFixed(1)}">
+    </div>
+    <h4 class="sub-h">איפה זה יהיה, בריבית דריבית</h4>
+    ${fvRows}`);
 
   $("#iv-back").onclick = openPlanModal;
-  $("#iv-monthly").onchange = () => {
-    p.invest.monthly = Math.max(0, parseFloat($("#iv-monthly").value) || 0);
-    save(); render();
-  };
-  $("#iv-add").onclick = () => {
-    const amount = parseFloat($("#iv-amount").value);
-    if (!amount || amount <= 0) return;
-    p.invest.entries.push({ date: $("#iv-date").value || todayISO(), amount });
+  $("#iv-save-balance").onclick = () => {
+    const balance = parseFloat($("#iv-balance").value);
+    if (isNaN(balance) || balance < 0) return;
+    p.balance = balance; p.updated = $("#iv-date").value || todayISO();
     save(); render(); openInvestScreen();
   };
-  document.getElementById("modal").querySelectorAll("[data-delinv]").forEach((btn) => {
-    btn.onclick = () => {
-      const [date, amount] = btn.dataset.delinv.split("|");
-      const i = p.invest.entries.findIndex((e) => e.date === date && String(e.amount) === amount);
-      if (i > -1) p.invest.entries.splice(i, 1);
-      save(); render(); openInvestScreen();
-    };
-  });
+  $("#iv-monthly").onchange = () => { p.monthly = Math.max(0, parseFloat($("#iv-monthly").value) || 0); save(); render(); openInvestScreen(); };
+  $("#iv-min").onchange = () => { pl().minMonthly = Math.max(0, parseFloat($("#iv-min").value) || 0); save(); render(); openInvestScreen(); };
+  $("#iv-rate").onchange = () => { p.rate = Math.max(0, parseFloat($("#iv-rate").value) || 0) / 100; save(); render(); openInvestScreen(); };
 }
 
 /* create (no id) or edit (existing id) one dated event on the timeline */
 function openMsForm(id) {
   const m = id ? msById(id) : null;
   let dir = (m && m.dir) || "out";
-  let fund = (m && m.fund) || "savings";
   // until the icon is picked by hand it follows the direction, so a grant and a flight don't
   // end up sharing the same default symbol
   let picked = !!(m && m.icon);
@@ -2511,15 +2487,8 @@ function openMsForm(id) {
 
   const dirBtns = () => [["out", "🎯 הוצאה"], ["in", "💰 הכנסה"]].map(([k, t]) =>
     `<button type="button" class="btn kind-btn${k === dir ? " primary" : ""}" data-dir="${k}">${t}</button>`).join("");
-  const fundBtns = () => [
-    ["savings", dir === "in" ? "לחיסכון" : "מהחיסכון"],
-    ["flow", dir === "in" ? "לתזרים החודשי" : "מהתזרים החודשי"],
-  ].map(([k, t]) => `<button type="button" class="btn kind-btn${k === fund ? " primary" : ""}" data-fund="${k}">${t}</button>`).join("");
   const iconBtns = () => MS_ICONS.map((e) =>
     `<button type="button" class="icon-sw${e === icon ? " on" : ""}" data-icon="${e}">${e}</button>`).join("");
-  const fundHint = () => dir === "in"
-    ? (fund === "savings" ? "הסכום נכנס ישירות לחשבון החיסכון." : "הסכום מצטרף לכסף של אותו חודש.")
-    : (fund === "savings" ? "משיכה מתוכננת מהחיסכון — לא מכבידה על החודש עצמו." : "משולם מההכנסה של אותו חודש — אם היא לא מספיקה, זה יסומן כחריגה.");
 
   modal(`
     <h3>${m ? "עריכת אבן דרך" : "אבן דרך חדשה"}</h3>
@@ -2530,8 +2499,7 @@ function openMsForm(id) {
       <input type="number" id="mf-amount" min="0" inputmode="numeric" placeholder="0" value="${m && m.amount ? m.amount : ""}"></div>
     <div class="field"><label>תאריך</label>
       <input type="date" id="mf-date" value="${m ? m.date : inSix()}"></div>
-    <div class="field"><label>מאיפה הכסף</label><div class="btn-row" id="ms-funds">${fundBtns()}</div>
-      <p class="mut" id="ms-fund-hint" style="margin:4px 0 0">${fundHint()}</p></div>
+    <p class="mut" style="margin:0 0 4px">${dir === "in" ? "הסכום מצטרף לתזרים של אותו חודש." : "משולם מהתזרים של אותו חודש — לא נוגעים בתיק ההשקעות."}</p>
     <div class="field"><label>אייקון</label><div class="icon-grid" id="ms-icons">${iconBtns()}</div></div>
     <div class="btn-row">
       <button class="btn primary" id="mf-save">שמירה</button>
@@ -2543,14 +2511,8 @@ function openMsForm(id) {
     const b = e.target.closest("[data-dir]"); if (!b) return;
     dir = b.dataset.dir;
     if (!picked) icon = defaultIcon();
-    $("#ms-dirs").innerHTML = dirBtns(); $("#ms-funds").innerHTML = fundBtns();
-    $("#ms-fund-hint").textContent = fundHint();
+    $("#ms-dirs").innerHTML = dirBtns();
     $("#ms-icons").innerHTML = iconBtns();
-  };
-  $("#ms-funds").onclick = (e) => {
-    const b = e.target.closest("[data-fund]"); if (!b) return;
-    fund = b.dataset.fund;
-    $("#ms-funds").innerHTML = fundBtns(); $("#ms-fund-hint").textContent = fundHint();
   };
   $("#ms-icons").onclick = (e) => {
     const b = e.target.closest("[data-icon]"); if (!b) return;
@@ -2561,8 +2523,8 @@ function openMsForm(id) {
     const amount = Math.max(0, parseFloat($("#mf-amount").value) || 0);
     const date = $("#mf-date").value;
     if (!name || !amount || !date) return;
-    if (m) Object.assign(m, { name, amount, date, dir, fund, icon });
-    else pl().milestones.push({ id: uid(), name, amount, date, dir, fund, icon });
+    if (m) Object.assign(m, { name, amount, date, dir, icon });
+    else pl().milestones.push({ id: uid(), name, amount, date, dir, icon });
     save(); render(); openPlanModal();
   };
   $("#mf-cancel").onclick = openPlanModal;
@@ -2677,7 +2639,7 @@ function renderPlansSummary() {
   const p = pl(), today = todayISO();
   const upcoming = msSorted().filter((m) => m.date >= today);
   const split = monthSplit(3);
-  const hasPlan = upcoming.length || (p.savings || []).length || (p.flow || []).length
+  const hasPlan = upcoming.length || p.invest.balance > 0 || (p.flow || []).length
     || p.minMonthly > 0 || p.invest.monthly > 0;
 
   $("#plan-count").textContent = upcoming.length ? `${upcoming.length} אבני דרך` : "";
@@ -2689,37 +2651,25 @@ function renderPlansSummary() {
   }
 
   const rows = projection(), v = planVerdict(rows);
-  const balAt = (iso) => { const r = rows.find((x) => x.key === iso.slice(0, 7)); return r ? r.balance : null; };
+  const cashAt = (iso) => { const r = rows.find((x) => x.key === iso.slice(0, 7)); return r ? r.cash : null; };
 
   let verdict = "";
   if (upcoming.length) {
     if (v.dry) verdict = `<div class="plan-verdict warn"><span class="pv-em">⚠️</span>
-      <span>לפי התחזית החיסכון נגמר כבר ב<b>${v.dry.label}</b> — משהו בתוכנית צריך לזוז</span></div>`;
-    else if (v.tight) verdict = `<div class="plan-verdict warn"><span class="pv-em">⚠️</span>
-      <span>ב<b>${v.tight.label}</b> תוציא ${fmt(-v.tight.deposit)} יותר ממה שנכנס — ההפרש ייצא מהחיסכון</span></div>`;
+      <span>לפי התחזית, ב<b>${v.dry.label}</b> התזרים לא מספיק לכסות את אבן הדרך וההפקדה המתוכננת יחד — משהו בתוכנית צריך לזוז</span></div>`;
     else if (v.neglect) verdict = `<div class="plan-verdict warn"><span class="pv-em">🐌</span>
-      <span>הכול מכוסה, אבל ב<b>${v.neglect.label}</b> ייכנסו לחיסכון רק ${fmt(v.neglect.deposit)} — מתחת ליעד של ${fmt(p.minMonthly)}</span></div>`;
+      <span>כל אבני הדרך מכוסות, אבל ההפקדה המתוכננת (${fmt(p.invest.monthly)}) מתחת ליעד המינימום שהגדרת (${fmt(p.minMonthly)})</span></div>`;
     else verdict = `<div class="plan-verdict ok"><span class="pv-em">✓</span>
-      <span>כל אבני הדרך מכוסות — ואחריהן נשארים <b>${fmt(v.end)}</b> בחיסכון</span></div>`;
+      <span>כל אבני הדרך מכוסות מהתזרים — ותיק ההשקעות ממשיך לגדול בלי לגעת בו</span></div>`;
   }
 
-  // is the account actually being fed? measured from the balance snapshots, not from intent
-  const monthly = savingsMonthly(6);
-  const avgIn = monthly.length ? monthly.reduce((a, x) => a + x.value, 0) / monthly.length : null;
-  const minLine = p.minMonthly > 0 && avgIn !== null
-    ? `<div class="row spread" style="margin-top:5px"><span class="mut">נכנס בפועל לחודש</span>
-        <span><b class="num">${fmt(avgIn)}</b> <span class="badge ${avgIn >= p.minMonthly ? "ok" : "over"}">${avgIn >= p.minMonthly ? "ביעד" : `חסר ${fmt(p.minMonthly - avgIn)}`}</span></span></div>`
-    : avgIn !== null
-      ? `<div class="row spread" style="margin-top:5px"><span class="mut">נכנס בפועל לחודש</span><b class="num">${fmt(avgIn)}</b></div>`
-      : "";
-
-  const savingsBlock = (p.savings || []).length
-    ? `<div class="row spread"><span class="mut">בחשבון החיסכון</span><b class="num">${fmt(savingsBalance())}</b></div>
-       ${minLine}`
-    : `<p class="mut" style="margin:0 0 6px">עדכן את יתרת החיסכון בתכנון הכלכלי כדי שהתחזית תתחיל מנקודה אמיתית.</p>`;
+  const investBlock = p.invest.balance > 0
+    ? `<div class="row spread"><span class="mut">בתיק ההשקעות</span><b class="num">${fmt(investBalance())}</b></div>
+       ${p.invest.monthly > 0 ? `<div class="row spread" style="margin-top:5px"><span class="mut">הפקדה חודשית מתוכננת</span><b class="num">${fmt(p.invest.monthly)}</b></div>` : ""}`
+    : `<p class="mut" style="margin:0 0 6px">עדכן את יתרת תיק ההשקעות בתכנון הכלכלי כדי שהתחזית תתחיל מנקודה אמיתית.</p>`;
 
   const msRows = upcoming.slice(0, 6).map((m) => {
-    const left = balAt(m.date);
+    const left = cashAt(m.date);
     return `<button class="ms-row" data-ms="${m.id}">
       <span class="ms-em">${m.icon || (m.dir === "in" ? "💰" : "🎯")}</span>
       <span class="ms-main">
@@ -2735,7 +2685,7 @@ function renderPlansSummary() {
 
   el.innerHTML = `
     ${verdict}
-    ${savingsBlock}
+    ${investBlock}
     ${msRows ? `<h4 class="sub-h">מה מחכה קדימה</h4>${msRows}
       ${upcoming.length > 6 ? `<p class="mut" style="margin-top:6px">ועוד ${upcoming.length - 6} בתכנון הכלכלי</p>` : ""}` : ""}
     ${splitBlock(split)}`;
