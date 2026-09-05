@@ -1044,7 +1044,9 @@ const DEFAULTS = () => ({
     { id: "other", name: "אחר",        color: "#2dd4bf" },
   ],
   tx: [],     // {id, type:'expense'|'income', amount, cat, note, ts, bucket:'weekend'|'base'|'other'|'travel', tripId?}
-  fixed: [],  // {id, type:'expense'|'income', name, amount}
+  fixed: [],  // {id, type:'expense'|'income', name, amount, from:"YYYY-MM"|null, to:"YYYY-MM"|null}
+              // from/to bound the months an item applied to (null = since forever / still on),
+              // so changing one today cannot rewrite what a closed month actually cost
   trips: [],  // {id, name, budget, start, end}  (end === null while active)
   // planning is a dated cash-flow timeline, not a set of pots to fill: the investment account
   // already exists (it IS the savings account — one pot, not two) and isn't touched for
@@ -2109,10 +2111,20 @@ const MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יו
 function monthTx(y, m) {
   return S.tx.filter((t) => { const d = new Date(t.ts); return d.getFullYear() === y && d.getMonth() === m; });
 }
+/* the fixed items in force in a given month. Each one carries the window it applied to, so
+   raising the rent today leaves every month that already closed costing what it really cost.
+   An item from before windows existed has no `from` and is treated as having always applied. */
+const fixedFor = (key) => (S.fixed || []).filter((f) => (!f.from || f.from <= key) && (!f.to || f.to >= key));
+/* the month before a "YYYY-MM" key — where a superseded fixed item's window ends */
+const prevKey = (key) => {
+  const [y, m] = key.split("-").map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+};
 function monthTotals(y, m) {
   const txs = monthTx(y, m);
-  const fixedIn = S.fixed.filter((f) => f.type === "income").reduce((a, f) => a + f.amount, 0);
-  const fixedOut = S.fixed.filter((f) => f.type === "expense").reduce((a, f) => a + f.amount, 0);
+  const inForce = fixedFor(mKey(y, m));
+  const fixedIn = inForce.filter((f) => f.type === "income").reduce((a, f) => a + f.amount, 0);
+  const fixedOut = inForce.filter((f) => f.type === "expense").reduce((a, f) => a + f.amount, 0);
   const exp = txs.filter((t) => t.type === "expense");
   // travel is a separate pot: it counts toward the balance but not the monthly reported budget
   const travelExp = exp.filter((t) => t.bucket === "travel");
@@ -2236,13 +2248,14 @@ function renderMonth() {
   // per-category breakdown (month / all-time toggle)
   renderCatsBreakdown();
 
-  // fixed list
-  $("#fixed-meta").textContent = S.fixed.length ? `${S.fixed.length}` : "";
-  $("#fixed-list").innerHTML = S.fixed.length ? S.fixed.map((f) => `
+  // fixed list — the items in force in the month being viewed, not today's set
+  const inForce = fixedFor(mKey(mYear, mMonth));
+  $("#fixed-meta").textContent = inForce.length ? `${inForce.length}` : "";
+  $("#fixed-list").innerHTML = inForce.length ? inForce.map((f) => `
     <div class="tx-item" data-fixed="${f.id}">
       <span class="tx-emoji">${f.type === "income" ? "💰" : "🏠"}</span>
       <span class="tx-main"><div class="tx-name">${esc(f.name)}</div>
-      <div class="tx-time">${f.type === "income" ? "הכנסה קבועה" : "הוצאה קבועה"}</div></span>
+      <div class="tx-time">${f.type === "income" ? "הכנסה קבועה" : "הוצאה קבועה"}${f.from ? ` · מ${keyLabel(f.from)}` : ""}</div></span>
       <span class="tx-amt num ${f.type === "income" ? "in" : ""}">${f.type === "income" ? "+" : "-"}${fmt2(f.amount)}</span>
     </div>`).join("") : emptyState("🔁", "אין קבועות עדיין — הוסף משכורת, שכ\"ד, מנויים");
 
@@ -3002,21 +3015,36 @@ function openFixedModal(id) {
       <option value="income" ${f?.type === "income" ? "selected" : ""}>הכנסה קבועה (משכורת...)</option>
     </select></div>
     <div class="field"><label>שם</label><input id="f-name" value="${f ? esc(f.name) : ""}" placeholder="למשל: שכר דירה"></div>
-    <div class="field"><label>סכום חודשי (₪)</label><input type="number" id="f-amount" value="${f ? f.amount : ""}" min="0"></div>
+    <div class="field"><label>סכום חודשי (₪)</label><input type="number" id="f-amount" value="${f ? f.amount : ""}" min="0">
+      <p class="mut" style="margin:4px 0 0">${f ? "השינוי חל מהחודש הזה והלאה — חודשים שכבר נסגרו נשארים עם הסכום שהיה בהם." : "הקבועה תיספר מהחודש הזה והלאה, לא אחורה."}</p></div>
     <div class="btn-row">
       <button class="btn primary" id="f-save">שמירה</button>
       <button class="btn" id="f-cancel">ביטול</button>
       ${f ? `<button class="btn danger" id="f-del" style="margin-inline-start:auto">מחיקה</button>` : ""}
     </div>`);
+  const nowKey = mKey(new Date().getFullYear(), new Date().getMonth());
   $("#f-save").onclick = () => {
     const name = $("#f-name").value.trim();
     const amount = parseFloat($("#f-amount").value);
+    const type = $("#f-type").value;
     if (!name || !amount) return;
-    if (f) { f.name = name; f.amount = amount; f.type = $("#f-type").value; }
-    else S.fixed.push({ id: uid(), type: $("#f-type").value, name, amount });
+    if (!f) S.fixed.push({ id: uid(), type, name, amount, from: nowKey, to: null });
+    // a rename moves no money, and an item that only started this month has no closed month
+    // to protect — both can be corrected in place
+    else if ((f.amount === amount && f.type === type) || f.from === nowKey)
+      Object.assign(f, { name, amount, type });
+    else {
+      // close the old figure where it really ended and let the new one start now
+      f.to = prevKey(nowKey);
+      S.fixed.push({ id: uid(), type, name, amount, from: nowKey, to: null });
+    }
     save(); closeModal(); render();
   };
-  if (f) $("#f-del").onclick = () => { S.fixed = S.fixed.filter((x) => x.id !== id); save(); closeModal(); render(); };
+  if (f) $("#f-del").onclick = () => {
+    if (f.from === nowKey) S.fixed = S.fixed.filter((x) => x.id !== id);
+    else f.to = prevKey(nowKey);   // it stops now, but the months it did apply to keep it
+    save(); closeModal(); render();
+  };
   $("#f-cancel").onclick = closeModal;
 }
 $("#fixed-add").addEventListener("click", () => openFixedModal(null));
