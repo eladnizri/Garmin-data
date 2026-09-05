@@ -944,10 +944,6 @@ body {
       <input type="number" id="set-monthly" min="0" inputmode="numeric">
     </div>
     <div class="set-row">
-      <label>מטרת חיסכון חודשית (₪)<br><span class="mut">0 = כבוי</span></label>
-      <input type="number" id="set-savings-goal" min="0" inputmode="numeric">
-    </div>
-    <div class="set-row">
       <label>תחילת הסופ"ש</label>
       <span class="row">
         <select id="set-start-day"></select>
@@ -1037,7 +1033,7 @@ const CAT_PALETTE = ["#5b9dff","#fb7185","#34d399","#fbbf24","#a78bfa","#2dd4bf"
   "#f472b6","#60a5fa","#f59e0b","#4ade80","#f87171","#c084fc","#38bdf8","#facc15"];
 
 const DEFAULTS = () => ({
-  settings: { weekendBudget: 350, monthlyBudget: 0, savingsGoal: 0, reminders: false,
+  settings: { weekendBudget: 350, monthlyBudget: 0, reminders: false,
               startDay: 4, startHour: 18, endDay: 6, endHour: 24 },
   categories: [
     { id: "eat",   name: "אוכל בחוץ",  color: "#5b9dff" },
@@ -1353,16 +1349,34 @@ function minFlowNeeded(fromKey) {
   for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (feasible(mid)) hi = mid; else lo = mid; }
   return Math.ceil(hi / 10) * 10;
 }
+/* the spend a tracked target is measured against: the six full months *before* tracking
+   began. The forward projection follows current habits on purpose, but a target already
+   committed to must not drift — with a rolling average, a month's own overspending raises
+   the average, which lowers that same month's target, and the gap the tracking exists to
+   expose quietly cancels part of itself out. */
+function baselineOut() {
+  const from = pl().trackFrom;
+  if (!from) return avgMonthlyOut(6);
+  let [y, m] = from.split("-").map(Number);
+  m -= 1;
+  let total = 0, used = 0;
+  for (let i = 0; i < 6; i++) {
+    m--; if (m < 0) { m = 11; y--; }
+    const t = monthTotals(y, m);
+    if (t.inc || t.out) { total += t.out; used++; }
+  }
+  return used ? total / used : avgMonthlyOut(6);
+}
 /* actual against plan, month by month from the tracking start up to the last *completed*
    month. The target is what a declared flow stage implies for that month — its gross minus
-   the measured spend, plus whatever milestones were booked into it — and the actual is what
+   the baseline spend, plus whatever milestones were booked into it — and the actual is what
    the month really netted. Months with no stage get no target on purpose: the automatic flow
    is measured from these very months, so scoring them against it would compare data to
    itself. The current month is left out; half a month tells you nothing. */
 function trackRows() {
   const from = pl().trackFrom;
   if (!from) return [];
-  const ms = msSorted(), avgOut = avgMonthlyOut(6);
+  const ms = msSorted(), avgOut = baselineOut();
   const now = new Date(), endY = now.getFullYear(), endM = now.getMonth();
   let [y, m] = from.split("-").map(Number);
   m -= 1;
@@ -1385,6 +1399,30 @@ function trackSummary(rows = trackRows()) {
   const plan = scored.reduce((a, r) => a + r.plan, 0);
   const actual = scored.reduce((a, r) => a + r.actual, 0);
   return { months: scored.length, plan, actual, gap: actual - plan, from: scored[0], last: scored[scored.length - 1] };
+}
+/* the target for the month in progress: the plan's own number for it, carrying whatever the
+   completed months left behind. The cumulative gap is spread over the months left until the
+   next milestone — the event this money is actually for — so overspending in one month is
+   made up by the time it matters instead of all at once, and a surplus does the reverse and
+   lets the following months breathe. Past months keep the target they had; only the months
+   still ahead absorb the correction, so nothing is ever counted twice. */
+function currentTarget() {
+  const now = new Date(), key = mKey(now.getFullYear(), now.getMonth());
+  const s = stageFor(key);
+  if (!s) return null;
+  const today = todayISO(), ms = msSorted();
+  const msNet = ms.filter((x) => x.date.slice(0, 7) === key && x.date >= today)
+    .reduce((a, x) => a + (x.dir === "in" ? x.amount : -x.amount), 0);
+  const base = s.amount - baselineOut() + msNet;
+  const trk = trackSummary(), gap = trk ? trk.gap : 0;
+  const next = ms.find((x) => x.date > today) || null;
+  const span = next
+    ? Math.max(1, (+next.date.slice(0, 4) - now.getFullYear()) * 12
+                  + (+next.date.slice(5, 7) - 1 - now.getMonth()) + 1)
+    : 6;
+  const target = Math.max(0, base - gap / span);
+  // more than the whole month's income would have to arrive for this to be met
+  return { base, target, gap, span, next, catchUp: target - base, impossible: target > s.amount };
 }
 /* the three-way split the user asked to keep in balance: daily life, travel, and what was
    left over to save — averaged over the last n full months that have any activity */
@@ -2105,12 +2143,12 @@ function renderMonth() {
     ? `<div class="cap" style="color:var(--good-text)">${rate}% נחסך</div>`
     : `<div class="cap" style="color:var(--crit)">גירעון</div>`;
 
-  // Savings goal tracking for current month
+  // this month against the plan's own target for it, carrying any gap the past months left
   const isThisMonth = mYear === new Date().getFullYear() && mMonth === new Date().getMonth();
-  const goal = S.settings.savingsGoal;
-  const netPfx = m.net < 0 ? "-" : (goal > 0 && isThisMonth ? "" : "+");
-  const savingsKpi = goal > 0 && isThisMonth
-    ? `<div class="kpi"><div class="l">מטרת חיסכון</div><div class="v num count ${m.net >= goal ? "pos" : "neg"}" data-to="${Math.abs(m.net)}" data-prefix="${netPfx}">${netPfx}${fmt(Math.abs(m.net))}</div><div class="cap" style="color:var(--muted)">${fmt(goal)} מטרה</div></div>`
+  const ct = isThisMonth ? currentTarget() : null;
+  const netPfx = m.net < 0 ? "-" : (ct ? "" : "+");
+  const savingsKpi = ct
+    ? `<div class="kpi"><div class="l">מטרת חיסכון</div><div class="v num count ${m.net >= ct.target ? "pos" : "neg"}" data-to="${Math.abs(m.net)}" data-prefix="${netPfx}">${netPfx}${fmt(Math.abs(m.net))}</div><div class="cap" style="color:var(--muted)">${fmt(ct.target)} מטרה</div></div>`
     : `<div class="kpi"><div class="l">חיסכון</div><div class="v num count ${m.net >= 0 ? "pos" : "neg"}" data-to="${Math.abs(m.net)}" data-prefix="${netPfx}">${netPfx}${fmt(Math.abs(m.net))}</div></div>`;
 
   $("#m-kpis").innerHTML = `
@@ -2534,7 +2572,7 @@ function openInvestScreen() {
 /* ---- actual against plan: the months already behind us, scored against what the flow
        stage covering them said they should net ---- */
 function openTrackScreen() {
-  const p = pl(), rows = trackRows(), sum = trackSummary(rows);
+  const p = pl(), rows = trackRows(), sum = trackSummary(rows), ct = currentTarget();
   const lastMonth = () => { const d = new Date(); d.setMonth(d.getMonth() - 1); return mKey(d.getFullYear(), d.getMonth()); };
 
   const verdict = sum
@@ -2543,6 +2581,17 @@ function openTrackScreen() {
        ${sum.gap >= 0 ? `<b>${fmt(sum.gap)}</b> מעל התוכנית` : `<b>${fmt(-sum.gap)}</b> מתחת לתוכנית`}</span></div>`
     : `<div class="plan-verdict"><span class="pv-em">📋</span>
        <span>אין עדיין חודש עם יעד. היעד מגיע משלב תזרים שמכסה את החודש — הוסף שלב שמתחיל בתאריך תחילת המעקב.</span></div>`;
+
+  // the month in progress, after the correction the completed months earned it
+  const targetBlock = ct ? `
+    <h4 class="sub-h">היעד לחודש הזה</h4>
+    <div class="amount-display" style="margin:4px 0">${fmt(ct.target)}</div>
+    <p class="mut" style="margin:0 0 8px">בסיס ${fmt(ct.base)}${Math.round(ct.catchUp) === 0 ? ""
+      : ct.catchUp > 0
+        ? ` + השלמה ${fmt(ct.catchUp)} <span class="mut">(פער של ${fmt(-ct.gap)} נפרס על ${ct.span} ח׳${ct.next ? ` עד ${esc(ct.next.name)}` : ""})</span>`
+        : ` − ${fmt(-ct.catchUp)} <span class="mut">(עודף של ${fmt(ct.gap)} נפרס על ${ct.span} ח׳${ct.next ? ` עד ${esc(ct.next.name)}` : ""})</span>`}</p>
+    ${ct.impossible ? `<div class="plan-verdict warn"><span class="pv-em">⚠️</span>
+      <span>היעד הזה גבוה מכל ההכנסה של החודש — בקצב הזה הפער לא ייסגר עד ${ct.next ? esc(ct.next.name) : "האירוע הבא"}. כדאי להזיז אבן דרך או להגדיל את התזרים.</span></div>` : ""}` : "";
 
   const list = rows.slice().reverse().map((r) => {
     const gap = r.plan === null ? null : r.actual - r.plan;
@@ -2559,8 +2608,9 @@ function openTrackScreen() {
   modal(`
     <button class="btn" id="tr-back" style="margin-bottom:8px">‹ חזרה</button>
     <h3>📋 בפועל מול תוכנית</h3>
-    <p class="sub" style="margin-bottom:10px">כל חודש שהסתיים, מול הנטו שהשלב שמכסה אותו הבטיח. החודש הנוכחי לא נספר עד שייגמר.</p>
+    <p class="sub" style="margin-bottom:10px">כל חודש שהסתיים, מול הנטו שהשלב שמכסה אותו הבטיח. החודש הנוכחי לא נספר עד שייגמר — אבל היעד שלו כבר נושא את הפער שהצטבר.</p>
     ${verdict}
+    ${targetBlock}
     <div class="field" style="margin-top:12px">
       <label>מעקב מתחיל בחודש</label>
       <input type="month" id="tr-from" value="${p.trackFrom || lastMonth()}">
@@ -2761,12 +2811,17 @@ function renderPlansSummary() {
       <span>כל אבני הדרך מכוסות מהתזרים — ותיק ההשקעות ממשיך לגדול בלי לגעת בו</span></div>`;
   }
 
-  // how the months already behind us actually went against what the plan promised
-  const trk = trackSummary();
+  // how the months already behind us actually went, and what that does to this month's target
+  const trk = trackSummary(), ct = currentTarget();
   const trackBlock = trk
     ? `<div class="plan-verdict ${trk.gap >= 0 ? "ok" : "warn"}"><span class="pv-em">${trk.gap >= 0 ? "📈" : "📉"}</span>
        <span>מ${trk.from.label}: בפועל <b>${fmt(trk.actual)}</b> מול תוכנית ${fmt(trk.plan)} —
        ${trk.gap >= 0 ? `${fmt(trk.gap)} מעל` : `${fmt(-trk.gap)} מתחת`} (${trk.months} ח׳)</span></div>`
+    : "";
+  const targetLine = ct
+    ? `<div class="row spread"><span class="mut">היעד לחודש הזה</span>
+       <span><b class="num">${fmt(ct.target)}</b>${Math.round(ct.catchUp) === 0 ? ""
+         : ` <span class="badge ${ct.catchUp > 0 ? "over" : "ok"}">${ct.catchUp > 0 ? `+${fmt(ct.catchUp)} השלמה` : `−${fmt(-ct.catchUp)} עודף`}</span>`}</span></div>`
     : "";
 
   const investBlock = p.invest.balance > 0
@@ -2792,6 +2847,7 @@ function renderPlansSummary() {
   el.innerHTML = `
     ${verdict}
     ${trackBlock}
+    ${targetLine}
     ${investBlock}
     ${msRows ? `<h4 class="sub-h">מה מחכה קדימה</h4>${msRows}
       ${upcoming.length > 6 ? `<p class="mut" style="margin-top:6px">ועוד ${upcoming.length - 6} בתכנון הכלכלי</p>` : ""}` : ""}
@@ -3006,7 +3062,6 @@ function renderSettings() {
   renderTravel(); // travel mode lives in settings — kept out of the way until needed
   $("#set-budget").value = S.settings.weekendBudget;
   $("#set-monthly").value = S.settings.monthlyBudget || 0;
-  $("#set-savings-goal").value = S.settings.savingsGoal || 0;
   const dayOpts = (sel) => DAY_NAMES.map((d, i) => `<option value="${i}" ${i === sel ? "selected" : ""}>${d}</option>`).join("");
   const hourOpts = (sel) => Array.from({ length: 25 }, (_, h) =>
     `<option value="${h}" ${h === sel ? "selected" : ""}>${h === 24 ? "חצות (סוף היום)" : h + ":00"}</option>`).join("");
@@ -3037,11 +3092,10 @@ function renderSettings() {
     note.textContent = "התזכורות יופיעו בפתיחת האפליקציה.";
   }
 }
-["set-budget", "set-monthly", "set-savings-goal", "set-start-day", "set-start-hour", "set-end-day", "set-end-hour"].forEach((id) => {
+["set-budget", "set-monthly", "set-start-day", "set-start-hour", "set-end-day", "set-end-hour"].forEach((id) => {
   document.getElementById(id).addEventListener("change", () => {
     S.settings.weekendBudget = Math.max(0, parseFloat($("#set-budget").value) || 0);
     S.settings.monthlyBudget = Math.max(0, parseFloat($("#set-monthly").value) || 0);
-    S.settings.savingsGoal = Math.max(0, parseFloat($("#set-savings-goal").value) || 0);
     S.settings.startDay = +$("#set-start-day").value;
     S.settings.startHour = +$("#set-start-hour").value;
     S.settings.endDay = +$("#set-end-day").value;
