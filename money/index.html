@@ -185,6 +185,7 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1p
 .ms-amt.in { color: var(--good-text); }
 .ms-left { font-size: 11px; color: var(--muted); margin-top: 1px; }
 .ms-left.neg { color: var(--crit); font-weight: 700; }
+.ms-left.pos { color: var(--good-text); font-weight: 700; }
 .ms-row.past { opacity: .55; }
 /* the three-way split of a typical month: daily life / travel / what was actually saved */
 .split-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; direction: ltr;
@@ -1055,11 +1056,11 @@ const DEFAULTS = () => ({
   // already on the calendar (a discharge grant in, two flights out, a big trip after that)
   // while the account keeps compounding untouched in the background.
   plans: {
-    v: 3,
+    v: 4,
     invest: { balance: 0, updated: null, monthly: 0, rate: 0.07 },  // the one account: current
                          // value, planned monthly deposit, average annual return
-    minMonthly: 0,       // the least that should go into it every month ("don't neglect it")
-    flow: [],            // [{id, from:"YYYY-MM", amount}] future monthly-net stages; before the
+    trackFrom: null,     // "YYYY-MM" the actual-vs-plan comparison starts from
+    flow: [],            // [{id, from:"YYYY-MM", amount}] monthly-net stages; before the
                          // first stage the projection uses what the app's own history measures
     milestones: [],      // [{id, name, date, dir:'in'|'out', amount, icon}] — always settled
                          // against that month's flow, never against the investment account
@@ -1072,9 +1073,11 @@ const DEFAULTS = () => ({
    v1 "goals" (a target plus a running balance) become a trip milestone, a seed for the
    account balance, or a seed for its deposit total; v2 split the account into a "savings"
    balance and a separate "invest" deposit log, but they were always the same real account,
-   so whichever one has real numbers becomes the single balance the timeline follows now. */
+   so whichever one has real numbers becomes the single balance the timeline follows now;
+   v3 kept a hand-typed monthly savings floor, which the actual-vs-plan tracking replaced —
+   the target is the net a declared flow stage implies, not a number picked out of the air. */
 function migratePlans(p) {
-  if (p.v >= 3) return;
+  if (p.v >= 4) return;
   if (!p.v || p.v < 2) {
     const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const inSixMonths = () => { const d = new Date(); d.setMonth(d.getMonth() + 6); return d.toISOString().slice(0, 10); };
@@ -1088,13 +1091,16 @@ function migratePlans(p) {
       else if (es.length) p.savings.push({ date: es[es.length - 1].date, amount: es[es.length - 1].amount });
     });
   }
-  const snaps = (p.savings || []).slice().sort((a, b) => a.date.localeCompare(b.date));
-  const oldInvestDeposits = (p.invest.entries || []).reduce((a, e) => a + e.amount, 0);
-  if (snaps.length) { p.invest.balance = (p.invest.balance || 0) + snaps[snaps.length - 1].amount; p.invest.updated = snaps[snaps.length - 1].date; }
-  else if (oldInvestDeposits) p.invest.balance = (p.invest.balance || 0) + oldInvestDeposits;
-  p.invest.rate = p.invest.rate || 0.07;
-  (p.milestones || []).forEach((m) => { delete m.fund; });
-  p.v = 3;
+  if (p.v < 3) {
+    const snaps = (p.savings || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+    const oldInvestDeposits = (p.invest.entries || []).reduce((a, e) => a + e.amount, 0);
+    if (snaps.length) { p.invest.balance = (p.invest.balance || 0) + snaps[snaps.length - 1].amount; p.invest.updated = snaps[snaps.length - 1].date; }
+    else if (oldInvestDeposits) p.invest.balance = (p.invest.balance || 0) + oldInvestDeposits;
+    p.invest.rate = p.invest.rate || 0.07;
+    (p.milestones || []).forEach((m) => { delete m.fund; });
+  }
+  delete p.minMonthly;
+  p.v = 4;
 }
 
 let S = load();
@@ -1245,12 +1251,17 @@ function avgMonthlyOut(n = 6) {
   }
   return used ? total / used : 0;
 }
+/* the flow stage in effect in a given month — the newest one that has already started */
+function stageFor(key) {
+  const started = (pl().flow || []).filter((f) => f.from <= key).sort((a, b) => a.from.localeCompare(b.from));
+  return started.length ? started[started.length - 1] : null;
+}
 /* the monthly net expected in a given month: before any stage, the measured average; from
    a stage's start, the gross income declared for it minus the measured average spend — so
    the user only ever types what comes into the account, never has to guess their own net. */
 function flowFor(key, auto, avgOut) {
-  const started = (pl().flow || []).filter((f) => f.from <= key).sort((a, b) => a.from.localeCompare(b.from));
-  return started.length ? started[started.length - 1].amount - avgOut : auto;
+  const s = stageFor(key);
+  return s ? s.amount - avgOut : auto;
 }
 /* how many months out the projection/solver needs to look, given the milestones and flow
    stages on the books — shared by every function below that walks the timeline */
@@ -1296,12 +1307,9 @@ function projection() {
   }
   return rows;
 }
-/* does the plan hold? the first month the cash buffer runs negative, and whether the planned
-   deposit itself is below the "don't neglect it" floor */
+/* does the plan hold? the first month the cash buffer runs negative */
 function planVerdict(rows) {
-  const p = pl();
   return { dry: rows.find((r) => r.tight) || null,
-           neglect: p.invest.monthly > 0 && p.minMonthly > 0 && p.invest.monthly < p.minMonthly,
            end: rows.length ? rows[rows.length - 1].cash : 0 };
 }
 /* the investment account's own trajectory: current balance plus its fixed monthly deposit,
@@ -1315,14 +1323,14 @@ function investProjection(months) {
   return rows;
 }
 /* the minimum constant flow, from a given "YYYY-MM" forward, that keeps the cash buffer at
-   or above zero for the whole horizon — using at least the "don't neglect it" deposit floor
-   even if the planned deposit is currently set lower. Answers "how much do I actually need
-   once income changes", not just "today's plan falls short". */
+   or above zero for the whole horizon while still funding the planned monthly deposit.
+   Answers "how much do I actually need once income changes", not just "today's plan
+   falls short". */
 function minFlowNeeded(fromKey) {
   const ms = msSorted(), today = todayISO();
   const now = new Date(), y0 = now.getFullYear(), m0 = now.getMonth();
   const auto = avgMonthlyNet(3), avgOut = avgMonthlyOut(6);
-  const dep = Math.max(pl().invest.monthly || 0, pl().minMonthly || 0);
+  const dep = pl().invest.monthly || 0;
   const n = planHorizon(y0, m0);
   const dim = new Date(y0, m0 + 1, 0).getDate();
   const leftFrac = (dim - now.getDate() + 1) / dim;
@@ -1344,6 +1352,39 @@ function minFlowNeeded(fromKey) {
   while (!feasible(hi) && hi < 2e6) hi *= 2;
   for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (feasible(mid)) hi = mid; else lo = mid; }
   return Math.ceil(hi / 10) * 10;
+}
+/* actual against plan, month by month from the tracking start up to the last *completed*
+   month. The target is what a declared flow stage implies for that month — its gross minus
+   the measured spend, plus whatever milestones were booked into it — and the actual is what
+   the month really netted. Months with no stage get no target on purpose: the automatic flow
+   is measured from these very months, so scoring them against it would compare data to
+   itself. The current month is left out; half a month tells you nothing. */
+function trackRows() {
+  const from = pl().trackFrom;
+  if (!from) return [];
+  const ms = msSorted(), avgOut = avgMonthlyOut(6);
+  const now = new Date(), endY = now.getFullYear(), endM = now.getMonth();
+  let [y, m] = from.split("-").map(Number);
+  m -= 1;
+  const rows = [];
+  while ((y < endY || (y === endY && m < endM)) && rows.length < 60) {
+    const key = mKey(y, m), t = monthTotals(y, m), s = stageFor(key);
+    const msNet = ms.filter((x) => x.date.slice(0, 7) === key)
+      .reduce((a, x) => a + (x.dir === "in" ? x.amount : -x.amount), 0);
+    rows.push({ key, label: keyLabel(key), short: keyShort(key),
+                plan: s ? s.amount - avgOut + msNet : null, actual: t.net, live: !!(t.inc || t.out) });
+    m++; if (m > 11) { m = 0; y++; }
+  }
+  return rows;
+}
+/* the headline of that comparison: totals over the months that have a target, and the
+   cumulative gap — the number that says whether the plan is being kept or quietly slipping */
+function trackSummary(rows = trackRows()) {
+  const scored = rows.filter((r) => r.plan !== null && r.live);
+  if (!scored.length) return null;
+  const plan = scored.reduce((a, r) => a + r.plan, 0);
+  const actual = scored.reduce((a, r) => a + r.actual, 0);
+  return { months: scored.length, plan, actual, gap: actual - plan, from: scored[0], last: scored[scored.length - 1] };
 }
 /* the three-way split the user asked to keep in balance: daily life, travel, and what was
    left over to save — averaged over the last n full months that have any activity */
@@ -2352,7 +2393,7 @@ function openPlanModal() {
   }).join("");
 
   const flowNow = flowFor(nowKey, auto, avgMonthlyOut(6));
-  const stages = (p.flow || []).length;
+  const stages = (p.flow || []).length, trk = trackSummary();
   modal(`
     <h3>🎯 תכנון כלכלי</h3>
     <p class="sub" style="margin-bottom:6px">אבני הדרך שלפניך, מול התזרים החודשי. תיק ההשקעות גדל בנפרד ולא נוגעים בו.</p>
@@ -2368,6 +2409,12 @@ function openPlanModal() {
         <span class="ph-s">${fmt(flowNow)}/ח׳ ${stages ? `· ${stages} שלבים מוגדרים` : "· לפי הנתונים באפליקציה"}</span></span>
       <span class="ph-go">›</span>
     </button>
+    <button class="plan-hub" id="ph-track">
+      <span class="ms-em">📋</span>
+      <span class="ph-main"><span class="ph-t">בפועל מול תוכנית</span>
+        <span class="ph-s">${trk ? `${trk.months} ח׳ · ${trk.gap >= 0 ? `${fmt(trk.gap)} מעל התוכנית` : `${fmt(-trk.gap)} מתחת לתוכנית`}` : "עדיין לא התחיל מעקב"}</span></span>
+      <span class="ph-go">›</span>
+    </button>
 
     <h4 class="sub-h" style="margin-top:16px">אבני דרך</h4>
     ${msRows || emptyState("🗓️", "עדיין אין אבני דרך. שחרור, טיסה, טיול גדול — כל דבר עם תאריך וסכום.")}
@@ -2376,6 +2423,7 @@ function openPlanModal() {
 
   $("#ph-invest").onclick = openInvestScreen;
   $("#ph-flow").onclick = openFlowScreen;
+  $("#ph-track").onclick = openTrackScreen;
   $("#ms-new").onclick = () => openMsForm();
   document.getElementById("modal").querySelectorAll("[data-msedit]").forEach((b) => {
     b.onclick = () => openMsForm(b.dataset.msedit);
@@ -2443,22 +2491,16 @@ function openFlowScreen() {
        timeline touches it. Current balance + planned monthly deposit compound at the average
        annual return; the milestone timeline only ever draws on the monthly flow. ---- */
 function openInvestScreen() {
-  const p = pl().invest, mm = pl().minMonthly;
+  const p = pl().invest;
   const years = [1, 3, 5, 10];
   const fv = investProjection(years[years.length - 1] * 12);
   const fvRows = years.map((y) => `<div class="row spread"><span class="mut">בעוד ${y === 1 ? "שנה" : `${y} שנים`}</span><b class="num">${fmt(fv[y * 12])}</b></div>`).join("");
-  const depositNote = mm > 0
-    ? (p.monthly >= mm
-        ? `<div class="plan-verdict ok"><span class="pv-em">✓</span><span>ההפקדה המתוכננת עומדת ביעד המינימום של ${fmt(mm)}</span></div>`
-        : `<div class="plan-verdict warn"><span class="pv-em">⚠️</span><span>ההפקדה המתוכננת מתחת ליעד המינימום — חסרים ${fmt(mm - p.monthly)} לחודש</span></div>`)
-    : "";
 
   modal(`
     <button class="btn" id="iv-back" style="margin-bottom:8px">‹ חזרה</button>
     <h3>📈 תיק ההשקעות</h3>
     <div class="amount-display" style="margin:6px 0">${fmt(p.balance || 0)}</div>
     <p class="mut" style="margin:0 0 10px">${investUpdated() ? `עודכן לאחרונה ${dmyY(investUpdated())}` : "עדכן את היתרה כדי שהתחזית תתחיל מנקודה אמיתית"} · לא נוגעים בו בשביל אבני דרך</p>
-    ${depositNote}
     <div class="field">
       <label>עדכון היתרה הנוכחית (₪)</label>
       <div class="row" style="gap:8px">
@@ -2470,10 +2512,6 @@ function openInvestScreen() {
     <div class="field" style="margin-top:14px">
       <label>הפקדה חודשית מתוכננת (₪)</label>
       <input type="number" id="iv-monthly" min="0" inputmode="numeric" placeholder="0" value="${p.monthly || ""}">
-    </div>
-    <div class="field">
-      <label>מינימום שנכנס כל חודש (₪) <span class="mut">היעד שלא להזניח</span></label>
-      <input type="number" id="iv-min" min="0" inputmode="numeric" placeholder="0" value="${mm || ""}">
     </div>
     <div class="field">
       <label>תשואה שנתית ממוצעת (%)</label>
@@ -2490,8 +2528,50 @@ function openInvestScreen() {
     save(); render(); openInvestScreen();
   };
   $("#iv-monthly").onchange = () => { p.monthly = Math.max(0, parseFloat($("#iv-monthly").value) || 0); save(); render(); openInvestScreen(); };
-  $("#iv-min").onchange = () => { pl().minMonthly = Math.max(0, parseFloat($("#iv-min").value) || 0); save(); render(); openInvestScreen(); };
   $("#iv-rate").onchange = () => { p.rate = Math.max(0, parseFloat($("#iv-rate").value) || 0) / 100; save(); render(); openInvestScreen(); };
+}
+
+/* ---- actual against plan: the months already behind us, scored against what the flow
+       stage covering them said they should net ---- */
+function openTrackScreen() {
+  const p = pl(), rows = trackRows(), sum = trackSummary(rows);
+  const lastMonth = () => { const d = new Date(); d.setMonth(d.getMonth() - 1); return mKey(d.getFullYear(), d.getMonth()); };
+
+  const verdict = sum
+    ? `<div class="plan-verdict ${sum.gap >= 0 ? "ok" : "warn"}"><span class="pv-em">${sum.gap >= 0 ? "✓" : "⚠️"}</span>
+       <span>ב-${sum.months} החודשים שנמדדו נכנסו <b>${fmt(sum.actual)}</b> מול תוכנית של ${fmt(sum.plan)} —
+       ${sum.gap >= 0 ? `<b>${fmt(sum.gap)}</b> מעל התוכנית` : `<b>${fmt(-sum.gap)}</b> מתחת לתוכנית`}</span></div>`
+    : `<div class="plan-verdict"><span class="pv-em">📋</span>
+       <span>אין עדיין חודש עם יעד. היעד מגיע משלב תזרים שמכסה את החודש — הוסף שלב שמתחיל בתאריך תחילת המעקב.</span></div>`;
+
+  const list = rows.slice().reverse().map((r) => {
+    const gap = r.plan === null ? null : r.actual - r.plan;
+    return `<div class="tx-item">
+      <span class="tx-main"><div class="tx-name">${r.label}</div>
+        <div class="mut num">${r.plan === null ? "אין יעד לחודש הזה" : `תוכנית ${fmt(r.plan)}`}</div></span>
+      <span class="ms-side">
+        <span class="ms-amt num">${fmt(r.actual)}</span>
+        ${gap === null ? "" : `<span class="ms-left ${gap >= 0 ? "pos" : "neg"}">${gap >= 0 ? "+" : "−"}${fmt(Math.abs(gap))}</span>`}
+      </span>
+    </div>`;
+  }).join("");
+
+  modal(`
+    <button class="btn" id="tr-back" style="margin-bottom:8px">‹ חזרה</button>
+    <h3>📋 בפועל מול תוכנית</h3>
+    <p class="sub" style="margin-bottom:10px">כל חודש שהסתיים, מול הנטו שהשלב שמכסה אותו הבטיח. החודש הנוכחי לא נספר עד שייגמר.</p>
+    ${verdict}
+    <div class="field" style="margin-top:12px">
+      <label>מעקב מתחיל בחודש</label>
+      <input type="month" id="tr-from" value="${p.trackFrom || lastMonth()}">
+    </div>
+    ${list ? `<h4 class="sub-h">חודש בחודשו</h4>${list}` : ""}`);
+
+  $("#tr-back").onclick = openPlanModal;
+  $("#tr-from").onchange = () => {
+    p.trackFrom = $("#tr-from").value || null;
+    save(); render(); openTrackScreen();
+  };
 }
 
 /* create (no id) or edit (existing id) one dated event on the timeline */
@@ -2660,7 +2740,7 @@ function renderPlansSummary() {
   const upcoming = msSorted().filter((m) => m.date >= today);
   const split = monthSplit(3);
   const hasPlan = upcoming.length || p.invest.balance > 0 || (p.flow || []).length
-    || p.minMonthly > 0 || p.invest.monthly > 0;
+    || p.trackFrom || p.invest.monthly > 0;
 
   $("#plan-count").textContent = upcoming.length ? `${upcoming.length} אבני דרך` : "";
   wrap.style.display = (hasPlan || split) ? "" : "none";
@@ -2677,11 +2757,17 @@ function renderPlansSummary() {
   if (upcoming.length) {
     if (v.dry) verdict = `<div class="plan-verdict warn"><span class="pv-em">⚠️</span>
       <span>לפי התחזית, ב<b>${v.dry.label}</b> התזרים לא מספיק לכסות את אבן הדרך וההפקדה המתוכננת יחד — משהו בתוכנית צריך לזוז</span></div>`;
-    else if (v.neglect) verdict = `<div class="plan-verdict warn"><span class="pv-em">🐌</span>
-      <span>כל אבני הדרך מכוסות, אבל ההפקדה המתוכננת (${fmt(p.invest.monthly)}) מתחת ליעד המינימום שהגדרת (${fmt(p.minMonthly)})</span></div>`;
     else verdict = `<div class="plan-verdict ok"><span class="pv-em">✓</span>
       <span>כל אבני הדרך מכוסות מהתזרים — ותיק ההשקעות ממשיך לגדול בלי לגעת בו</span></div>`;
   }
+
+  // how the months already behind us actually went against what the plan promised
+  const trk = trackSummary();
+  const trackBlock = trk
+    ? `<div class="plan-verdict ${trk.gap >= 0 ? "ok" : "warn"}"><span class="pv-em">${trk.gap >= 0 ? "📈" : "📉"}</span>
+       <span>מ${trk.from.label}: בפועל <b>${fmt(trk.actual)}</b> מול תוכנית ${fmt(trk.plan)} —
+       ${trk.gap >= 0 ? `${fmt(trk.gap)} מעל` : `${fmt(-trk.gap)} מתחת`} (${trk.months} ח׳)</span></div>`
+    : "";
 
   const investBlock = p.invest.balance > 0
     ? `<div class="row spread"><span class="mut">בתיק ההשקעות</span><b class="num">${fmt(investBalance())}</b></div>
@@ -2705,6 +2791,7 @@ function renderPlansSummary() {
 
   el.innerHTML = `
     ${verdict}
+    ${trackBlock}
     ${investBlock}
     ${msRows ? `<h4 class="sub-h">מה מחכה קדימה</h4>${msRows}
       ${upcoming.length > 6 ? `<p class="mut" style="margin-top:6px">ועוד ${upcoming.length - 6} בתכנון הכלכלי</p>` : ""}` : ""}
