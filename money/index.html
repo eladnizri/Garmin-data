@@ -167,47 +167,6 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1p
 .badge.ok { color: var(--good-text); }
 .badge.over { color: var(--crit); }
 
-/* ---------- financial planning: milestone timeline ---------- */
-.plan-verdict { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.5;
-  padding: 9px 11px; border-radius: 12px; background: var(--surface-2); margin-bottom: 10px; }
-.plan-verdict .pv-em { flex: none; }
-.plan-verdict.ok { color: var(--good-text); }
-.plan-verdict.warn { color: var(--crit); }
-.ms-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: start;
-  padding: 9px 2px; border-top: 1px solid var(--border); }
-.ms-row:first-child { border-top: none; }
-.ms-em { font-size: 19px; flex: none; width: 26px; text-align: center; }
-.ms-main { flex: 1; min-width: 0; }
-.ms-name { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; }
-.ms-when { color: var(--muted); font-size: 12px; margin-top: 1px; }
-.ms-side { flex: none; text-align: end; }
-.ms-amt { font-weight: 700; font-size: 13.5px; }
-.ms-amt.in { color: var(--good-text); }
-.ms-left { font-size: 11px; color: var(--muted); margin-top: 1px; }
-.ms-left.neg { color: var(--crit); font-weight: 700; }
-.ms-left.pos { color: var(--good-text); font-weight: 700; }
-.ms-row.past { opacity: .55; }
-/* the three-way split of a typical month: daily life / travel / what was actually saved */
-.split-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; direction: ltr;
-  background: var(--ring-track); margin: 8px 0 7px; }
-.split-bar > span { display: block; height: 100%; }
-.split-key { display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: 12px; color: var(--ink-2); }
-.split-key i { display: inline-block; width: 9px; height: 9px; border-radius: 3px;
-  margin-inline-end: 5px; vertical-align: middle; font-style: normal; }
-/* rows that open a sub-screen of the planning modal */
-.plan-hub { display: flex; align-items: center; gap: 10px; width: 100%; text-align: start;
-  padding: 11px 2px; border-top: 1px solid var(--border); }
-.plan-hub:first-of-type { border-top: none; }
-.plan-hub .ph-main { flex: 1; min-width: 0; }
-.plan-hub .ph-t { font-weight: 600; font-size: 14px; }
-.plan-hub .ph-s { color: var(--muted); font-size: 12px; margin-top: 1px; }
-.plan-hub .ph-go { color: var(--muted); font-size: 17px; flex: none; }
-.kind-btn { flex: 1 1 auto; }
-.icon-grid { display: flex; flex-wrap: wrap; gap: 7px; }
-.icon-sw { width: 36px; height: 36px; border-radius: 10px; font-size: 19px; flex: none;
-  background: var(--surface-2); border: 2px solid transparent; }
-.icon-sw.on { border-color: var(--accent); }
-
 /* ---------- month ---------- */
 .month-nav { display: flex; align-items: center; justify-content: space-between; margin: 4px 0; }
 .month-nav button { font-size: 22px; padding: 4px 14px; color: var(--ink-2); }
@@ -887,14 +846,6 @@ body {
     </div>
   </section>
 
-  <section class="collapse" id="c-plan">
-    <button class="collapse-head" aria-expanded="false">
-      <span class="ch-title"><span class="lico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5.9 1 1 1.7h5.2c.1-.7.4-1.2 1-1.7A6 6 0 0 0 12 3Z"/></svg></span> חיסכון ובקרה</span>
-      <span class="chev" aria-hidden="true">⌄</span>
-    </button>
-    <div class="collapse-body"><div id="m-plans"></div></div>
-  </section>
-
   <section class="collapse" id="c-fixed">
     <button class="collapse-head" aria-expanded="false">
       <span class="ch-title"><span class="lico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9a8 8 0 0 1 13-3l2.5 2.5M20 5.5V9h-3.5"/><path d="M20 15a8 8 0 0 1-13 3l-2.5-2.5M4 18.5V15h3.5"/></svg></span> קבועות חודשיות</span>
@@ -957,14 +908,6 @@ body {
         <select id="set-end-hour"></select>
       </span>
     </div>
-  </div>
-  <div class="card">
-    <div class="row spread">
-      <h3 style="font-size:15px">🎯 תכנון כלכלי</h3>
-      <span class="mut" id="plan-count"></span>
-    </div>
-    <p class="mut" style="margin:2px 0 10px">אבני הדרך שלפניך — מענקים, טיסות וטיולים — מול התזרים החודשי, ותיק ההשקעות בנפרד</p>
-    <button class="btn primary" style="width:100%" id="plan-open">פתיחת תכנון כלכלי</button>
   </div>
   <div class="card">
     <div class="row spread">
@@ -1048,58 +991,7 @@ const DEFAULTS = () => ({
               // from/to bound the months an item applied to (null = since forever / still on),
               // so changing one today cannot rewrite what a closed month actually cost
   trips: [],  // {id, name, budget, start, end}  (end === null while active)
-  // planning is a dated cash-flow timeline, not a set of pots to fill: the investment account
-  // already exists (it IS the savings account — one pot, not two) and isn't touched for
-  // anything, so what matters is whether the monthly flow alone survives the life events
-  // already on the calendar (a discharge grant in, two flights out, a big trip after that)
-  // while the account keeps compounding untouched in the background.
-  plans: {
-    v: 4,
-    invest: { balance: 0, updated: null, monthly: 0, rate: 0.07 },  // the one account: current
-                         // value, planned monthly deposit, average annual return
-    trackFrom: null,     // "YYYY-MM" the actual-vs-plan comparison starts from
-    flow: [],            // [{id, from:"YYYY-MM", amount}] monthly-net stages; before the
-                         // first stage the projection uses what the app's own history measures
-    milestones: [],      // [{id, name, date, dir:'in'|'out', amount, icon}] — always settled
-                         // against that month's flow, never against the investment account
-    savings: [],         // v2 leftovers, folded into the account balance once
-    goals: [],           // v1 leftovers, folded into the timeline once
-  },
 });
-
-/* older plan shapes are folded in once, in place, straight to the current version:
-   v1 "goals" (a target plus a running balance) become a trip milestone, a seed for the
-   account balance, or a seed for its deposit total; v2 split the account into a "savings"
-   balance and a separate "invest" deposit log, but they were always the same real account,
-   so whichever one has real numbers becomes the single balance the timeline follows now;
-   v3 kept a hand-typed monthly savings floor, which the actual-vs-plan tracking replaced —
-   the target is the net a declared flow stage implies, not a number picked out of the air. */
-function migratePlans(p) {
-  if (p.v >= 4) return;
-  if (!p.v || p.v < 2) {
-    const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-    const inSixMonths = () => { const d = new Date(); d.setMonth(d.getMonth() + 6); return d.toISOString().slice(0, 10); };
-    (p.goals || []).forEach((g) => {
-      const es = (g.entries || []).slice().sort((a, b) => a.date.localeCompare(b.date));
-      if (g.kind === "invest" && es.length)
-        p.invest.balance = (p.invest.balance || 0) + es.reduce((a, e) => a + e.amount, 0);
-      else if (g.kind === "trip" && g.target > 0)
-        p.milestones.push({ id: newId(), name: g.name, date: g.targetDate || inSixMonths(),
-                            dir: "out", amount: g.target, icon: "✈️" });
-      else if (es.length) p.savings.push({ date: es[es.length - 1].date, amount: es[es.length - 1].amount });
-    });
-  }
-  if (p.v < 3) {
-    const snaps = (p.savings || []).slice().sort((a, b) => a.date.localeCompare(b.date));
-    const oldInvestDeposits = (p.invest.entries || []).reduce((a, e) => a + e.amount, 0);
-    if (snaps.length) { p.invest.balance = (p.invest.balance || 0) + snaps[snaps.length - 1].amount; p.invest.updated = snaps[snaps.length - 1].date; }
-    else if (oldInvestDeposits) p.invest.balance = (p.invest.balance || 0) + oldInvestDeposits;
-    p.invest.rate = p.invest.rate || 0.07;
-    (p.milestones || []).forEach((m) => { delete m.fund; });
-  }
-  delete p.minMonthly;
-  p.v = 4;
-}
 
 let S = load();
 function load() {
@@ -1107,12 +999,9 @@ function load() {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return DEFAULTS();
     const parsed = JSON.parse(raw);
-    const dp = DEFAULTS().plans, pp = parsed.plans || {};
-    // stored state that predates the version marker is v1 by definition — the default's own
-    // `v: 2` must not leak in, or the migration below would think it had already run
-    const s = { ...DEFAULTS(), ...parsed, settings: { ...DEFAULTS().settings, ...parsed.settings },
-                plans: { ...dp, ...pp, v: pp.v || 1, invest: { ...dp.invest, ...(pp.invest || {}) } } };
-    migratePlans(s.plans);
+    // a `plans` key from the retired planning feature rides through untouched — nothing reads
+    // it any more, but it is left stored rather than thrown away
+    const s = { ...DEFAULTS(), ...parsed, settings: { ...DEFAULTS().settings, ...parsed.settings } };
     // migrate old expenses that predate manual buckets: tag by their timestamp
     (s.tx || []).forEach((t) => {
       if (t.type === "expense" && !t.bucket) {
@@ -1211,238 +1100,9 @@ const tripById = (id) => (S.trips || []).find((t) => t.id === id) || null;
 const tripTx = (id) => S.tx.filter((t) => t.type === "expense" && t.tripId === id);
 const tripSpent = (id) => sum(tripTx(id));
 
-/* ------- financial planning: a dated cash-flow timeline ------- */
-const MS_ICONS = ["✈️", "🌍", "🏖️", "🎖️", "💰", "🏠", "🚗", "🎓", "💍", "🎁", "💼", "🏥"];
-const pl = () => S.plans;
-const msSorted = () => (pl().milestones || []).slice().sort((a, b) => a.date.localeCompare(b.date));
-const msById = (id) => (pl().milestones || []).find((m) => m.id === id) || null;
-const investBalance = () => pl().invest.balance || 0;
-const investUpdated = () => pl().invest.updated || null;
+/* month keys ("YYYY-MM") — the fixed-item windows and the month totals are keyed by them */
 const mKey = (y, m) => `${y}-${String(m + 1).padStart(2, "0")}`;
 const keyLabel = (k) => { const [y, m] = k.split("-").map(Number); return `${MONTHS[m - 1]} ${y}`; };
-const keyShort = (k) => { const [y, m] = k.split("-").map(Number); return `${MONTHS[m - 1].slice(0, 3)}׳${String(y).slice(2)}`; };
-
-/* average monthly net (income − expenses) over the last n *full* months — what the app
-   measures the user actually keeps, rather than a number typed into a form */
-function avgMonthlyNet(n = 3) {
-  const now = new Date();
-  let y = now.getFullYear(), m = now.getMonth() - 1, total = 0, used = 0;
-  for (let i = 0; i < n; i++) {
-    if (m < 0) { m = 11; y--; }
-    const t = monthTotals(y, m);
-    if (t.inc || t.out) { total += t.net; used++; }
-    m--;
-  }
-  return used ? total / used : 0;
-}
-/* average total monthly spend (every expense, travel included) over the last n *full*
-   months — what a future stage's gross income gets measured against, since the user
-   only has to type what actually lands in the account, not guess their own spending */
-function avgMonthlyOut(n = 6) {
-  const now = new Date();
-  let y = now.getFullYear(), m = now.getMonth() - 1, total = 0, used = 0;
-  for (let i = 0; i < n; i++) {
-    if (m < 0) { m = 11; y--; }
-    const t = monthTotals(y, m);
-    if (t.inc || t.out) { total += t.out; used++; }
-    m--;
-  }
-  return used ? total / used : 0;
-}
-/* the flow stage in effect in a given month — the newest one that has already started */
-function stageFor(key) {
-  const started = (pl().flow || []).filter((f) => f.from <= key).sort((a, b) => a.from.localeCompare(b.from));
-  return started.length ? started[started.length - 1] : null;
-}
-/* the monthly net expected in a given month: before any stage, the measured average; from
-   a stage's start, the gross income declared for it minus the measured average spend — so
-   the user only ever types what comes into the account, never has to guess their own net. */
-function flowFor(key, auto, avgOut) {
-  const s = stageFor(key);
-  return s ? s.amount - avgOut : auto;
-}
-/* how many months out the projection/solver needs to look, given the milestones and flow
-   stages on the books — shared by every function below that walks the timeline */
-function planHorizon(y0, m0) {
-  const ms = msSorted();
-  const monthsFromNow = (iso) => {
-    const [y, m] = iso.slice(0, 7).split("-").map(Number);
-    return (y - y0) * 12 + (m - 1 - m0);
-  };
-  let n = 6;
-  ms.forEach((x) => { n = Math.max(n, monthsFromNow(x.date) + 3); });
-  (pl().flow || []).forEach((f) => { n = Math.max(n, monthsFromNow(f.from) + 3); });
-  return Math.min(48, n);
-}
-/* month-by-month CASH-FLOW projection: the running buffer left in hand after the planned
-   investment deposit and every milestone due that month. Milestones always settle against
-   that month's flow now — never against the investment account, which is left alone to
-   compound on its own (see investProjection) — so a big expense here is an income problem
-   to plan around, not a withdrawal to make. */
-function projection() {
-  const ms = msSorted(), today = todayISO();
-  const now = new Date(), y0 = now.getFullYear(), m0 = now.getMonth();
-  const auto = avgMonthlyNet(3), avgOut = avgMonthlyOut(6);
-  const n = planHorizon(y0, m0);
-
-  // the current month is already part-spent, so only the remaining share of its flow counts
-  const dim = new Date(y0, m0 + 1, 0).getDate();
-  const leftFrac = (dim - now.getDate() + 1) / dim;
-
-  let cash = 0;
-  const rows = [];
-  for (let i = 0; i < n; i++) {
-    const y = y0 + Math.floor((m0 + i) / 12), m = (m0 + i) % 12, key = mKey(y, m);
-    const share = i === 0 ? leftFrac : 1;
-    const flow = flowFor(key, auto, avgOut) * share;
-    const dep = (pl().invest.monthly || 0) * share;
-    const mine = ms.filter((x) => x.date.slice(0, 7) === key && (i > 0 || x.date >= today));
-    const msNet = mine.reduce((a, x) => a + (x.dir === "in" ? x.amount : -x.amount), 0);
-    const net = flow - dep + msNet;
-    cash += net;
-    rows.push({ key, label: keyLabel(key), short: keyShort(key), flow, dep, net, cash,
-                milestones: mine, tight: cash < -0.5 });
-  }
-  return rows;
-}
-/* does the plan hold? the first month the cash buffer runs negative */
-function planVerdict(rows) {
-  return { dry: rows.find((r) => r.tight) || null,
-           end: rows.length ? rows[rows.length - 1].cash : 0 };
-}
-/* the investment account's own trajectory: current balance plus its fixed monthly deposit,
-   compounding monthly at the average annual return — untouched by anything on the timeline,
-   since the whole point is not to touch it. Returns balance after 0..months months. */
-function investProjection(months) {
-  const p = pl().invest, r = (p.rate || 0) / 12;
-  let bal = p.balance || 0;
-  const rows = [bal];
-  for (let i = 0; i < months; i++) { bal = bal * (1 + r) + (p.monthly || 0); rows.push(bal); }
-  return rows;
-}
-/* the minimum constant flow, from a given "YYYY-MM" forward, that keeps the cash buffer at
-   or above zero for the whole horizon while still funding the planned monthly deposit.
-   Answers "how much do I actually need once income changes", not just "today's plan
-   falls short". */
-function minFlowNeeded(fromKey) {
-  const ms = msSorted(), today = todayISO();
-  const now = new Date(), y0 = now.getFullYear(), m0 = now.getMonth();
-  const auto = avgMonthlyNet(3), avgOut = avgMonthlyOut(6);
-  const dep = pl().invest.monthly || 0;
-  const n = planHorizon(y0, m0);
-  const dim = new Date(y0, m0 + 1, 0).getDate();
-  const leftFrac = (dim - now.getDate() + 1) / dim;
-
-  const feasible = (candidate) => {
-    let cash = 0;
-    for (let i = 0; i < n; i++) {
-      const y = y0 + Math.floor((m0 + i) / 12), m = (m0 + i) % 12, key = mKey(y, m);
-      const share = i === 0 ? leftFrac : 1;
-      const flow = (key >= fromKey ? candidate : flowFor(key, auto, avgOut)) * share;
-      const mine = ms.filter((x) => x.date.slice(0, 7) === key && (i > 0 || x.date >= today));
-      const msNet = mine.reduce((a, x) => a + (x.dir === "in" ? x.amount : -x.amount), 0);
-      cash += flow - dep * share + msNet;
-      if (cash < -0.5) return false;
-    }
-    return true;
-  };
-  let lo = -20000, hi = 20000;
-  while (!feasible(hi) && hi < 2e6) hi *= 2;
-  for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (feasible(mid)) hi = mid; else lo = mid; }
-  return Math.ceil(hi / 10) * 10;
-}
-/* the spend a tracked target is measured against: the six full months *before* tracking
-   began. The forward projection follows current habits on purpose, but a target already
-   committed to must not drift — with a rolling average, a month's own overspending raises
-   the average, which lowers that same month's target, and the gap the tracking exists to
-   expose quietly cancels part of itself out. */
-function baselineOut() {
-  const from = pl().trackFrom;
-  if (!from) return avgMonthlyOut(6);
-  let [y, m] = from.split("-").map(Number);
-  m -= 1;
-  let total = 0, used = 0;
-  for (let i = 0; i < 6; i++) {
-    m--; if (m < 0) { m = 11; y--; }
-    const t = monthTotals(y, m);
-    if (t.inc || t.out) { total += t.out; used++; }
-  }
-  return used ? total / used : avgMonthlyOut(6);
-}
-/* actual against plan, month by month from the tracking start up to the last *completed*
-   month. The target is what a declared flow stage implies for that month — its gross minus
-   the baseline spend, plus whatever milestones were booked into it — and the actual is what
-   the month really netted. Months with no stage get no target on purpose: the automatic flow
-   is measured from these very months, so scoring them against it would compare data to
-   itself. The current month is left out; half a month tells you nothing. */
-function trackRows() {
-  const from = pl().trackFrom;
-  if (!from) return [];
-  const ms = msSorted(), avgOut = baselineOut();
-  const now = new Date(), endY = now.getFullYear(), endM = now.getMonth();
-  let [y, m] = from.split("-").map(Number);
-  m -= 1;
-  const rows = [];
-  while ((y < endY || (y === endY && m < endM)) && rows.length < 60) {
-    const key = mKey(y, m), t = monthTotals(y, m), s = stageFor(key);
-    const msNet = ms.filter((x) => x.date.slice(0, 7) === key)
-      .reduce((a, x) => a + (x.dir === "in" ? x.amount : -x.amount), 0);
-    rows.push({ key, label: keyLabel(key), short: keyShort(key),
-                plan: s ? s.amount - avgOut + msNet : null, actual: t.net, live: !!(t.inc || t.out) });
-    m++; if (m > 11) { m = 0; y++; }
-  }
-  return rows;
-}
-/* the headline of that comparison: totals over the months that have a target, and the
-   cumulative gap — the number that says whether the plan is being kept or quietly slipping */
-function trackSummary(rows = trackRows()) {
-  const scored = rows.filter((r) => r.plan !== null && r.live);
-  if (!scored.length) return null;
-  const plan = scored.reduce((a, r) => a + r.plan, 0);
-  const actual = scored.reduce((a, r) => a + r.actual, 0);
-  return { months: scored.length, plan, actual, gap: actual - plan, from: scored[0], last: scored[scored.length - 1] };
-}
-/* the target for the month in progress: the plan's own number for it, carrying whatever the
-   completed months left behind. The cumulative gap is spread over the months left until the
-   next milestone — the event this money is actually for — so overspending in one month is
-   made up by the time it matters instead of all at once, and a surplus does the reverse and
-   lets the following months breathe. Past months keep the target they had; only the months
-   still ahead absorb the correction, so nothing is ever counted twice. */
-function currentTarget() {
-  const now = new Date(), key = mKey(now.getFullYear(), now.getMonth());
-  const s = stageFor(key);
-  if (!s) return null;
-  const today = todayISO(), ms = msSorted();
-  const msNet = ms.filter((x) => x.date.slice(0, 7) === key && x.date >= today)
-    .reduce((a, x) => a + (x.dir === "in" ? x.amount : -x.amount), 0);
-  const base = s.amount - baselineOut() + msNet;
-  const trk = trackSummary(), gap = trk ? trk.gap : 0;
-  const next = ms.find((x) => x.date > today) || null;
-  const span = next
-    ? Math.max(1, (+next.date.slice(0, 4) - now.getFullYear()) * 12
-                  + (+next.date.slice(5, 7) - 1 - now.getMonth()) + 1)
-    : 6;
-  const target = Math.max(0, base - gap / span);
-  // more than the whole month's income would have to arrive for this to be met
-  return { base, target, gap, span, next, catchUp: target - base, impossible: target > s.amount };
-}
-/* the three-way split the user asked to keep in balance: daily life, travel, and what was
-   left over to save — averaged over the last n full months that have any activity */
-function monthSplit(n = 3) {
-  const now = new Date();
-  let y = now.getFullYear(), m = now.getMonth() - 1;
-  let daily = 0, travel = 0, saved = 0, used = 0;
-  for (let i = 0; i < n; i++) {
-    if (m < 0) { m = 11; y--; }
-    const t = monthTotals(y, m);
-    if (t.inc || t.out) {
-      daily += t.fixedOut + t.reportedOut; travel += t.travelOut; saved += Math.max(0, t.net); used++;
-    }
-    m--;
-  }
-  if (!used) return null;
-  return { daily: daily / used, travel: travel / used, saved: saved / used, months: used };
-}
 
 /* completed weekends (before current), newest first */
 function pastWeekends(maxN = 26) {
@@ -2155,18 +1815,13 @@ function renderMonth() {
     ? `<div class="cap" style="color:var(--good-text)">${rate}% נחסך</div>`
     : `<div class="cap" style="color:var(--crit)">גירעון</div>`;
 
-  // this month against the plan's own target for it, carrying any gap the past months left
-  const isThisMonth = mYear === new Date().getFullYear() && mMonth === new Date().getMonth();
-  const ct = isThisMonth ? currentTarget() : null;
-  const netPfx = m.net < 0 ? "-" : (ct ? "" : "+");
-  const savingsKpi = ct
-    ? `<div class="kpi"><div class="l">מטרת חיסכון</div><div class="v num count ${m.net >= ct.target ? "pos" : "neg"}" data-to="${Math.abs(m.net)}" data-prefix="${netPfx}">${netPfx}${fmt(Math.abs(m.net))}</div><div class="cap" style="color:var(--muted)">${fmt(ct.target)} מטרה</div></div>`
-    : `<div class="kpi"><div class="l">חיסכון</div><div class="v num count ${m.net >= 0 ? "pos" : "neg"}" data-to="${Math.abs(m.net)}" data-prefix="${netPfx}">${netPfx}${fmt(Math.abs(m.net))}</div></div>`;
+  // what the month kept, with no target attached — the only goal in the app is on expenses
+  const netPfx = m.net < 0 ? "-" : "+";
 
   $("#m-kpis").innerHTML = `
     <div class="kpi"><div class="l">הכנסות</div><div class="v num count" data-to="${m.inc}" data-prefix="">${fmt(m.inc)}</div></div>
     <div class="kpi"><div class="l">הוצאות</div><div class="v num count" data-to="${m.out}" data-prefix="">${fmt(m.out)}</div></div>
-    ${savingsKpi}`;
+    <div class="kpi"><div class="l">חיסכון</div><div class="v num count ${m.net >= 0 ? "pos" : "neg"}" data-to="${Math.abs(m.net)}" data-prefix="${netPfx}">${netPfx}${fmt(Math.abs(m.net))}</div></div>`;
 
   renderMetrics(m);
 
@@ -2189,6 +1844,7 @@ function renderMonth() {
 
   // monthly budget (reported expenses) — live ring + projection for the current month
   const mb = S.settings.monthlyBudget;
+  const isThisMonth = mYear === new Date().getFullYear() && mMonth === new Date().getMonth();
   if (mb > 0) {
     const left = mb - m.reportedOut;
     const frac = Math.max(0, left) / mb;
@@ -2241,9 +1897,8 @@ function renderMonth() {
     ? vbars([6, 5, 4, 3, 2, 1, 0].map((i) => ({ label: DAY_SHORT[i], value: Math.round(dow[i]), over: false })), 0)
     : `<div class="chart-empty">אין הוצאות מדווחות החודש</div>`;
 
-  // monthly recap (this-month narrative) + the forward-looking plan
+  // monthly recap (this-month narrative)
   renderRecap(m);
-  renderPlansSummary();
 
   // per-category breakdown (month / all-time toggle)
   renderCatsBreakdown();
@@ -2405,317 +2060,6 @@ document.body.addEventListener("click", (e) => {
   else if (e.target.closest("#trip-end")) endTrip();
 });
 
-/* ======================= financial planning modal ====================== */
-const todayISO = () => new Date().toISOString().slice(0, 10);
-
-const dmyY = (iso) => { const d = new Date(`${iso}T12:00:00`); return `${d.getDate()}.${d.getMonth() + 1}.${String(d.getFullYear()).slice(2)}`; };
-/* "בעוד 7 חודשים" / "החודש" — the distance that actually matters when reading a timeline */
-function untilTxt(iso) {
-  const now = new Date(), d = new Date(`${iso}T12:00:00`);
-  const months = (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
-  if (iso < todayISO()) return "עבר";
-  if (months <= 0) return "החודש";
-  if (months === 1) return "בעוד חודש";
-  if (months < 12) return `בעוד ${months} חודשים`;
-  const yrs = Math.floor(months / 12), rest = months % 12;
-  return `בעוד ${yrs === 1 ? "שנה" : `${yrs} שנים`}${rest ? ` ו-${rest} ח׳` : ""}`;
-}
-
-function openPlanModal() {
-  const p = pl(), rows = projection(), v = planVerdict(rows);
-  const all = msSorted(), today = todayISO();
-  const auto = avgMonthlyNet(3);
-  const nowKey = mKey(new Date().getFullYear(), new Date().getMonth());
-  const cashAt = (iso) => { const r = rows.find((x) => x.key === iso.slice(0, 7)); return r ? r.cash : null; };
-
-  const msRows = all.map((m) => {
-    const past = m.date < today, left = past ? null : cashAt(m.date);
-    return `<button class="ms-row${past ? " past" : ""}" data-msedit="${m.id}">
-      <span class="ms-em">${m.icon || (m.dir === "in" ? "💰" : "🎯")}</span>
-      <span class="ms-main">
-        <span class="ms-name">${esc(m.name)}</span>
-        <span class="ms-when">${dmyY(m.date)} · ${untilTxt(m.date)}</span>
-      </span>
-      <span class="ms-side">
-        <span class="ms-amt num ${m.dir === "in" ? "in" : ""}">${m.dir === "in" ? "+" : "−"}${fmt(m.amount)}</span>
-        ${left !== null ? `<span class="ms-left${left < 0 ? " neg" : ""}">${left < 0 ? `חסר ${fmt(-left)}` : `נשאר ${fmt(left)}`}</span>` : ""}
-      </span>
-    </button>`;
-  }).join("");
-
-  const flowNow = flowFor(nowKey, auto, avgMonthlyOut(6));
-  const stages = (p.flow || []).length, trk = trackSummary();
-  modal(`
-    <h3>🎯 תכנון כלכלי</h3>
-    <p class="sub" style="margin-bottom:6px">אבני הדרך שלפניך, מול התזרים החודשי. תיק ההשקעות גדל בנפרד ולא נוגעים בו.</p>
-    <button class="plan-hub" id="ph-invest">
-      <span class="ms-em">📈</span>
-      <span class="ph-main"><span class="ph-t">תיק ההשקעות</span>
-        <span class="ph-s">${fmt(investBalance())}${investUpdated() ? ` · עודכן ${dmyY(investUpdated())}` : ""}${p.invest.monthly > 0 ? ` · ${fmt(p.invest.monthly)}/ח׳` : ""}</span></span>
-      <span class="ph-go">›</span>
-    </button>
-    <button class="plan-hub" id="ph-flow">
-      <span class="ms-em">📊</span>
-      <span class="ph-main"><span class="ph-t">תזרים חודשי</span>
-        <span class="ph-s">${fmt(flowNow)}/ח׳ ${stages ? `· ${stages} שלבים מוגדרים` : "· לפי הנתונים באפליקציה"}</span></span>
-      <span class="ph-go">›</span>
-    </button>
-    <button class="plan-hub" id="ph-track">
-      <span class="ms-em">📋</span>
-      <span class="ph-main"><span class="ph-t">בפועל מול תוכנית</span>
-        <span class="ph-s">${trk ? `${trk.months} ח׳ · ${trk.gap >= 0 ? `${fmt(trk.gap)} מעל התוכנית` : `${fmt(-trk.gap)} מתחת לתוכנית`}` : "עדיין לא התחיל מעקב"}</span></span>
-      <span class="ph-go">›</span>
-    </button>
-
-    <h4 class="sub-h" style="margin-top:16px">אבני דרך</h4>
-    ${msRows || emptyState("🗓️", "עדיין אין אבני דרך. שחרור, טיסה, טיול גדול — כל דבר עם תאריך וסכום.")}
-    <button class="btn primary" id="ms-new" style="width:100%;margin-top:10px">+ אבן דרך חדשה</button>
-    ${all.some((m) => m.date >= today) ? `<p class="mut" style="margin-top:10px">אחרי כל אבני הדרך נשארים בתזרים: <b>${fmt(v.end)}</b> · תיק ההשקעות ממשיך לגדול בנפרד</p>` : ""}`);
-
-  $("#ph-invest").onclick = openInvestScreen;
-  $("#ph-flow").onclick = openFlowScreen;
-  $("#ph-track").onclick = openTrackScreen;
-  $("#ms-new").onclick = () => openMsForm();
-  document.getElementById("modal").querySelectorAll("[data-msedit]").forEach((b) => {
-    b.onclick = () => openMsForm(b.dataset.msedit);
-  });
-}
-
-/* ---- monthly flow: measured from real data now, declared in stages for what's coming.
-       a stage is a GROSS income figure — what actually lands in the account — and the
-       expected spend (measured live from the last 6 months, travel included) is deducted
-       automatically, so the user never has to estimate their own net. ---- */
-function openFlowScreen() {
-  const p = pl(), auto = avgMonthlyNet(3), avgOut = avgMonthlyOut(6);
-  const stages = (p.flow || []).slice().sort((a, b) => a.from.localeCompare(b.from));
-  const rows = stages.map((f) => `
-    <div class="tx-item">
-      <span class="tx-main"><div class="tx-name">מ${keyLabel(f.from)}</div><div class="mut num">${fmt(f.amount)} ברוטו · נטו ${fmt(f.amount - avgOut)}</div></span>
-      <button class="btn danger" data-delflow="${f.id}">✕</button>
-    </div>`).join("");
-  const nextMonth = () => { const d = new Date(); d.setMonth(d.getMonth() + 1); return mKey(d.getFullYear(), d.getMonth()); };
-
-  const lastStage = stages[stages.length - 1];
-  const needLine = lastStage ? (() => {
-    const needNet = minFlowNeeded(lastStage.from), needGross = needNet + avgOut;
-    const ok = lastStage.amount >= needGross;
-    return `<div class="plan-verdict ${ok ? "ok" : "warn"}"><span class="pv-em">${ok ? "✓" : "⚠️"}</span>
-      <span>כדי שהתוכנית תחזיק מ<b>${keyLabel(lastStage.from)}</b>, צריך לפחות <b>${fmt(needGross)}</b> ברוטו לחודש (נטו ${fmt(needNet)})${ok ? " — זה מכוסה" : ` — ${fmt(needGross - lastStage.amount)} יותר ממה שהגדרת`}</span></div>`;
-  })() : "";
-
-  modal(`
-    <button class="btn" id="fl-back" style="margin-bottom:8px">‹ חזרה</button>
-    <h3>📊 תזרים חודשי</h3>
-    <p class="sub" style="margin-bottom:10px">עד השלב הראשון התחזית משתמשת במה שנמדד באפליקציה. מהשלב הזה והלאה, תזין כמה ברוטו נכנס לחשבון — וההוצאות יורדות אוטומטית לפי הממוצע שנמדד.</p>
-    <div class="plan-verdict"><span class="pv-em">📐</span>
-      <span>נמדד מהאפליקציה: <b>${fmt(auto)}</b> נטו לחודש${S.tx.length < 5 ? " <span class=\"mut\">(עדיין מעט נתונים)</span>" : ""}</span></div>
-    <div class="plan-verdict"><span class="pv-em">🧾</span>
-      <span>ממוצע הוצאות (6 ח׳ אחרונים, כולל טיולים): <b>${fmt(avgOut)}</b> לחודש — יורד אוטומטית מהברוטו שתזין</span></div>
-    ${rows ? `<h4 class="sub-h">שלבים עתידיים</h4>${rows}` : ""}
-    ${needLine}
-    <div class="field" style="margin-top:12px">
-      <label>שלב חדש</label>
-      <div class="row" style="gap:8px">
-        <input type="month" id="fl-from" value="${nextMonth()}" style="flex:1">
-        <input type="number" id="fl-amount" inputmode="numeric" style="flex:1" placeholder="משכורת ברוטו לחודש (₪)">
-      </div>
-    </div>
-    <button class="btn primary" id="fl-add" style="width:100%">הוספת שלב</button>`);
-
-  $("#fl-back").onclick = openPlanModal;
-  $("#fl-add").onclick = () => {
-    const from = $("#fl-from").value, amount = parseFloat($("#fl-amount").value);
-    if (!from || isNaN(amount)) return;
-    p.flow = (p.flow || []).filter((f) => f.from !== from);
-    p.flow.push({ id: uid(), from, amount });
-    save(); render(); openFlowScreen();
-  };
-  document.getElementById("modal").querySelectorAll("[data-delflow]").forEach((btn) => {
-    btn.onclick = () => {
-      p.flow = p.flow.filter((f) => f.id !== btn.dataset.delflow);
-      save(); render(); openFlowScreen();
-    };
-  });
-}
-
-/* ---- the investment account: it IS the savings account, one pot, and nothing on the
-       timeline touches it. Current balance + planned monthly deposit compound at the average
-       annual return; the milestone timeline only ever draws on the monthly flow. ---- */
-function openInvestScreen() {
-  const p = pl().invest;
-  const years = [1, 3, 5, 10];
-  const fv = investProjection(years[years.length - 1] * 12);
-  const fvRows = years.map((y) => `<div class="row spread"><span class="mut">בעוד ${y === 1 ? "שנה" : `${y} שנים`}</span><b class="num">${fmt(fv[y * 12])}</b></div>`).join("");
-
-  modal(`
-    <button class="btn" id="iv-back" style="margin-bottom:8px">‹ חזרה</button>
-    <h3>📈 תיק ההשקעות</h3>
-    <div class="amount-display" style="margin:6px 0">${fmt(p.balance || 0)}</div>
-    <p class="mut" style="margin:0 0 10px">${investUpdated() ? `עודכן לאחרונה ${dmyY(investUpdated())}` : "עדכן את היתרה כדי שהתחזית תתחיל מנקודה אמיתית"} · לא נוגעים בו בשביל אבני דרך</p>
-    <div class="field">
-      <label>עדכון היתרה הנוכחית (₪)</label>
-      <div class="row" style="gap:8px">
-        <input type="number" id="iv-balance" min="0" inputmode="numeric" style="flex:1" placeholder="היתרה כרגע" value="${p.balance || ""}">
-        <input type="date" id="iv-date" value="${todayISO()}" style="flex:1">
-      </div>
-    </div>
-    <button class="btn primary" id="iv-save-balance" style="width:100%">שמירת יתרה</button>
-    <div class="field" style="margin-top:14px">
-      <label>הפקדה חודשית מתוכננת (₪)</label>
-      <input type="number" id="iv-monthly" min="0" inputmode="numeric" placeholder="0" value="${p.monthly || ""}">
-    </div>
-    <div class="field">
-      <label>תשואה שנתית ממוצעת (%)</label>
-      <input type="number" id="iv-rate" min="0" step="0.1" inputmode="decimal" value="${((p.rate || 0) * 100).toFixed(1)}">
-    </div>
-    <h4 class="sub-h">איפה זה יהיה, בריבית דריבית</h4>
-    ${fvRows}`);
-
-  $("#iv-back").onclick = openPlanModal;
-  $("#iv-save-balance").onclick = () => {
-    const balance = parseFloat($("#iv-balance").value);
-    if (isNaN(balance) || balance < 0) return;
-    p.balance = balance; p.updated = $("#iv-date").value || todayISO();
-    save(); render(); openInvestScreen();
-  };
-  $("#iv-monthly").onchange = () => { p.monthly = Math.max(0, parseFloat($("#iv-monthly").value) || 0); save(); render(); openInvestScreen(); };
-  $("#iv-rate").onchange = () => { p.rate = Math.max(0, parseFloat($("#iv-rate").value) || 0) / 100; save(); render(); openInvestScreen(); };
-}
-
-/* ---- actual against plan: the months already behind us, scored against what the flow
-       stage covering them said they should net ---- */
-function openTrackScreen() {
-  const p = pl(), rows = trackRows(), sum = trackSummary(rows), ct = currentTarget();
-  const lastMonth = () => { const d = new Date(); d.setMonth(d.getMonth() - 1); return mKey(d.getFullYear(), d.getMonth()); };
-
-  const verdict = sum
-    ? `<div class="plan-verdict ${sum.gap >= 0 ? "ok" : "warn"}"><span class="pv-em">${sum.gap >= 0 ? "✓" : "⚠️"}</span>
-       <span>ב-${sum.months} החודשים שנמדדו נכנסו <b>${fmt(sum.actual)}</b> מול תוכנית של ${fmt(sum.plan)} —
-       ${sum.gap >= 0 ? `<b>${fmt(sum.gap)}</b> מעל התוכנית` : `<b>${fmt(-sum.gap)}</b> מתחת לתוכנית`}</span></div>`
-    : `<div class="plan-verdict"><span class="pv-em">📋</span>
-       <span>אין עדיין חודש עם יעד. היעד מגיע משלב תזרים שמכסה את החודש — הוסף שלב שמתחיל בתאריך תחילת המעקב.</span></div>`;
-
-  // the month in progress, after the correction the completed months earned it
-  const targetBlock = ct ? `
-    <h4 class="sub-h">היעד לחודש הזה</h4>
-    <div class="amount-display" style="margin:4px 0">${fmt(ct.target)}</div>
-    <p class="mut" style="margin:0 0 8px">בסיס ${fmt(ct.base)}${Math.round(ct.catchUp) === 0 ? ""
-      : ct.catchUp > 0
-        ? ` + השלמה ${fmt(ct.catchUp)} <span class="mut">(פער של ${fmt(-ct.gap)} נפרס על ${ct.span} ח׳${ct.next ? ` עד ${esc(ct.next.name)}` : ""})</span>`
-        : ` − ${fmt(-ct.catchUp)} <span class="mut">(עודף של ${fmt(ct.gap)} נפרס על ${ct.span} ח׳${ct.next ? ` עד ${esc(ct.next.name)}` : ""})</span>`}</p>
-    ${ct.impossible ? `<div class="plan-verdict warn"><span class="pv-em">⚠️</span>
-      <span>היעד הזה גבוה מכל ההכנסה של החודש — בקצב הזה הפער לא ייסגר עד ${ct.next ? esc(ct.next.name) : "האירוע הבא"}. כדאי להזיז אבן דרך או להגדיל את התזרים.</span></div>` : ""}` : "";
-
-  const list = rows.slice().reverse().map((r) => {
-    const gap = r.plan === null ? null : r.actual - r.plan;
-    return `<div class="tx-item">
-      <span class="tx-main"><div class="tx-name">${r.label}</div>
-        <div class="mut num">${r.plan === null ? "אין יעד לחודש הזה" : `תוכנית ${fmt(r.plan)}`}</div></span>
-      <span class="ms-side">
-        <span class="ms-amt num">${fmt(r.actual)}</span>
-        ${gap === null ? "" : `<span class="ms-left ${gap >= 0 ? "pos" : "neg"}">${gap >= 0 ? "+" : "−"}${fmt(Math.abs(gap))}</span>`}
-      </span>
-    </div>`;
-  }).join("");
-
-  modal(`
-    <button class="btn" id="tr-back" style="margin-bottom:8px">‹ חזרה</button>
-    <h3>📋 בפועל מול תוכנית</h3>
-    <p class="sub" style="margin-bottom:10px">כל חודש שהסתיים, מול הנטו שהשלב שמכסה אותו הבטיח. החודש הנוכחי לא נספר עד שייגמר — אבל היעד שלו כבר נושא את הפער שהצטבר.</p>
-    ${verdict}
-    ${targetBlock}
-    <div class="field" style="margin-top:12px">
-      <label>מעקב מתחיל בחודש</label>
-      <input type="month" id="tr-from" value="${p.trackFrom || lastMonth()}">
-    </div>
-    ${list ? `<h4 class="sub-h">חודש בחודשו</h4>${list}` : ""}`);
-
-  $("#tr-back").onclick = openPlanModal;
-  $("#tr-from").onchange = () => {
-    p.trackFrom = $("#tr-from").value || null;
-    save(); render(); openTrackScreen();
-  };
-}
-
-/* create (no id) or edit (existing id) one dated event on the timeline */
-function openMsForm(id) {
-  const m = id ? msById(id) : null;
-  let dir = (m && m.dir) || "out";
-  // until the icon is picked by hand it follows the direction, so a grant and a flight don't
-  // end up sharing the same default symbol
-  let picked = !!(m && m.icon);
-  const defaultIcon = () => (dir === "in" ? "💰" : "✈️");
-  let icon = (m && m.icon) || defaultIcon();
-  const inSix = () => { const d = new Date(); d.setMonth(d.getMonth() + 6); return d.toISOString().slice(0, 10); };
-
-  const dirBtns = () => [["out", "🎯 הוצאה"], ["in", "💰 הכנסה"]].map(([k, t]) =>
-    `<button type="button" class="btn kind-btn${k === dir ? " primary" : ""}" data-dir="${k}">${t}</button>`).join("");
-  const iconBtns = () => MS_ICONS.map((e) =>
-    `<button type="button" class="icon-sw${e === icon ? " on" : ""}" data-icon="${e}">${e}</button>`).join("");
-
-  modal(`
-    <h3>${m ? "עריכת אבן דרך" : "אבן דרך חדשה"}</h3>
-    <div class="field"><label>סוג</label><div class="btn-row" id="ms-dirs">${dirBtns()}</div></div>
-    <div class="field"><label>שם</label>
-      <input id="mf-name" placeholder="למשל: מענק שחרור, טיסה לרודוס" value="${m ? esc(m.name) : ""}" autocomplete="off"></div>
-    <div class="field"><label>סכום (₪)</label>
-      <input type="number" id="mf-amount" min="0" inputmode="numeric" placeholder="0" value="${m && m.amount ? m.amount : ""}"></div>
-    <div class="field"><label>תאריך</label>
-      <input type="date" id="mf-date" value="${m ? m.date : inSix()}"></div>
-    <p class="mut" style="margin:0 0 4px">${dir === "in" ? "הסכום מצטרף לתזרים של אותו חודש." : "משולם מהתזרים של אותו חודש — לא נוגעים בתיק ההשקעות."}</p>
-    <div class="field"><label>אייקון</label><div class="icon-grid" id="ms-icons">${iconBtns()}</div></div>
-    <div class="btn-row">
-      <button class="btn primary" id="mf-save">שמירה</button>
-      <button class="btn" id="mf-cancel">ביטול</button>
-      ${m ? `<button class="btn danger" id="mf-delete" style="margin-inline-start:auto">מחיקה</button>` : ""}
-    </div>`);
-
-  $("#ms-dirs").onclick = (e) => {
-    const b = e.target.closest("[data-dir]"); if (!b) return;
-    dir = b.dataset.dir;
-    if (!picked) icon = defaultIcon();
-    $("#ms-dirs").innerHTML = dirBtns();
-    $("#ms-icons").innerHTML = iconBtns();
-  };
-  $("#ms-icons").onclick = (e) => {
-    const b = e.target.closest("[data-icon]"); if (!b) return;
-    icon = b.dataset.icon; picked = true; $("#ms-icons").innerHTML = iconBtns();
-  };
-  $("#mf-save").onclick = () => {
-    const name = $("#mf-name").value.trim();
-    const amount = Math.max(0, parseFloat($("#mf-amount").value) || 0);
-    const date = $("#mf-date").value;
-    if (!name || !amount || !date) return;
-    if (m) Object.assign(m, { name, amount, date, dir, icon });
-    else pl().milestones.push({ id: uid(), name, amount, date, dir, icon });
-    save(); render(); openPlanModal();
-  };
-  $("#mf-cancel").onclick = openPlanModal;
-  if (m) $("#mf-delete").onclick = () => confirmDeleteMs(m.id);
-}
-
-function confirmDeleteMs(id) {
-  const m = msById(id); if (!m) return;
-  modal(`
-    <h3>למחוק את "${esc(m.name)}"?</h3>
-    <p class="sub">אבן הדרך תוסר מהתחזית. הפעולה הזו בלתי הפיכה.</p>
-    <div class="btn-row">
-      <button class="btn danger" id="md-yes">מחיקה</button>
-      <button class="btn" id="md-no">ביטול</button>
-    </div>`);
-  $("#md-yes").onclick = () => {
-    pl().milestones = pl().milestones.filter((x) => x.id !== id);
-    save(); render(); openPlanModal();
-  };
-  $("#md-no").onclick = () => openMsForm(id);
-}
-
-document.body.addEventListener("click", (e) => {
-  if (e.target.closest("#plan-open")) openPlanModal();
-  const mr = e.target.closest("[data-ms]");
-  if (mr) openMsForm(mr.dataset.ms);
-});
-
 function renderMonthTx() {
   const m = monthTotals(mYear, mMonth);
   const q = txQuery.trim().toLowerCase();
@@ -2770,101 +2114,6 @@ function renderRecap(m) {
     ${lines.length ? `<div class="rc-lines">${lines.map(([em, t]) => `<div class="rc-line"><span class="em">${em}</span><span>${t}</span></div>`).join("")}</div>` : ""}
   </div>`;
   el.style.display = "";
-}
-
-/* the split of a typical month between daily life, travel and what was left to save —
-   the balance the user actually wants to hold, shown from real data rather than intentions */
-function splitBlock(split) {
-  const total = split ? split.daily + split.travel + split.saved : 0;
-  if (total <= 0) return "";
-  const pct = (v) => (v / total * 100).toFixed(1);
-  const key = (color, label, value) =>
-    `<span><i style="background:${color}"></i>${label} ${fmt(value)}</span>`;
-  return `<h4 class="sub-h">חודש טיפוסי <span class="mut" style="font-weight:500">(${split.months} ח׳ אחרונים)</span></h4>
-    <div class="split-bar">
-      <span style="width:${pct(split.daily)}%;background:var(--c1)"></span>
-      <span style="width:${pct(split.travel)}%;background:var(--c4)"></span>
-      <span style="width:${pct(split.saved)}%;background:var(--good)"></span>
-    </div>
-    <div class="split-key">
-      ${key("var(--c1)", "יומיום", split.daily)}
-      ${key("var(--c4)", "טיולים", split.travel)}
-      ${key("var(--good)", "נשאר לחיסכון", split.saved)}
-    </div>`;
-}
-
-/* ---------- "חיסכון ובקרה" on the month screen: the plan, read-only ----------
-   The question here is not how full each pot is, but whether what comes in carries the
-   events already on the calendar — and whether the savings account keeps growing while
-   daily life and travel happen. Editing lives in the plan modal; rows here open it. */
-function renderPlansSummary() {
-  const el = $("#m-plans"), wrap = $("#c-plan");
-  const p = pl(), today = todayISO();
-  const upcoming = msSorted().filter((m) => m.date >= today);
-  const split = monthSplit(3);
-  const hasPlan = upcoming.length || p.invest.balance > 0 || (p.flow || []).length
-    || p.trackFrom || p.invest.monthly > 0;
-
-  $("#plan-count").textContent = upcoming.length ? `${upcoming.length} אבני דרך` : "";
-  wrap.style.display = (hasPlan || split) ? "" : "none";
-  if (!hasPlan) {
-    el.innerHTML = splitBlock(split) +
-      `<p class="mut" style="margin:12px 0 0">רוצה לדעת אם התוכניות שלך מחזיקות? הגדר אבני דרך ב<b>הגדרות ← תכנון כלכלי</b>.</p>`;
-    return;
-  }
-
-  const rows = projection(), v = planVerdict(rows);
-  const cashAt = (iso) => { const r = rows.find((x) => x.key === iso.slice(0, 7)); return r ? r.cash : null; };
-
-  let verdict = "";
-  if (upcoming.length) {
-    if (v.dry) verdict = `<div class="plan-verdict warn"><span class="pv-em">⚠️</span>
-      <span>לפי התחזית, ב<b>${v.dry.label}</b> התזרים לא מספיק לכסות את אבן הדרך וההפקדה המתוכננת יחד — משהו בתוכנית צריך לזוז</span></div>`;
-    else verdict = `<div class="plan-verdict ok"><span class="pv-em">✓</span>
-      <span>כל אבני הדרך מכוסות מהתזרים — ותיק ההשקעות ממשיך לגדול בלי לגעת בו</span></div>`;
-  }
-
-  // how the months already behind us actually went, and what that does to this month's target
-  const trk = trackSummary(), ct = currentTarget();
-  const trackBlock = trk
-    ? `<div class="plan-verdict ${trk.gap >= 0 ? "ok" : "warn"}"><span class="pv-em">${trk.gap >= 0 ? "📈" : "📉"}</span>
-       <span>מ${trk.from.label}: בפועל <b>${fmt(trk.actual)}</b> מול תוכנית ${fmt(trk.plan)} —
-       ${trk.gap >= 0 ? `${fmt(trk.gap)} מעל` : `${fmt(-trk.gap)} מתחת`} (${trk.months} ח׳)</span></div>`
-    : "";
-  const targetLine = ct
-    ? `<div class="row spread"><span class="mut">היעד לחודש הזה</span>
-       <span><b class="num">${fmt(ct.target)}</b>${Math.round(ct.catchUp) === 0 ? ""
-         : ` <span class="badge ${ct.catchUp > 0 ? "over" : "ok"}">${ct.catchUp > 0 ? `+${fmt(ct.catchUp)} השלמה` : `−${fmt(-ct.catchUp)} עודף`}</span>`}</span></div>`
-    : "";
-
-  const investBlock = p.invest.balance > 0
-    ? `<div class="row spread"><span class="mut">בתיק ההשקעות</span><b class="num">${fmt(investBalance())}</b></div>
-       ${p.invest.monthly > 0 ? `<div class="row spread" style="margin-top:5px"><span class="mut">הפקדה חודשית מתוכננת</span><b class="num">${fmt(p.invest.monthly)}</b></div>` : ""}`
-    : `<p class="mut" style="margin:0 0 6px">עדכן את יתרת תיק ההשקעות בתכנון הכלכלי כדי שהתחזית תתחיל מנקודה אמיתית.</p>`;
-
-  const msRows = upcoming.slice(0, 6).map((m) => {
-    const left = cashAt(m.date);
-    return `<button class="ms-row" data-ms="${m.id}">
-      <span class="ms-em">${m.icon || (m.dir === "in" ? "💰" : "🎯")}</span>
-      <span class="ms-main">
-        <span class="ms-name">${esc(m.name)}</span>
-        <span class="ms-when">${dmyY(m.date)} · ${untilTxt(m.date)}</span>
-      </span>
-      <span class="ms-side">
-        <span class="ms-amt num ${m.dir === "in" ? "in" : ""}">${m.dir === "in" ? "+" : "−"}${fmt(m.amount)}</span>
-        ${left !== null ? `<span class="ms-left${left < 0 ? " neg" : ""}">${left < 0 ? `חסר ${fmt(-left)}` : `נשאר ${fmt(left)}`}</span>` : ""}
-      </span>
-    </button>`;
-  }).join("");
-
-  el.innerHTML = `
-    ${verdict}
-    ${trackBlock}
-    ${targetLine}
-    ${investBlock}
-    ${msRows ? `<h4 class="sub-h">מה מחכה קדימה</h4>${msRows}
-      ${upcoming.length > 6 ? `<p class="mut" style="margin-top:6px">ועוד ${upcoming.length - 6} בתכנון הכלכלי</p>` : ""}` : ""}
-    ${splitBlock(split)}`;
 }
 
 /* ======================== edit modals (tx/fixed/cat) ================= */
